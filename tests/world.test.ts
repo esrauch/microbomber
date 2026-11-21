@@ -89,16 +89,16 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('Ember burns brambles, strips wooden shields, and enforces ordered braziers (I → II → III)', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 3, 1.5, 6.5);
+    const s = newState(world, 'ember-crypt', 1, 3, 3.5, 6.5);
     s.unlockedBombs.push('ember');
     s.slots[0] = 'ember';
 
-    // Burn west bramble at (0, 6) in Crypt Foyer
-    expect(tileAt(world, s, 'ember-crypt', 1, 3, 0, 6)).toBe('B');
+    // Burn inset west bramble at (2, 6) in Crypt Foyer
+    expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('B');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tapB(world, s);
     for (let t = 0; t < EMBER_FUSE + 0.15; t += 0.05) tick(world, s, idle, 0.05);
-    expect(tileAt(world, s, 'ember-crypt', 1, 3, 0, 6)).toBe('.');
+    expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('.');
 
     // Ordered braziers in Hall of Three Flames (0, 2): (2,9)=1, (2,2)=2, (8,2)=3
     enterRoom(world, s, 'ember-crypt', 0, 2, 3.5, 2.5);

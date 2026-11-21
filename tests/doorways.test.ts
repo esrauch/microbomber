@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { idle } from './input';
+import { idle, tapB } from './input';
 import {
+  EMBER_FUSE,
   ROOM_H,
   ROOM_W,
   type State,
@@ -146,5 +147,28 @@ describe('doorways and hazards', () => {
     tick(world, s, idle, DT);
     expect(s.hp).toBe(s.maxHp);
     expect(s.projectiles).toHaveLength(0);
+  });
+
+  it('walking East from Bramble Crypt enters Crypt Foyer doorway, blocked by inset shrubbery until burned', () => {
+    const world = campaignWorld();
+    const s = newState(world, 'ember-crypt', 0, 3, 9.2, 6.5);
+    s.enemies = [];
+    s.unlockedBombs.push('ember');
+    s.slots[0] = 'ember';
+
+    // Cross East into Crypt Foyer (1, 3)
+    expect(walk(world, s, 1, 0, 1.5)).toBe(true);
+    expect([s.rx, s.ry]).toEqual([1, 3]);
+
+    // Stopped inside the West doorway tunnel by the inset shrubbery at x = 2
+    walk(world, s, 1, 0, 1.0);
+    expect(s.x).toBeLessThan(2.0);
+
+    // Drop an Ember Bomb in the doorway to burn through (2, 6), then walk into the foyer!
+    s.bombCooldown = 0;
+    tapB(world, s);
+    for (let t = 0; t < EMBER_FUSE + 0.15; t += DT) tick(world, s, idle, DT);
+    walk(world, s, 1, 0, 1.0);
+    expect(s.x).toBeGreaterThan(3.0);
   });
 });
