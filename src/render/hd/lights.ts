@@ -88,7 +88,20 @@ export function computeLighting(
   };
 
   for (const t of s.torches) {
-    if (!t.lit) continue;
+    if (!t.lit) {
+      // In a dark room an unlit brazier keeps a faint ember glow, so the targets are findable
+      if (room?.dark) {
+        add({
+          x: (t.x + 0.5) * TILE,
+          y: (t.y + 0.4) * TILE,
+          z: 10,
+          radius: 30,
+          color: FIRE,
+          intensity: 0.85 + 0.15 * Math.sin(time * 2.4 + t.x + t.y),
+        });
+      }
+      continue;
+    }
     add({
       x: (t.x + 0.5) * TILE,
       y: (t.y + 0.2) * TILE,

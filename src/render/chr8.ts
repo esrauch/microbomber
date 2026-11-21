@@ -58,7 +58,9 @@ export interface BlobKit {
   outerNW: Chr8;
   innerNW: Chr8;
   /** Optional symmetric flip override when shading has a top-down light direction:
-   *  if provided, South edges use `edgeS` / `outerSW` / `innerSW` instead of `fV(edgeH)`. */
+   *  if provided, South halves/edges use dedicated subtiles instead of `fV(...)`. */
+  fullS?: Chr8;
+  edgeVS?: Chr8;
   edgeS?: Chr8;
   outerSW?: Chr8;
   innerSW?: Chr8;
@@ -101,6 +103,8 @@ export function resolveBlobTile(kit: BlobKit, nb: NeighbourMask): BgTile {
             : fH(kit.full);
 
   // Bottom-left quadrant (S, W, SW) — uses dedicated south shading if provided
+  const fullS = kit.fullS ?? fV(kit.full);
+  const edgeVS = kit.edgeVS ?? fV(kit.edgeV);
   const edgeS = kit.edgeS ?? fV(kit.edgeH);
   const outerSW = kit.outerSW ?? fV(kit.outerNW);
   const innerSW = kit.innerSW ?? fV(kit.innerNW);
@@ -110,10 +114,10 @@ export function resolveBlobTile(kit: BlobKit, nb: NeighbourMask): BgTile {
       : !nb.s && nb.w
         ? edgeS
         : nb.s && !nb.w
-          ? fV(kit.edgeV)
+          ? edgeVS
           : !nb.sw
             ? innerSW
-            : fV(kit.full);
+            : fullS;
 
   // Bottom-right quadrant (S, E, SE)
   const br: Chr8 =
@@ -122,10 +126,10 @@ export function resolveBlobTile(kit: BlobKit, nb: NeighbourMask): BgTile {
       : !nb.s && nb.e
         ? fH(edgeS)
         : nb.s && !nb.e
-          ? fHV(kit.edgeV)
+          ? fH(edgeVS)
           : !nb.se
             ? fH(innerSW)
-            : fHV(kit.full);
+            : fH(fullS);
 
   return composeBg([tl, tr, bl, br], [kit.pal, kit.pal, kit.pal, kit.pal]);
 }

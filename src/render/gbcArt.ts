@@ -15,6 +15,7 @@ export {
   type BgTileName,
   CRYPT_FLOOR_BLOB,
   PATH_BLOB,
+  THICKET_BLOB,
   PIT_BLOB,
   STAMP_DEFS,
   type StampTilePlacement,

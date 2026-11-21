@@ -152,11 +152,14 @@ const CRYPT_FLOOR_BASE = rgb555(96, 80, 120);
 export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
   overworld: makeZoneBgPalettes(
     // 0: sunlit grass tuft, 1: meadow base, 2: warm cobble/dirt path, 3: deep pine rim
-    [rgb555(168, 232, 96), OW_GRASS_BASE, rgb555(216, 176, 112), rgb555(40, 104, 40)],
+    // The path is a quiet, desaturated earth so Pip's amber hood stands out on it
+    [rgb555(168, 232, 96), OW_GRASS_BASE, rgb555(196, 172, 132), rgb555(40, 104, 40)],
     // 0: sunlit limestone brow, 1: highland cliff face, 2: rock shadow, 3: deep umber crease
     [rgb555(216, 200, 152), rgb555(152, 136, 96), rgb555(96, 80, 56), rgb555(40, 32, 28)],
     // 0: grass ground, 1: sunlit tree crown, 2: rich canopy leaf, 3: deep forest bark/pine
-    [OW_GRASS_BASE, rgb555(168, 232, 88), rgb555(48, 136, 48), rgb555(24, 56, 32)],
+    // Canopy sits below the grass in value, so tree walls frame the playfield instead of
+    // out-shouting it
+    [OW_GRASS_BASE, rgb555(88, 152, 72), rgb555(40, 108, 56), rgb555(20, 48, 36)],
   ),
   'ember-crypt': makeZoneBgPalettes(
     // 0: stone highlight, 1: matte crypt flagstone, 2: recessed trim, 3: deep mortar/abyss

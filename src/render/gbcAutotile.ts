@@ -31,6 +31,7 @@ import {
   CRYPT_FLOOR_BLOB,
   type NeighbourMask,
   PATH_BLOB,
+  THICKET_BLOB,
   PIT_BLOB,
   STAMP_DEFS,
   WATER_BLOB,
@@ -129,6 +130,17 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
 
   // Authentic LADX / Oracle 2-wide vertical column-run tree tiling (`Top -> Ovl* -> Bot`)
   // with deterministic canopy & gnarled root-flare variants so tree borders never rubber-stamp!
+  // Oracle-style forest walls: trees in the two-column side borders render as one seamless
+  // thicket; round trees are kept for the top, bottom and interior
+  const isSideBandCell = (x: number, y: number): boolean =>
+    y >= 0 && y < ROOM_H && at(x, y) === 'Y' && !stampedSolid.has(`${x},${y}`);
+  const isSideThicket = (x: number, y: number): boolean => {
+    if (isCrypt || x < 0 || x >= ROOM_W || y < 0 || y >= ROOM_H) return false;
+    if (x <= 1) return isSideBandCell(0, y) && isSideBandCell(1, y);
+    if (x >= ROOM_W - 2) return isSideBandCell(ROOM_W - 2, y) && isSideBandCell(ROOM_W - 1, y);
+    return false;
+  };
+
   const treeMap = new Map<string, { tile: BgTile; overhead: boolean }>();
   if (!isCrypt) {
     const claimedCol = new Set<string>();
@@ -139,6 +151,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       y < ROOM_H &&
       !claimedCol.has(`${x},${y}`) &&
       !stampedSolid.has(`${x},${y}`) &&
+      !isSideThicket(x, y) &&
       at(x, y) === 'Y';
 
     const topCrowns = [
@@ -199,6 +212,13 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       }
     }
   }
+
+  const isThicket = (x: number, y: number): boolean => {
+    if (isCrypt) return false;
+    if (x < 0 || x >= ROOM_W || y < 0 || y >= ROOM_H) return true; // continues off-screen
+    if (at(x, y) !== 'Y' || stampedSolid.has(`${x},${y}`)) return false;
+    return isSideThicket(x, y) || !treeMap.has(`${x},${y}`);
+  };
 
   const ground: PlacedTile[] = [];
   const decals: PlacedTile[] = [];
@@ -374,7 +394,8 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         }
 
         if (t === '.' && !apronCells.has(key)) {
-          if (isRealTree(x, y - 1)) {
+          // The thicket has its own rim; only round trees get meadow trims
+          if (isRealTree(x, y - 1) && !isThicket(x, y - 1)) {
             decals.push({
               x,
               y,
@@ -383,10 +404,10 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
               topShadow: castShadow,
             });
           }
-          if (isRealTree(x - 1, y)) {
+          if (isRealTree(x - 1, y) && !isThicket(x - 1, y)) {
             decals.push({ x, y, tile: BG.forestEdgeW, transparentZero: true });
           }
-          if (isRealTree(x + 1, y)) {
+          if (isRealTree(x + 1, y) && !isThicket(x + 1, y)) {
             decals.push({ x, y, tile: BG.forestEdgeE, transparentZero: true });
           }
         }
@@ -448,6 +469,11 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       }
 
       // --- 3. Trees (`Y`) ---
+      if (t === 'Y' && isThicket(x, y)) {
+        const nb = makeMask((dx, dy) => isThicket(x + dx, y + dy));
+        ground.push({ x, y, tile: resolveBlobTile(THICKET_BLOB, nb) });
+        continue;
+      }
       if (t === 'Y') {
         const paired = treeMap.get(key);
         if (paired) {

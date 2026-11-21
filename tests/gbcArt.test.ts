@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { campaignWorld, newState, tileAt } from '../src/game/world';
+import { ROOM_W, campaignWorld, newState, tileAt } from '../src/game/world';
 import {
   BG,
   CRYPT_FLOOR_BLOB,
@@ -7,6 +7,7 @@ import {
   PATH_BLOB,
   PIT_BLOB,
   STAMP_DEFS,
+  THICKET_BLOB,
   WATER_BLOB,
   resolveBlobTile,
 } from '../src/render/gbcArt';
@@ -56,7 +57,7 @@ describe('GBC colour and multi-tile rules', () => {
   });
 
   it('generates valid 16x16 tiles across all 256 8-neighbour blob masks and scalloped water seams', () => {
-    for (const kit of [WATER_BLOB, PIT_BLOB, PATH_BLOB, CRYPT_FLOOR_BLOB]) {
+    for (const kit of [WATER_BLOB, PIT_BLOB, PATH_BLOB, THICKET_BLOB, CRYPT_FLOOR_BLOB]) {
       for (let mask = 0; mask < 256; mask++) {
         const t = resolveBlobTile(kit, {
           n: Boolean(mask & 1),
@@ -191,39 +192,30 @@ describe('GBC colour and multi-tile rules', () => {
     );
   });
 
-  it('varies 2x2 tree canopies/trunks without adjacent repetition and places forest-edge trims', () => {
+  it('frames side borders as a seamless thicket and varies the round trees along the top', () => {
     const world = campaignWorld();
-    // Bramble Woods has a 10-wide north tree border (x=0..9, y=0..1) and multi-row side borders
+    // Bramble Woods: a north tree border (y = 0..1) and two-column side borders
     const woodsState = newState(world, 'overworld', 3, 3, 5.5, 6.5);
     const plan = buildRoomLayout(world, woodsState);
-
     const allTreeTiles = [...plan.props, ...plan.overhead];
-    const usedCrownW = new Set(
-      [0, 2, 4, 6, 8].map((x) => allTreeTiles.find((p) => p.x === x && p.y === 0)?.tile),
-    );
-    expect(usedCrownW.size).toBeGreaterThanOrEqual(3);
 
-    // Adjacent 2x2 tree columns along y=0 never repeat the same NW crown
-    for (const x of [0, 2, 4, 6]) {
-      const left = allTreeTiles.find((p) => p.x === x && p.y === 0)?.tile;
-      const right = allTreeTiles.find((p) => p.x === x + 2 && p.y === 0)?.tile;
-      expect(left).toBeDefined();
-      expect(left).not.toBe(right);
+    // Round trees along the top, between the side bands, never repeat the adjacent crown
+    const crowns = [2, 4, 6].map((x) => allTreeTiles.find((p) => p.x === x && p.y === 0)?.tile);
+    for (const c of crowns) expect(c).toBeDefined();
+    expect(crowns[0]).not.toBe(crowns[1]);
+    expect(crowns[1]).not.toBe(crowns[2]);
+    expect(allTreeTiles.some((p) => p.tile === BG.treeSW || p.tile === BG.treeSW_B)).toBe(true);
+
+    // Side-band trees are thicket ground tiles, not round trees
+    for (const x of [0, 1, ROOM_W - 2, ROOM_W - 1]) {
+      expect(allTreeTiles.some((p) => p.x === x && p.y === 6)).toBe(false);
+      expect(plan.ground.some((p) => p.x === x && p.y === 6)).toBe(true);
     }
 
-    // Both trunk variants (treeSW and treeSW_B) and middle overlap variants appear
-    expect(allTreeTiles.some((p) => p.tile === BG.treeSW)).toBe(true);
-    expect(allTreeTiles.some((p) => p.tile === BG.treeSW_B)).toBe(true);
-    expect(
-      allTreeTiles.some(
-        (p) => p.tile === BG.treeOvlW || p.tile === BG.treeOvlW_B || p.tile === BG.treeOvlW_C,
-      ),
-    ).toBe(true);
-
-    // Forest-edge trims blend meadow '.' cells into N, W, and E tree borders
+    // Meadow trims only along round trees; the thicket's own rim covers the sides
     expect(plan.decals.some((d) => d.tile === BG.forestEdgeN)).toBe(true);
-    expect(plan.decals.some((d) => d.tile === BG.forestEdgeW)).toBe(true);
-    expect(plan.decals.some((d) => d.tile === BG.forestEdgeE)).toBe(true);
+    expect(plan.decals.some((d) => d.tile === BG.forestEdgeW)).toBe(false);
+    expect(plan.decals.some((d) => d.tile === BG.forestEdgeE)).toBe(false);
   });
 
   it('places subtle crypt flagstone variants and the crack, moss and rug decals without overlapping mechanics', () => {
