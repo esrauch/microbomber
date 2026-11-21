@@ -303,15 +303,9 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         ground.push({ x, y, tile: resolveBlobTile(WATER_BLOB, nb) });
         const pureInterior =
           t === '~' && nb.n && nb.s && nb.e && nb.w && nb.nw && nb.ne && nb.sw && nb.se;
+        // Shorelines stay calm (no shimmer decals): only the open interior animates
         if (pureInterior) {
           interiorWater.push([x, y]);
-        } else if (t === '~' && ((nb.n && nb.s) || (nb.e && nb.w))) {
-          const wh = cellHash(x, y, s.rx, s.ry) & 3;
-          if (wh === 1) {
-            decals.push({ x, y, tile: BG.waterShimmerA, transparentZero: true });
-          } else if (wh === 2) {
-            decals.push({ x, y, tile: BG.waterShimmerB, transparentZero: true });
-          }
         }
       } else if (isPitLike(x, y)) {
         const nb = makeMask((dx, dy) => isPitLike(x + dx, y + dy));
@@ -414,19 +408,9 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const dh = cellHash(x + 11, y + 23, s.rx, s.ry) & 31;
         const nearWall = x === 2 || x === ROOM_W - 3 || y === 2 || y === ROOM_H - 3;
         const nearCorner = (x === 2 || x === ROOM_W - 3) && (y === 2 || y === ROOM_H - 3);
-        const nearTorch = Boolean(
-          room?.torches?.some((tr) => Math.abs(tr.x - x) + Math.abs(tr.y - y) === 1),
-        );
 
-        if (nearTorch && (dh & 3) === 0) {
-          decals.push({
-            x,
-            y,
-            tile: BG.cryptDecalScorch,
-            transparentZero: true,
-            topShadow: castShadow,
-          });
-        } else if (nearCorner && (dh & 1) === 0) {
+        // No scorch decals: at this size they read as dirt or spiders, not burns
+        if (nearCorner && (dh & 1) === 0) {
           decals.push({
             x,
             y,
@@ -446,8 +430,6 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
           decals.push({ x, y, tile: BG.cryptDecalRug, transparentZero: true });
         } else if (!nearWall && (dh === 5 || dh === 19)) {
           decals.push({ x, y, tile: BG.cryptDecalCrack, transparentZero: true });
-        } else if (!nearWall && dh === 11) {
-          decals.push({ x, y, tile: BG.cryptDecalScorch, transparentZero: true });
         }
       }
 

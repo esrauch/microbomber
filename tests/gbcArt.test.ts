@@ -226,7 +226,7 @@ describe('GBC colour and multi-tile rules', () => {
     expect(plan.decals.some((d) => d.tile === BG.forestEdgeE)).toBe(true);
   });
 
-  it('places subtle crypt flagstone variants and all 4 crypt floor decals without overlapping mechanics', () => {
+  it('places subtle crypt flagstone variants and the crack, moss and rug decals without overlapping mechanics', () => {
     const world = campaignWorld();
     const seenGroundVars = new Set<typeof BG.cryptFloorVarA>();
     const seenDecals = new Set<typeof BG.cryptDecalCrack>();
@@ -261,7 +261,8 @@ describe('GBC colour and multi-tile rules', () => {
     expect(seenGroundVars.has(BG.cryptFloorVarB)).toBe(true);
     expect(seenDecals.has(BG.cryptDecalCrack)).toBe(true);
     expect(seenDecals.has(BG.cryptDecalMoss)).toBe(true);
-    expect(seenDecals.has(BG.cryptDecalScorch)).toBe(true);
+    // Scorch marks read as dirt or spiders at this size, so they are never placed
+    expect(seenDecals.has(BG.cryptDecalScorch)).toBe(false);
     expect(seenDecals.has(BG.cryptDecalRug)).toBe(true);
   });
 

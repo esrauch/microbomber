@@ -110,23 +110,25 @@ float wallAt(vec2 px) {
     return texture(uWall, p / uFrameSize).r;
 }
 
-float solidSpriteAt(vec2 px) {
-    vec4 a = auxAt(px);
-    return a.a > 0.5 && a.g < 0.2 ? 1.0 : 0.0;
-}
-
 void main(void)
 {
     vec4 albedo = texture(uTexture, vTextureCoord);
     vec2 px = vTextureCoord * uInputSize.xy;
     vec4 aux = auxAt(px);
 
-    float h0 = heightAt(px);
-    float hl = heightAt(px + vec2(-1.0, 0.0));
-    float hr = heightAt(px + vec2(1.0, 0.0));
-    float hu = heightAt(px + vec2(0.0, -1.0));
-    float hd = heightAt(px + vec2(0.0, 1.0));
-    vec3 n = normalize(vec3((hl - hr) * 2.2, (hu - hd) * 2.2, 1.0));
+    // Normals only where hand-tuned (heroes): tiles and props keep their own pixel shading,
+    // so luminance noise is never re-lit into mud
+    bool hero = aux.a > 0.5 && aux.b > 0.49;
+    vec3 n = vec3(0.0, 0.0, 1.0);
+    float h0 = 0.0;
+    if (hero) {
+        h0 = heightAt(px);
+        float hl = heightAt(px + vec2(-1.0, 0.0));
+        float hr = heightAt(px + vec2(1.0, 0.0));
+        float hu = heightAt(px + vec2(0.0, -1.0));
+        float hd = heightAt(px + vec2(0.0, 1.0));
+        n = normalize(vec3((hl - hr) * 2.2, (hu - hd) * 2.2, 1.0));
+    }
     vec3 surface = vec3(px, h0 * 6.0);
 
     vec3 light = uAmbient + uSunColor * max(dot(n, normalize(uSunDir)), 0.0);
@@ -137,32 +139,19 @@ void main(void)
         vec3 toLight = lp.xyz - surface;
         float att = clamp(1.0 - length(toLight.xy) / lp.w, 0.0, 1.0);
         att *= att;
-        float diffuse = max(dot(n, normalize(toLight)), 0.0) * 0.75 + 0.25;
+        float diffuse = hero ? max(dot(n, normalize(toLight)), 0.0) * 0.75 + 0.25 : 1.0;
         light += lc.rgb * lc.a * att * diffuse;
     }
 
-    // Wall-base & actor/bomb contact shadows on walkable floor pixels
-    float ao = 1.0;
-    if (aux.a < 0.5 && wallAt(px) < 0.5) {
-        float lx = mod(px.x, 16.0);
+    // Crisp, sparse shadows: a hard 2 px strip on floor right under a wall base; walls a step
+    // darker than floors; actors keep their own flat sprite blob shadows
+    float shade = 1.0;
+    bool onWall = wallAt(px) > 0.5;
+    if (onWall && aux.a < 0.5) {
+        shade = uGrade.w;
+    } else if (aux.a < 0.5) {
         float ly = mod(px.y, 16.0);
-        float wallN = wallAt(vec2(px.x, px.y - ly - 1.0)) * (1.0 - smoothstep(0.0, 4.5, ly)) * 0.26;
-        float wallW = wallAt(vec2(px.x - lx - 1.0, px.y)) * (1.0 - smoothstep(0.0, 3.0, lx)) * 0.14;
-        float wallS = wallAt(vec2(px.x, px.y + (16.0 - ly) + 0.5)) * smoothstep(14.0, 16.0, ly) * 0.08;
-        float hu2 = heightAt(px + vec2(0.0, -2.0));
-        float hu4 = heightAt(px + vec2(0.0, -4.0));
-        float ridge = smoothstep(0.22, 0.46, max(hu2 - h0, (hu4 - h0) * 0.75)) * 0.20;
-
-        float contact =
-            solidSpriteAt(px + vec2(0.0, -1.0)) * 0.34 +
-            solidSpriteAt(px + vec2(-1.0, -1.0)) * 0.18 +
-            solidSpriteAt(px + vec2(1.0, -1.0)) * 0.14 +
-            solidSpriteAt(px + vec2(0.0, -2.0)) * 0.18 +
-            solidSpriteAt(px + vec2(-1.0, -2.0)) * 0.09 +
-            solidSpriteAt(px + vec2(0.0, -3.0)) * 0.07;
-
-        float occ = max(max(wallN, wallW + wallS), max(ridge, clamp(contact, 0.0, 1.0) * 0.26));
-        ao = clamp(1.0 - occ, 0.72, 1.0);
+        if (ly < 2.0 && wallAt(vec2(px.x, px.y - ly - 1.0)) > 0.5) shade = 0.72;
     }
 
     // Flames, blasts, sparks, fuse tips and unlocked warp/seal pads emit their own light
@@ -176,15 +165,12 @@ void main(void)
             emissive = max(emissive, ring * pad.w * smoothstep(0.22, 0.62, luma(albedo.rgb)));
         }
     }
-    ao = mix(ao, 1.0, emissive);
+    shade = mix(shade, 1.0, emissive);
     light = max(light, vec3(1.15 * emissive));
 
-    // Chromatic zone-ink shadow blending so shaded faces & contact shadows never turn dull grey
-    float lightLuma = luma(light);
-    float shadowAmt = clamp(1.0 - lightLuma * ao, 0.0, 1.0) * (1.0 - emissive);
-    float inkVis = smoothstep(0.02, 0.26, lightLuma);
-    vec3 inkTarget = (uShadowInk + albedo.rgb * 0.18) * inkVis;
-    vec3 c = mix(albedo.rgb * light * ao, inkTarget, shadowAmt * 0.55);
+    // Plain multiply keeps the art's own colours; only near-black gets a faint zone-ink lift
+    vec3 c = albedo.rgb * light * shade;
+    c += uShadowInk * 0.12 * (1.0 - clamp(luma(light), 0.0, 1.0));
 
     float l = luma(c);
     c = mix(vec3(l), c, uGrade.x);
@@ -560,7 +546,8 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       u.uSunColor.set(lighting.sunColor);
       u.uShadowInk.set(lighting.shadowInk);
       const crypt = s.zone === 'ember-crypt';
-      u.uGrade.set(crypt ? [1.08, 1.1, 0.5, 0] : [1.12, 1.06, 0.5, 0]);
+      // saturation, contrast (neutral), tint mix, wall shade
+      u.uGrade.set(crypt ? [1.04, 1.0, 0.35, 0.74] : [1.06, 1.0, 0.35, 1.0]);
       u.uTint.set(crypt ? [0.95, 0.92, 1.08] : [1.05, 1.0, 0.92]);
       u.uLightCount = lighting.lights.length;
       lighting.lights.forEach((l, i) => {

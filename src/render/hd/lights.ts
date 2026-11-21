@@ -71,12 +71,14 @@ export function computeLighting(
   const crypt = s.zone === 'ember-crypt';
   const darkUnlit = Boolean(room?.dark) && !isRoomLit(world, s);
 
+  // Flat surfaces land near 1.0 outdoors (the art as authored), ~0.65 in the crypt so torch
+  // pools read as the light, and near black in an unlit dark room
   const ambient: Rgb3 = darkUnlit
-    ? [0.05, 0.05, 0.09]
+    ? [0.08, 0.08, 0.13]
     : crypt
-      ? [0.36, 0.32, 0.44]
-      : [0.48, 0.5, 0.54];
-  const sunColor: Rgb3 = crypt || darkUnlit ? [0.12, 0.1, 0.16] : [0.72, 0.66, 0.52];
+      ? [0.6, 0.56, 0.68]
+      : [0.8, 0.82, 0.84];
+  const sunColor: Rgb3 = crypt || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.3, 0.26];
   const sunDir: Rgb3 = crypt || darkUnlit ? [-0.45, -0.62, 0.64] : [-0.52, -0.64, 0.56];
   const shadowInk = zoneShadowInk(s.zone);
 
@@ -91,9 +93,9 @@ export function computeLighting(
       x: (t.x + 0.5) * TILE,
       y: (t.y + 0.2) * TILE,
       z: 18,
-      radius: crypt ? 78 : 56,
+      radius: crypt ? 92 : 56,
       color: WARM,
-      intensity: 1.15 * flicker(time, t.x * 13 + t.y),
+      intensity: (crypt ? 0.95 : 0.6) * flicker(time, t.x * 13 + t.y),
     });
   }
   for (const f of s.fires) {
@@ -167,7 +169,7 @@ export function computeLighting(
   }
   if (room?.dark) {
     // Pip's lantern: a clean moon-ivory pool so dark-room flagstones keep their true hues
-    add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 44, color: LANTERN, intensity: 0.92 });
+    add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 58, color: LANTERN, intensity: 1.05 });
   }
 
   // Keep the lights nearest Pip when there are too many for the shader
