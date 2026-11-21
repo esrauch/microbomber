@@ -53,7 +53,7 @@ describe('doorways and hazards', () => {
           }
           enterRoom(world, s, room.zone, room.rx, room.ry, ex + 0.5, ey + 0.5);
           const t = tileAt(world, s, s.zone, s.rx, s.ry, ex, ey);
-          if (t !== '.' && t !== 'O' && t !== '>') continue;
+          if (t !== '.' && t !== ':' && t !== '_' && t !== 'O' && t !== '>') continue;
           s.enemies = [];
 
           const label = `${room.name} -> ${side.dx},${side.dy} at ${i}`;
@@ -94,7 +94,7 @@ describe('doorways and hazards', () => {
   it('a closed shutter slams behind you: you land inside the room and cannot walk back out', () => {
     const world = campaignWorld();
     // Sanctum Ante-Room (0,1) north through the boss door into the Sanctum of Ash (0,0)
-    const s = newState(world, 'ember-crypt', 0, 1, 4.5, 2.5);
+    const s = newState(world, 'ember-crypt', 0, 1, 5.5, 2.5);
     s.hasBossKey = true;
     expect(walk(world, s, 0, -1, 3)).toBe(true);
     expect([s.rx, s.ry]).toEqual([0, 0]);
@@ -106,10 +106,10 @@ describe('doorways and hazards', () => {
 
   it('knockback can shove you into a pit, which costs a half-heart even while invulnerable', () => {
     const world = campaignWorld();
-    // Cinder Trail (3,4): pits along row 2; a blast just north pushes south into them
-    const s = newState(world, 'overworld', 3, 4, 4.5, 1.6);
+    // Cinder Trail (3,4): pits along row 3; a blast just north pushes south into them
+    const s = newState(world, 'overworld', 3, 4, 5.5, 2.6);
     s.invulnTimer = 1;
-    s.bombs.push({ id: 999, kind: 'powder', x: 4.5, y: 0.9, fuse: 0.01, graceOverlap: false });
+    s.bombs.push({ id: 999, kind: 'powder', x: 5.5, y: 1.9, fuse: 0.01, graceOverlap: false });
     for (let i = 0; i < 60; i++) tick(world, s, idle, DT);
     expect(s.hp).toBe(s.maxHp - 1);
     expect([s.x, s.y]).toEqual([s.entryX, s.entryY]);
@@ -117,8 +117,8 @@ describe('doorways and hazards', () => {
 
   it('a crystal barrier rising under you does not trap you', () => {
     const world = campaignWorld();
-    // Crystal Crossroads (1,2): a blue barrier at (4,7), raised while the crystal is blue
-    const s = newState(world, 'ember-crypt', 1, 2, 4.5, 7.5);
+    // Crystal Crossroads (1,2): a blue barrier at (5,8), raised while the crystal is blue
+    const s = newState(world, 'ember-crypt', 1, 2, 5.5, 8.5);
     s.crystalColor = 'blue';
     s.enemies = [];
     const x0 = s.x;
@@ -136,7 +136,7 @@ describe('doorways and hazards', () => {
 
   it('a projectile knockout respawns you with no projectiles following you', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 3, 4.5, 5.5);
+    const s = newState(world, 'ember-crypt', 1, 3, 5.5, 6.5);
     s.enemies = [];
     s.hp = 1;
     s.projectiles = [

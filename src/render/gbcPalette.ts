@@ -1,15 +1,11 @@
 /**
- * Game Boy Color palette rules, as Oracle of Ages used them (`GAME.md` art direction).
+ * Game Boy Color palette rules (`ASSETS.md` §1.3):
  *
- * - Colours are 15-bit RGB555: 5 bits per channel.
- * - Sprites (OBJ): 8 palettes of 3 colours plus transparent. Every sprite (each 8px
- *   column of a wide one) uses exactly one of them; damage flashes and enemy variants
- *   are palette swaps, never new art.
+ * - Colours are 15-bit RGB555: 5 bits per channel (`isRgb555`).
  * - Background (BG): 8 palettes of 4 opaque colours per zone. Each 8x8 quarter of a
- *   16x16 tile uses exactly one of them.
- *
- * Index order follows the hardware convention: higher index = darker. Sprite pixels
- * are '.' (transparent) or '1'..'3'; background pixels are '0'..'3'.
+ *   16x16 tile uses one BG palette (`quads: [TL, TR, BL, BR]`), with chromatic darks
+ *   on terrain so ink-outlined sprites pop cleanly off painted rooms.
+ * - Sprites (OBJ): 8 palettes of 6 colours plus transparent ('.' transparent, '1'..'6').
  */
 import type { ZoneId } from '../game/types';
 
@@ -34,74 +30,141 @@ const INK = rgb555(24, 20, 32);
 
 export const OBJ_PALETTE_IDS = [
   'pip',
-  'slate',
+  'powder',
   'fire',
-  'red',
   'green',
   'violet',
-  'gold',
   'spectral',
+  'villager',
+  'crimson',
 ] as const;
 export type ObjPaletteId = (typeof OBJ_PALETTE_IDS)[number];
 
-/** The 8 sprite palettes: [light, mid, dark] for indices 1..3 (index 0 is transparent). */
-export const OBJ_PALETTES: Record<ObjPaletteId, readonly [Rgb, Rgb, Rgb]> = {
-  pip: [rgb555(248, 208, 160), rgb555(48, 120, 232), INK],
-  slate: [rgb555(232, 240, 248), rgb555(96, 112, 160), INK],
-  fire: [rgb555(248, 232, 96), rgb555(240, 120, 32), rgb555(136, 24, 24)],
-  red: [rgb555(248, 192, 184), rgb555(224, 48, 48), INK],
-  green: [rgb555(168, 240, 112), rgb555(48, 168, 64), INK],
-  violet: [rgb555(216, 176, 248), rgb555(136, 72, 200), INK],
-  gold: [rgb555(248, 216, 88), rgb555(168, 96, 40), INK],
-  spectral: [rgb555(232, 248, 248), rgb555(96, 192, 240), rgb555(24, 56, 120)],
+export type ObjPalette = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
+
+/** 8 sprite palettes of 6 RGB555 colours each (indices '1'..'6'; '.' is transparent). */
+export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
+  pip: [
+    rgb555(240, 248, 248), // 1: goggle cyan-white glint
+    rgb555(248, 216, 72), // 2: brass goggles & buckle
+    rgb555(248, 208, 160), // 3: peach skin
+    rgb555(224, 120, 24), // 4: alchemist amber hood
+    rgb555(48, 128, 232), // 5: cobalt sapper tunic
+    INK, // 6: ink outline
+  ],
+  powder: [
+    rgb555(248, 248, 240), // 1: white-hot spark & specular
+    rgb555(248, 176, 48), // 2: live gold fuse spark
+    rgb555(168, 184, 208), // 3: steel fuse collar
+    rgb555(80, 96, 144), // 4: slate iron sheen
+    rgb555(40, 48, 72), // 5: cast-iron bomb body
+    INK, // 6: ink outline
+  ],
+  fire: [
+    rgb555(248, 248, 240), // 1: incandescent white core
+    rgb555(248, 224, 72), // 2: bright flame yellow
+    rgb555(248, 136, 32), // 3: blaze orange
+    rgb555(224, 48, 40), // 4: ruby flask / hot red
+    rgb555(136, 24, 32), // 5: deep ember shadow
+    INK, // 6: ink outline
+  ],
+  green: [
+    rgb555(248, 248, 240), // 1: specular glint
+    rgb555(184, 240, 96), // 2: sunlit lime / thorn tip
+    rgb555(64, 192, 80), // 3: emerald slime / vine
+    rgb555(40, 112, 48), // 4: deep briar moss
+    rgb555(224, 64, 48), // 5: glowing boss eye / berry accent
+    INK, // 6: ink outline
+  ],
+  violet: [
+    rgb555(248, 248, 240), // 1: white highlight
+    rgb555(248, 216, 72), // 2: glowing amber eye
+    rgb555(208, 152, 248), // 3: pale lavender
+    rgb555(136, 64, 208), // 4: royal phantom violet
+    rgb555(72, 32, 120), // 5: deep crypt plum
+    INK, // 6: ink outline
+  ],
+  spectral: [
+    rgb555(240, 248, 248), // 1: ghostly white
+    rgb555(248, 216, 88), // 2: eerie lantern eye
+    rgb555(120, 224, 248), // 3: ice wraith cyan
+    rgb555(56, 144, 208), // 4: shadow azure
+    rgb555(32, 64, 128), // 5: midnight cloak
+    INK, // 6: ink outline
+  ],
+  villager: [
+    rgb555(248, 248, 240), // 1: white beard / steel glint
+    rgb555(248, 208, 72), // 2: brass / gold key
+    rgb555(248, 208, 160), // 3: peach skin
+    rgb555(192, 112, 56), // 4: oak shield / leather apron
+    rgb555(88, 112, 104), // 5: sage / iron-guard tunic
+    INK, // 6: ink outline
+  ],
+  crimson: [
+    rgb555(248, 248, 240), // 1: specular white
+    rgb555(248, 216, 72), // 2: gold trim / boss-key crown
+    rgb555(248, 136, 144), // 3: rose highlight
+    rgb555(232, 40, 48), // 4: ruby heart red
+    rgb555(136, 16, 32), // 5: deep garnet shadow
+    INK, // 6: ink outline
+  ],
 };
 
 export const BG_PALETTE_IDS = [
   'floor',
   'wall',
+  'foliage',
   'water',
   'wood',
-  'bramble',
   'red',
   'blue',
   'steel',
 ] as const;
 export type BgPaletteId = (typeof BG_PALETTE_IDS)[number];
 
-type BgPalette = readonly [Rgb, Rgb, Rgb, Rgb];
+export type BgPalette = readonly [Rgb, Rgb, Rgb, Rgb];
 
 /**
- * Object palettes start with the zone's floor colour at index 0, the way Oracle seats
- * pots and blocks on the floor: the object gets 3 shades, the floor shows through.
+ * Prop/edge palettes start with the zone's open floor base at index 0, just as Oracle
+ * seats trees, shores, pots, and blocks seamlessly onto the ground.
  */
-function zonePalettes(
+function makeZoneBgPalettes(
   floor: BgPalette,
   wall: BgPalette,
-  water: BgPalette,
+  foliage: BgPalette,
 ): Record<BgPaletteId, BgPalette> {
   const base = floor[1];
   return {
     floor,
     wall,
-    water,
-    wood: [base, rgb555(232, 168, 72), rgb555(152, 88, 32), INK],
-    bramble: [base, rgb555(176, 176, 64), rgb555(88, 104, 32), INK],
-    red: [base, rgb555(248, 152, 152), rgb555(216, 40, 40), INK],
-    blue: [base, rgb555(152, 216, 248), rgb555(40, 120, 232), INK],
-    steel: [base, rgb555(200, 208, 224), rgb555(112, 120, 144), INK],
+    foliage,
+    water: [base, rgb555(232, 248, 248), rgb555(64, 152, 240), rgb555(24, 72, 152)],
+    wood: [base, rgb555(232, 176, 88), rgb555(160, 96, 40), INK],
+    red: [base, rgb555(248, 152, 136), rgb555(208, 48, 48), INK],
+    blue: [base, rgb555(152, 216, 248), rgb555(48, 112, 216), INK],
+    steel: [base, rgb555(208, 216, 232), rgb555(112, 120, 144), INK],
   };
 }
 
+const OW_GRASS_BASE = rgb555(96, 184, 64);
+const CRYPT_FLOOR_BASE = rgb555(96, 80, 120);
+
 export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
-  overworld: zonePalettes(
-    [rgb555(176, 232, 112), rgb555(104, 184, 72), rgb555(48, 120, 40), INK],
-    [rgb555(200, 216, 152), rgb555(136, 152, 104), rgb555(72, 88, 64), INK],
-    [rgb555(232, 248, 248), rgb555(96, 176, 248), rgb555(32, 104, 184), rgb555(16, 48, 112)],
+  overworld: makeZoneBgPalettes(
+    // 0: sunlit grass tuft, 1: meadow base, 2: warm cobble/dirt path, 3: deep pine rim
+    [rgb555(168, 232, 96), OW_GRASS_BASE, rgb555(216, 176, 112), rgb555(40, 104, 40)],
+    // 0: sunlit limestone brow, 1: highland cliff face, 2: rock shadow, 3: deep umber crease
+    [rgb555(216, 200, 152), rgb555(152, 136, 96), rgb555(96, 80, 56), rgb555(40, 32, 28)],
+    // 0: grass ground, 1: sunlit tree crown, 2: rich canopy leaf, 3: deep forest bark/pine
+    [OW_GRASS_BASE, rgb555(168, 232, 88), rgb555(48, 136, 48), rgb555(24, 56, 32)],
   ),
-  'ember-crypt': zonePalettes(
-    [rgb555(120, 104, 144), rgb555(88, 72, 112), rgb555(64, 52, 88), INK],
-    [rgb555(128, 112, 152), rgb555(80, 64, 104), rgb555(48, 36, 64), INK],
-    [rgb555(200, 232, 248), rgb555(72, 144, 216), rgb555(32, 80, 160), rgb555(16, 32, 88)],
+  'ember-crypt': makeZoneBgPalettes(
+    // 0: stone highlight, 1: matte crypt flagstone, 2: recessed trim, 3: deep mortar/abyss
+    [rgb555(136, 120, 160), CRYPT_FLOOR_BASE, rgb555(64, 52, 88), rgb555(32, 24, 48)],
+    // 0: sunlit cornice, 1: sloped purple-slate wall, 2: outer cap stone, 3: deep masonry joint
+    [rgb555(168, 152, 192), rgb555(104, 88, 136), rgb555(56, 44, 80), rgb555(28, 20, 44)],
+    // 0: crypt stone base, 1: burnished gold/thorn tip, 2: olive briar / bronze, 3: ink
+    [CRYPT_FLOOR_BASE, rgb555(232, 192, 80), rgb555(104, 120, 40), INK],
   ),
 };
 

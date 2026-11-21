@@ -6,6 +6,7 @@
 import { campaignWorld, roomKey } from './campaign';
 import {
   type ActivePickup,
+  type BlastShape,
   type Bomb,
   type BombKind,
   type Enemy,
@@ -76,7 +77,7 @@ export function tileAt(
 
 /** Whether tile `t` blocks ground walking for the player and non-flying enemies. */
 export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boolean {
-  if (t === '.' || t === 'O' || t === '!' || t === '>') return false;
+  if (t === '.' || t === ':' || t === '_' || t === 'O' || t === '!' || t === '>') return false;
   if (t === 'R') return crystalColor === 'red';
   if (t === 'U') return crystalColor === 'blue';
   return true;
@@ -84,7 +85,7 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
 
 /** Whether tile `t` is a tall wall that stops a thrown bomb's arc. */
 function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
-  if (t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S') return true;
+  if (t === '#' || t === 'Y' || t === '%' || t === 'D' || t === 'K' || t === 'S') return true;
   if (t === 'R') return crystalColor === 'red';
   if (t === 'U') return crystalColor === 'blue';
   return false;
@@ -266,8 +267,8 @@ export function newState(
   zone: ZoneId = 'overworld',
   rx = 3,
   ry = 2,
-  x = 4.5,
-  y = 5.5,
+  x = 5.5,
+  y = 6.5,
 ): State {
   const s: State = {
     zone,
@@ -609,31 +610,38 @@ function detonateBomb(world: World, s: State, bomb: Bomb): void {
   const cy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(bomb.y)));
   s.events.push(bomb.kind === 'ember' ? 'boom-ember' : 'boom-powder');
 
-  const hitTiles: [number, number][] = [[cx, cy]];
+  const hitTiles: Array<[number, number, BlastShape]> = [[cx, cy, 'hub']];
   const reach = bomb.kind === 'powder' ? s.blastRadius : 1;
 
-  for (const [dx, dy] of [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
+  for (const [dx, dy, armShape, capShape] of [
+    [1, 0, 'armH', 'capE'],
+    [-1, 0, 'armH', 'capW'],
+    [0, 1, 'armV', 'capS'],
+    [0, -1, 'armV', 'capN'],
   ] as const) {
+    const ray: Array<[number, number]> = [];
     for (let r = 1; r <= reach; r++) {
       const tx = cx + dx * r;
       const ty = cy + dy * r;
       if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) break;
       const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
-      if (t === '#' || t === 'D' || t === 'K' || t === 'S') break;
-      hitTiles.push([tx, ty]);
+      if (t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S') break;
+      ray.push([tx, ty]);
       // Stop arm after hitting a solid destructible/pedestal tile so blasts don't pierce walls
       if (t === '%' || t === 'W' || t === 'B' || t === 'C' || t === 'T') break;
     }
+    ray.forEach(([tx, ty], idx) => {
+      hitTiles.push([tx, ty, idx === ray.length - 1 ? capShape : armShape]);
+    });
+  }
+  if (hitTiles.length === 1 && hitTiles[0]) {
+    hitTiles[0][2] = 'single';
   }
 
   let flippedCrystal = false;
 
-  for (const [tx, ty] of hitTiles) {
-    s.blasts.push({ x: tx + 0.5, y: ty + 0.5, kind: bomb.kind });
+  for (const [tx, ty, shape] of hitTiles) {
+    s.blasts.push({ x: tx + 0.5, y: ty + 0.5, kind: bomb.kind, shape });
     const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
     const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
 
@@ -740,8 +748,8 @@ function applyBombHitToEnemy(
       // Snuff one lit torch and blink across the room
       const litTorch = s.torches.find((t) => t.lit);
       if (litTorch) litTorch.lit = false;
-      enemy.x = enemy.x < 4.5 ? 6.5 : 2.5;
-      enemy.y = enemy.y < 5.5 ? 7.5 : 3.5;
+      enemy.x = enemy.x < ROOM_W / 2 ? ROOM_W - 3.5 : 3.5;
+      enemy.y = enemy.y < ROOM_H / 2 ? ROOM_H - 4.5 : 4.5;
     }
     return;
   }
@@ -1390,7 +1398,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
 
 export function exportSave(s: State): SaveData {
   return {
-    version: 1,
+    version: 2,
     zone: s.zone,
     rx: s.rx,
     ry: s.ry,
@@ -1421,7 +1429,7 @@ export function exportSave(s: State): SaveData {
 export function importSave(world: World, raw: unknown): State | null {
   if (!raw || typeof raw !== 'object') return null;
   const d = raw as Partial<SaveData>;
-  if (d.version !== 1) return null;
+  if (d.version !== 2) return null;
   if (d.zone !== 'overworld' && d.zone !== 'ember-crypt') return null;
   if (typeof d.rx !== 'number' || typeof d.ry !== 'number') return null;
   if (!world.rooms.has(roomKey(d.zone, d.rx, d.ry))) return null;
@@ -1431,8 +1439,8 @@ export function importSave(world: World, raw: unknown): State | null {
     d.zone,
     d.rx,
     d.ry,
-    typeof d.x === 'number' ? d.x : 4.5,
-    typeof d.y === 'number' ? d.y : 5.5,
+    typeof d.x === 'number' ? d.x : 5.5,
+    typeof d.y === 'number' ? d.y : 6.5,
   );
   if (typeof d.maxHp === 'number' && d.maxHp >= 6) s.maxHp = Math.min(20, d.maxHp);
   if (typeof d.hp === 'number' && d.hp > 0) s.hp = Math.min(s.maxHp, d.hp);

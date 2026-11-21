@@ -15,12 +15,12 @@ const DT = 1 / 60;
 describe('item buttons B and A', () => {
   it('a tap drops the equipped bomb; holding lifts it overhead, and it moves with you', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    const s = newState(world, 'overworld', 3, 2, 5.5, 6.5);
     s.enemies = [];
     tapB(world, s);
-    expect(s.bombs).toEqual([expect.objectContaining({ kind: 'powder', x: 4.5, y: 5.5 })]);
+    expect(s.bombs).toEqual([expect.objectContaining({ kind: 'powder', x: 5.5, y: 6.5 })]);
 
-    const t = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    const t = newState(world, 'overworld', 3, 2, 4.5, 6.5);
     t.enemies = [];
     for (let i = 0; i * DT < LIFT_DELAY + DT; i++) tick(world, t, { ...idle, holdB: true }, DT);
     expect(t.bombs[0]?.carriedBy).toBe(0);
@@ -36,7 +36,7 @@ describe('item buttons B and A', () => {
 
   it("only the button that lifted a bomb throws it, and the other button can't act meanwhile", () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    const s = newState(world, 'overworld', 3, 2, 4.5, 6.5);
     s.enemies = [];
     s.unlockedBombs.push('ember');
     s.slots = ['powder', 'ember'];

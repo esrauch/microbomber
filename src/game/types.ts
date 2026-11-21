@@ -5,8 +5,8 @@
  */
 
 /** Portrait one-screen room dimensions (odd width & height so doors/altars centre cleanly). */
-export const ROOM_W = 9;
-export const ROOM_H = 11;
+export const ROOM_W = 11;
+export const ROOM_H = 13;
 
 export type ZoneId = 'overworld' | 'ember-crypt';
 
@@ -14,12 +14,15 @@ export type BombKind = 'powder' | 'ember';
 
 /**
  * Room ASCII tile legend:
- * '.' open floor
- * '#' solid wall
- * '%' cracked wall (always visibly seamed; broken by Blackpowder)
+ * '.' open floor (meadow grass in Overworld, stone flagstone in Shrines)
+ * ':' dirt trail / cobble path (walkable floor, autotiled with curved edges)
+ * '_' wooden / stone bridge deck (walkable floor spanning water or pits)
+ * '#' solid cliff / 2-tile-deep dungeon stone wall
+ * 'Y' solid forest tree (Overworld, auto-paired into 2×2 interlocking canopies)
+ * '%' cracked wall / cliff seam (always visibly seamed; broken by Blackpowder)
  * '~' water (blocks walking; thrown bombs arc over it)
  * '^' bottomless pit (blocks walking; knockback into pit costs 1 half-heart; thrown bombs arc over)
- * '=' low fence / parapet (blocks walking; thrown bombs arc over)
+ * '=' low fence / stone balustrade (blocks walking; thrown bombs arc over)
  * 'B' dry brambles (blocks walking; burned away by Ember)
  * 'W' wooden crate (blocks walking; broken by Blackpowder or burned by Ember)
  * 'R' red crystal barrier (raised when crystal === 'red', flat when 'blue')
@@ -35,7 +38,10 @@ export type BombKind = 'powder' | 'ember';
  */
 export type Tile =
   | '.'
+  | ':'
+  | '_'
   | '#'
+  | 'Y'
   | '%'
   | '~'
   | '^'
@@ -52,6 +58,15 @@ export type Tile =
   | 'O'
   | '!'
   | '>';
+
+export type StampId =
+  'bram-workshop' | 'rusted-smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';
+
+export interface StampSpec {
+  id: StampId;
+  x: number;
+  y: number;
+}
 
 export type CrystalColor = 'red' | 'blue';
 
@@ -144,6 +159,8 @@ export interface RoomSpec {
   npcs?: NpcSpec[];
   pickups?: PickupSpec[];
   portals?: PortalSpec[];
+  /** Multi-tile visual setpiece stamps placed over underlying solid/floor tiles. */
+  stamps?: StampSpec[];
   /** Fourfold Spire barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
   spireSeal?: boolean;
 }
@@ -234,10 +251,13 @@ export interface ActivePickup {
   y: number;
 }
 
+export type BlastShape = 'single' | 'hub' | 'armH' | 'armV' | 'capN' | 'capS' | 'capE' | 'capW';
+
 export interface BlastVisual {
   x: number;
   y: number;
   kind: BombKind;
+  shape?: BlastShape;
 }
 
 export interface Input {
@@ -322,7 +342,7 @@ export interface State {
 }
 
 export interface SaveData {
-  version: 1;
+  version: 2;
   zone: ZoneId;
   rx: number;
   ry: number;

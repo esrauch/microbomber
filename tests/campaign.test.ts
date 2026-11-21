@@ -3,7 +3,10 @@ import { ROOM_H, ROOM_W, campaignWorld, roomKey } from '../src/game/world';
 
 const VALID_TILES = new Set([
   '.',
+  ':',
+  '_',
   '#',
+  'Y',
   '%',
   '~',
   '^',
@@ -22,6 +25,8 @@ const VALID_TILES = new Set([
   '>',
   'P',
 ]);
+
+const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === 'Y';
 
 describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
   const world = campaignWorld();
@@ -48,8 +53,8 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
       const north = world.rooms.get(roomKey(r.zone, r.rx, r.ry - 1));
       if (north) {
         for (let x = 0; x < ROOM_W; x++) {
-          const hereOpen = r.rows[0]![x] !== '#';
-          const thereOpen = north.rows[ROOM_H - 1]![x] !== '#';
+          const hereOpen = !isWallBorder(r.rows[0]![x]);
+          const thereOpen = !isWallBorder(north.rows[ROOM_H - 1]![x]);
           expect(hereOpen, `${r.name} N col ${x} vs ${north.name} S`).toBe(thereOpen);
         }
       }
@@ -57,8 +62,8 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
       const west = world.rooms.get(roomKey(r.zone, r.rx - 1, r.ry));
       if (west) {
         for (let y = 0; y < ROOM_H; y++) {
-          const hereOpen = r.rows[y]![0] !== '#';
-          const thereOpen = west.rows[y]![ROOM_W - 1] !== '#';
+          const hereOpen = !isWallBorder(r.rows[y]![0]);
+          const thereOpen = !isWallBorder(west.rows[y]![ROOM_W - 1]);
           expect(hereOpen, `${r.name} W row ${y} vs ${west.name} E`).toBe(thereOpen);
         }
       }

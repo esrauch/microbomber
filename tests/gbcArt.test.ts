@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { BG, OBJ } from '../src/render/gbcArt';
+import {
+  BG,
+  CRYPT_FLOOR_BLOB,
+  OBJ,
+  PATH_BLOB,
+  PIT_BLOB,
+  STAMP_DEFS,
+  WATER_BLOB,
+  resolveBlobTile,
+} from '../src/render/gbcArt';
 import {
   BG_PALETTES,
   BG_PALETTE_IDS,
@@ -8,10 +17,10 @@ import {
   isRgb555,
 } from '../src/render/gbcPalette';
 
-describe('GBC colour rules', () => {
-  it('has at most 8 sprite palettes of 3 colours, and 8 background palettes of 4 per zone', () => {
+describe('GBC colour and multi-tile rules', () => {
+  it('has at most 8 sprite palettes of 6 colours, and 8 background palettes of 4 per zone', () => {
     expect(OBJ_PALETTE_IDS.length).toBeLessThanOrEqual(8);
-    for (const id of OBJ_PALETTE_IDS) expect(OBJ_PALETTES[id]).toHaveLength(3);
+    for (const id of OBJ_PALETTE_IDS) expect(OBJ_PALETTES[id]).toHaveLength(6);
     expect(BG_PALETTE_IDS.length).toBeLessThanOrEqual(8);
     for (const zone of Object.values(BG_PALETTES)) {
       expect(Object.keys(zone)).toHaveLength(BG_PALETTE_IDS.length);
@@ -27,11 +36,12 @@ describe('GBC colour rules', () => {
     for (const c of all) expect(isRgb555(c), `${c.join(',')}`).toBe(true);
   });
 
-  it.each(Object.entries(OBJ))('sprite %s is rectangular, 3 colours plus transparent', (_, s) => {
+  it.each(Object.entries(OBJ))('sprite %s is rectangular, ≤6 colours plus transparent', (_, s) => {
     const w = s.rows[0]?.length ?? 0;
+    expect(w).toBeGreaterThan(0);
     for (const row of s.rows) {
       expect(row).toHaveLength(w);
-      expect(row).toMatch(/^[.123]*$/);
+      expect(row).toMatch(/^[.1-6]*$/);
     }
     expect(OBJ_PALETTE_IDS).toContain(s.pal);
   });
@@ -41,5 +51,33 @@ describe('GBC colour rules', () => {
     for (const row of t.rows) expect(row).toMatch(/^[0-3]{16}$/);
     expect(t.quads).toHaveLength(4);
     for (const q of t.quads) expect(BG_PALETTE_IDS).toContain(q);
+  });
+
+  it('generates valid 16x16 tiles across all 256 8-neighbour blob masks', () => {
+    for (const kit of [WATER_BLOB, PIT_BLOB, PATH_BLOB, CRYPT_FLOOR_BLOB]) {
+      for (let mask = 0; mask < 256; mask++) {
+        const t = resolveBlobTile(kit, {
+          n: Boolean(mask & 1),
+          ne: Boolean(mask & 2),
+          e: Boolean(mask & 4),
+          se: Boolean(mask & 8),
+          s: Boolean(mask & 16),
+          sw: Boolean(mask & 32),
+          w: Boolean(mask & 64),
+          nw: Boolean(mask & 128),
+        });
+        expect(t.rows).toHaveLength(16);
+        for (const r of t.rows) expect(r).toMatch(/^[0-3]{16}$/);
+      }
+    }
+  });
+
+  it('links every landmark stamp cell to a defined BG tile', () => {
+    for (const [id, cells] of Object.entries(STAMP_DEFS)) {
+      expect(cells.length, id).toBeGreaterThan(0);
+      for (const c of cells) {
+        expect(BG[c.tile], `${id} -> ${c.tile}`).toBeDefined();
+      }
+    }
   });
 });

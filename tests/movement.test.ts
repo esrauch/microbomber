@@ -5,14 +5,14 @@ import { campaignWorld, cardinalFacing, newState, tick } from '../src/game/world
 describe('movement feel', () => {
   it('stops flush against a wall even with a coarse frame step', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 1.5, 1.5);
+    const s = newState(world, 'overworld', 3, 2, 3.5, 4.5);
     for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx: -1 }, 0.05);
-    expect(s.x).toBeCloseTo(1.28, 2);
+    expect(s.x).toBeCloseTo(2.28, 2);
   });
 
   it('aim holds its axis near diagonals and ignores a lifting thumb', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    const s = newState(world, 'overworld', 3, 2, 5.5, 6.5);
     const aim = (dx: number, dy: number): { dx: number; dy: number } => {
       tick(world, s, { ...idle, dx, dy }, 0.001);
       return cardinalFacing(s);
@@ -25,23 +25,23 @@ describe('movement feel', () => {
 
   it('corner assist settles on the lane centre without overshooting', () => {
     const world = campaignWorld();
-    // Crystal Crossroads (1,2): one-tile south doorway at x=4, approached off-centre
-    const s = newState(world, 'ember-crypt', 1, 2, 4.28, 9.8);
+    // Crystal Crossroads (1,2): one-tile south doorway at x=5, approached off-centre
+    const s = newState(world, 'ember-crypt', 1, 2, 5.28, 10.8);
     s.enemies = [];
     const xs: number[] = [];
     for (let i = 0; i < 6; i++) {
       tick(world, s, { ...idle, dy: 1 }, 1 / 60);
       xs.push(s.x);
     }
-    for (const x of xs) expect(x).toBeLessThanOrEqual(4.5 + 1e-9);
+    for (const x of xs) expect(x).toBeLessThanOrEqual(5.5 + 1e-9);
   });
 
   it('a blast never knocks you out through a doorway, but you can still walk out', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1,2): stand in the south doorway with a bomb just inside the room
-    const s = newState(world, 'ember-crypt', 1, 2, 4.5, 10.4);
+    const s = newState(world, 'ember-crypt', 1, 2, 5.5, 12.4);
     s.enemies = [];
-    s.bombs.push({ id: 999, kind: 'powder', x: 4.5, y: 9.5, fuse: 0.01, graceOverlap: false });
+    s.bombs.push({ id: 999, kind: 'powder', x: 5.5, y: 11.5, fuse: 0.01, graceOverlap: false });
     let cut = false;
     for (let i = 0; i < 60; i++) cut = tick(world, s, idle, 1 / 60) || cut;
     expect(cut).toBe(false);
@@ -52,7 +52,7 @@ describe('movement feel', () => {
 
   it('new bombs need a cooldown between them, but a grounded bomb can be thrown at once', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    const s = newState(world, 'overworld', 3, 2, 5.5, 6.5);
     s.enemies = [];
     tapB(world, s);
     expect(s.bombs).toHaveLength(1);
@@ -70,7 +70,7 @@ describe('movement feel', () => {
     const world = campaignWorld();
     // Drop off-centre, then walk away at every angle in open floor
     for (let a = 0; a < 16; a++) {
-      const s = newState(world, 'overworld', 3, 2, 4.25, 4.25);
+      const s = newState(world, 'overworld', 3, 2, 5.25, 6.25);
       s.enemies = [];
       tapB(world, s);
       const dx = Math.cos((a * Math.PI) / 8);
@@ -84,15 +84,15 @@ describe('movement feel', () => {
 
   it('a point-blank throw at a wall lands under you without trapping you', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 1.5, 1.5);
+    const s = newState(world, 'overworld', 3, 2, 4.5, 1.5);
     s.enemies = [];
-    s.aimX = 0;
-    s.aimY = -1;
+    s.aimX = -1;
+    s.aimY = 0;
     throwB(world, s);
     for (let i = 0; i < 20; i++) tick(world, s, idle, 1 / 60);
     expect(s.bombs).toHaveLength(1);
-    const x0 = s.x;
-    for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx: 1 }, 1 / 60);
-    expect(s.x - x0).toBeGreaterThan(1);
+    const y0 = s.y;
+    for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dy: 1 }, 1 / 60);
+    expect(s.y - y0).toBeGreaterThan(1);
   });
 });

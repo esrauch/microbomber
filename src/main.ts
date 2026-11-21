@@ -17,11 +17,16 @@ import {
   showBanner,
   tick,
 } from './game/world';
-import { makeGbcView } from './render/gbc';
+import { type ObjSpriteName } from './render/gbcArt';
+import { hudIconDataUrl, makeGbcView } from './render/gbc';
 import { mountJoystick } from './ui/joystick';
 import { makeSfx } from './ui/sfx';
 
-const SAVE_KEY = 'microbomber.save.v1';
+const SAVE_KEY = 'microbomber.save.v2';
+
+function pxIcon(name: ObjSpriteName, size: number): string {
+  return `<img src="${hudIconDataUrl(name, 3)}" width="${size}" height="${size}" style="image-rendering:pixelated;display:inline-block;vertical-align:middle" alt="" />`;
+}
 
 const topbar = document.querySelector<HTMLElement>('#topbar');
 const stage = document.querySelector<HTMLElement>('#stage');
@@ -49,7 +54,7 @@ function loadInitialState(): State {
   const fresh = newState(world);
   showBanner(
     fresh,
-    'The Ironblight Spire rusted every blade on Cinderholm! Walk to Bram or drop a bomb (💣) on cracked stone.',
+    'The Ironblight Spire rusted every blade on Cinderholm! Walk to Bram or tap B on cracked stone behind the smithy.',
     5.5,
   );
   return fresh;
@@ -130,16 +135,18 @@ Object.assign(minimapEl.style, {
 });
 
 const gearBtn = document.createElement('button');
-gearBtn.textContent = '⚙️';
+gearBtn.innerHTML = pxIcon('HUD_GEAR', 18);
 gearBtn.title = 'Settings & Reset';
 Object.assign(gearBtn.style, {
   width: '30px',
   height: '30px',
-  borderRadius: '8px',
-  border: '1px solid #425244',
-  background: '#253026',
+  borderRadius: '4px',
+  border: '2px solid #4a5d4c',
+  background: '#222b24',
   color: '#f4eedc',
-  fontSize: '15px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   cursor: 'pointer',
   padding: '0',
 });
@@ -239,9 +246,10 @@ Object.assign(bossBarWrap.style, {
   flexDirection: 'column',
   gap: '3px',
   padding: '5px 9px',
-  borderRadius: '8px',
-  background: 'rgba(20, 16, 26, 0.85)',
-  border: '1px solid #7c2d12',
+  borderRadius: '3px',
+  background: '#181020',
+  border: '2px solid #e89840',
+  boxShadow: 'inset 0 0 0 2px #100c18, 0 4px 12px rgba(0,0,0,0.6)',
   pointerEvents: 'none',
   zIndex: '10',
 });
@@ -256,15 +264,16 @@ Object.assign(bossTitleEl.style, {
 const bossTrack = document.createElement('div');
 Object.assign(bossTrack.style, {
   height: '7px',
-  borderRadius: '999px',
+  borderRadius: '2px',
   background: '#2d2438',
+  border: '1px solid #100c18',
   overflow: 'hidden',
 });
 const bossFill = document.createElement('div');
 Object.assign(bossFill.style, {
   height: '100%',
   width: '100%',
-  background: 'linear-gradient(90deg, #e53e3e, #f97316)',
+  background: 'linear-gradient(90deg, #e03028, #f88820)',
   transition: 'width 0.12s ease',
 });
 bossTrack.append(bossFill);
@@ -278,14 +287,14 @@ Object.assign(bannerEl.style, {
   right: '10px',
   bottom: '10px',
   padding: '8px 12px',
-  borderRadius: '10px',
-  background: 'rgba(20, 25, 21, 0.92)',
-  border: '1.5px solid #d69e2e',
-  color: '#fefcbf',
+  borderRadius: '3px',
+  background: '#141820',
+  border: '2px solid #f8d848',
+  boxShadow: 'inset 0 0 0 2px #2c3848, 0 4px 14px rgba(0, 0, 0, 0.65)',
+  color: '#f8f8f0',
   fontSize: '12.5px',
-  fontWeight: '600',
+  fontWeight: '700',
   lineHeight: '1.35',
-  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)',
   pointerEvents: 'none',
   display: 'none',
   zIndex: '12',
@@ -349,9 +358,9 @@ Object.assign(startBtn.style, {
 });
 topRow.append(satchelPips, startBtn);
 
-const BOMB_META: Record<BombKind, { icon: string; label: string }> = {
-  powder: { icon: '💣', label: 'Blackpowder' },
-  ember: { icon: '🔥', label: 'Ember' },
+const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
+  powder: { sprite: 'POWDER_1', label: 'Blackpowder' },
+  ember: { sprite: 'EMBER_1', label: 'Ember' },
 };
 
 /** Item buttons held right now: `[B, A]`. Tap drops, hold lifts, release throws. */
@@ -463,7 +472,7 @@ function renderMenu(): void {
   (['B', 'A'] as const).forEach((letter, i) => {
     const slot = i === 0 ? 0 : 1;
     const kind = state.slots[slot];
-    const label = kind ? `${BOMB_META[kind].icon} ${BOMB_META[kind].label}` : '—';
+    const label = kind ? `${pxIcon(BOMB_META[kind].sprite, 20)} ${BOMB_META[kind].label}` : '—';
     const b = menuButton(`<div style="font-size:11px;opacity:0.7">${letter}</div>${label}`, false);
     b.addEventListener('click', () => equipCursor(slot));
     slotsRow.append(b);
@@ -478,7 +487,7 @@ function renderMenu(): void {
   });
   for (const kind of state.unlockedBombs) {
     const b = menuButton(
-      `<div style="font-size:26px;line-height:1.1">${BOMB_META[kind].icon}</div>${BOMB_META[kind].label}`,
+      `<div style="line-height:1.1;margin-bottom:3px">${pxIcon(BOMB_META[kind].sprite, 32)}</div>${BOMB_META[kind].label}`,
       kind === menuCursor,
     );
     b.addEventListener('click', () => {
@@ -601,19 +610,21 @@ function syncHud(force = false): void {
   if (!force && sig === prevHudSig) return;
   prevHudSig = sig;
 
-  // Hearts + Keys + Cores
+  // Pixel Hearts + Keys + Cores (zero OS emojis!)
   const totalHearts = Math.floor(state.maxHp / 2);
-  let heartsHtml = '';
+  const heartImgs: string[] = [];
   for (let i = 0; i < totalHearts; i++) {
     const rem = state.hp - i * 2;
-    heartsHtml += rem >= 2 ? '❤️' : rem === 1 ? '💔' : '🖤';
+    const hName: ObjSpriteName =
+      rem >= 2 ? 'HUD_HEART_FULL' : rem === 1 ? 'HUD_HEART_HALF' : 'HUD_HEART_EMPTY';
+    heartImgs.push(pxIcon(hName, 15));
   }
   const extras: string[] = [];
-  if (state.heartShards % 2 === 1) extras.push('🩷½');
-  if (state.smallKeys > 0) extras.push(`🗝️×${state.smallKeys}`);
-  if (state.hasBossKey) extras.push('🗝️★');
-  if (state.cores.includes('cinder')) extras.push('🔥Core');
-  heartsRow.textContent = extras.length ? `${heartsHtml}  ${extras.join(' ')}` : heartsHtml;
+  if (state.heartShards % 2 === 1) extras.push(`${pxIcon('HUD_SHARD', 14)}½`);
+  if (state.smallKeys > 0) extras.push(`${pxIcon('HUD_KEY', 14)}×${state.smallKeys}`);
+  if (state.hasBossKey) extras.push(pxIcon('HUD_BOSS_KEY', 15));
+  if (state.cores.includes('cinder')) extras.push(`${pxIcon('PICKUP_CINDER_CORE', 15)}`);
+  heartsRow.innerHTML = `<span style="display:inline-flex;gap:2px;align-items:center">${heartImgs.join('')}</span>${extras.length ? `<span style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;font-size:13px">${extras.join('')}</span>` : ''}`;
 
   const zonePrefix = state.zone === 'ember-crypt' ? 'Ember Crypt' : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
@@ -650,12 +661,14 @@ function syncHud(force = false): void {
     }
   }
 
-  // Satchel pips & the items on B and A
+  // Satchel pips & pixel bomb sprites on B and A
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
   state.slots.forEach((kind, i) => {
     const icon = itemBtns[i]?.querySelector('span');
-    if (icon) icon.textContent = kind ? BOMB_META[kind].icon : '·';
+    if (icon) {
+      icon.innerHTML = kind ? pxIcon(BOMB_META[kind].sprite, 28) : '·';
+    }
   });
 
   // Boss HP bar
@@ -664,9 +677,9 @@ function syncHud(force = false): void {
     const bName = boss.kind === 'cinderhull' ? 'CINDERHULL · Shrine Boss' : 'WICKGEIST · Phantom';
     const shieldTag = boss.armored
       ? boss.kind === 'cinderhull'
-        ? '🌿 Thorn Armor (Use Ember!)'
-        : '🌑 In Shadow (Light Brazier!)'
-      : '✨ Exposed!';
+        ? 'Thorn Armor (Use Ember!)'
+        : 'In Shadow (Light Brazier!)'
+      : 'Exposed!';
     bossTitleEl.innerHTML = `<span>${bName}</span><span>${shieldTag}</span>`;
     bossFill.style.width = `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
   } else {
