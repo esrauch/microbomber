@@ -26,11 +26,11 @@ describe('fuse mouse hero and compact bombs', () => {
     }
   });
 
-  it('lights the mouse as a hero whose tail spark glows', () => {
+  it('lights the mouse as a hero with zero self-emissive bloom', () => {
     expect(auxKind('MOUSE_SOUTH_IDLE')).toBe('hero');
     const aux = bakeAuxData('MOUSE_SOUTH_IDLE');
     let glow = 0;
     for (let i = 1; i < aux.data.length; i += 4) glow = Math.max(glow, aux.data[i] ?? 0);
-    expect(glow).toBe(220);
+    expect(glow).toBe(0);
   });
 });

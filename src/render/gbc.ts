@@ -584,8 +584,8 @@ export function makeGbcView(): GbcView {
       drawScaledSprite(
         ctx,
         Math.floor(time * 5) % 2 === 0 ? 'EMBER_1' : 'EMBER_2',
-        dx,
-        dy,
+        dx + 3,
+        dy + 3,
         sx,
         sy,
         false,
@@ -1252,7 +1252,10 @@ export function makeGbcView(): GbcView {
 
     if (time < holdAnimUntil) {
       drawObjSprite(ctx, 'MOUSE_GET', dx, dy);
-      drawPickup(ctx, heldKind, dx, dy - 7, time);
+      if (Math.floor(time * 8) % 2 === 0) {
+        drawObjSprite(ctx, 'SPARKLE_CELL', dx, dy - 10);
+      }
+      drawPickup(ctx, heldKind, dx, dy - 10, time);
       return;
     }
 
@@ -1435,14 +1438,8 @@ export function makeGbcView(): GbcView {
           syncDoorState(world, s, false);
         } else if (ev === 'pit-fall') {
           fallAnimUntil = time + 0.36;
-        } else if (
-          ev === 'pickup-ember-bomb' ||
-          ev === 'pickup-boss-key' ||
-          ev === 'pickup-heart-container' ||
-          ev === 'pickup-satchel-upgrade' ||
-          ev === 'pickup-cinder-core'
-        ) {
-          holdAnimUntil = time + 0.85;
+        } else if (ev.startsWith('pickup-') && ev !== 'pickup-heart-drop') {
+          holdAnimUntil = time + 1.05;
           heldKind = ev.replace('pickup-', '') as PickupKind;
         }
       }
