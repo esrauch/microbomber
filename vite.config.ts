@@ -53,6 +53,26 @@ export default defineConfig({
   // Relative base so the build works from any subpath (e.g. GitHub Pages /microbomber/).
   base: './',
   build: { target: 'es2022' },
+  server: {
+    watch: {
+      // Only index.html + ~20 files in src/ affect the client bundle. Ignoring
+      // inspiration/ (367 files), tests/, tools/, and dist/—plus polling those ~20
+      // files instead of allocating per-dir Linux inotify fds (capped at 128)—stops
+      // EMFILE watcher exhaustion from leaving Vite's transform cache stale.
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/inspiration/**',
+        '**/tests/**',
+        '**/tools/**',
+        '**/dist/**',
+        '**/.claude/**',
+        '**/.github/**',
+      ],
+      usePolling: true,
+      interval: 300,
+    },
+  },
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
