@@ -56,7 +56,7 @@ const HERO_HEIGHTS: Record<
 > = {
   // peach skin, amber hood, cobalt tunic, brown, deep blue, ink
   pip: [0.72, 0.92, 0.62, 0.48, 0.4, 0.12],
-  // spark, pink ears & paws, grey fur, dark grey shade, white belly, ink
+  // spark, pink ears & paws, fawn fur, brown shade, white belly, ink
   mouse: [0.95, 0.85, 0.62, 0.45, 0.7, 0.12],
   // specular, lime thorn tips, emerald vine, deep moss, red eye, ink
   cinderArmored: [0.95, 0.88, 0.7, 0.5, 0.78, 0.15],

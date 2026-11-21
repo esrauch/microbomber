@@ -382,6 +382,9 @@ export function makeGbcView(): GbcView {
   let prevY = -1;
   let prevTime = 0;
   let walkCycle = 0;
+  // Fuse mouse posture: was he galloping last frame, and until when he crouches
+  let mouseWasMoving = false;
+  let mouseCrouchUntil = 0;
   let throwAnimUntil = 0;
   let crouchAnimUntil = 0;
   let wasRolling = false;
@@ -1251,6 +1254,15 @@ export function makeGbcView(): GbcView {
     }
     if (s.blocks.some((b) => b.pushCharge > 0.04)) {
       draw(stepIdx < 2 ? `PIP_${dir}_PUSH_1` : `PIP_${dir}_PUSH_2`);
+      return;
+    }
+    if (ACTOR_SCALE < 1 && moving !== mouseWasMoving) {
+      // Starting or stopping: crouch for a beat between standing and the gallop
+      mouseWasMoving = moving;
+      mouseCrouchUntil = time + 0.08;
+    }
+    if (ACTOR_SCALE < 1 && time < mouseCrouchUntil) {
+      draw(`MOUSE_${dir}_DROP`);
       return;
     }
     if (moving && ACTOR_SCALE < 1) {

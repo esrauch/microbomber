@@ -15,9 +15,10 @@ describe('tiny-actor mode (fuse mouse and tiny bombs)', () => {
     expect(tinyActorSprite('SLIME_1')).toBe('SLIME_1');
   });
 
-  it('has a four-frame gallop in every facing', () => {
+  it('has a four-frame gallop and a crouch into it in every facing', () => {
     for (const dir of ['SOUTH', 'NORTH', 'EAST']) {
       for (let f = 1; f <= 4; f++) expect(`MOUSE_${dir}_RUN_${f}` in OBJ).toBe(true);
+      expect(`MOUSE_${dir}_DROP` in OBJ).toBe(true);
     }
   });
 

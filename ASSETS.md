@@ -92,10 +92,15 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 
 ### 3.0 Fuse Mouse (tiny-actor hero, experiment)
 
-In tiny-actor mode (Settings toggle or `?tiny=1`) Pip is drawn as the **fuse mouse**: ~11 px
-tall upright when idle, a ~15 px four-legged gallop when moving, with a fuse tail whose spark
-glows. `MOUSE_*` sprites use the `mouse` palette and overhang a centred, half-size hitbox.
-Frames, decisions and the remaining checklist: `MOUSE_PLAN.md`.
+In tiny-actor mode (Settings toggle or `?tiny=1`) Pip is drawn as the **fuse mouse**, whose tail
+is a fuse with a glowing spark (emissive in the G-buffer, like bomb fuses).
+- **Poses (`MOUSE_*`, S/N/E, west = east flipped):** upright idle facing the viewer (with spark
+  flicker and blink), a 4-frame **four-legged gallop**, a crouch shown for 0.08 s when he starts
+  or stops running, lift/throw, item get and a 3-frame fall. Pushing is a slow gallop.
+- **Palette (`'mouse'`):** spark yellow, pink ears/paws, fawn fur, brown shade and fuse cord, white
+  belly / white-hot spark, ink. Pip and the mouse are never on screen together, so at most 8
+  sprite palettes are loaded at once.
+- **Hitbox:** the centred half-size circle; the art (~11 px upright, ~15 px side gallop) overhangs it.
 
 ### 3.1 Pip (`16 × 16`, Oracle proportions)
 - **Silhouette:** a long **floppy amber hood point** is the hero feature, the way Link's cap is. It always flops to one side (screen-left from the front, screen-right from the back, behind the head in profile) and sways on each step and in a slow idle breath.

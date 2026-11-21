@@ -114,8 +114,8 @@ export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
   mouse: [
     rgb555(248, 224, 72), // 1: live fuse spark
     rgb555(248, 152, 160), // 2: pink ears, paws, nose
-    rgb555(176, 176, 196), // 3: grey fur
-    rgb555(108, 108, 132), // 4: dark grey shade & fuse cord
+    rgb555(216, 184, 144), // 3: fawn fur (warm, so he stands off cool crypt floors)
+    rgb555(152, 112, 80), // 4: brown shade & fuse cord
     rgb555(232, 232, 240), // 5: white belly / white-hot spark
     INK, // 6: ink outline
   ],

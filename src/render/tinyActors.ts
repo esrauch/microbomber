@@ -1,6 +1,6 @@
 /**
  * Tiny-actor mode (half-size Pip and bombs): maps a full-size Pip or bomb sprite to what is
- * drawn instead. Pip becomes the fuse mouse (see MOUSE_PLAN.md); bombs use their hand-drawn
+ * drawn instead. Pip becomes the fuse mouse (ASSETS.md §3.0); bombs use their hand-drawn
  * tiny sprites. Mouse poses with no frame of their own fall back to the nearest one.
  */
 import { OBJ, type ObjSpriteName } from './gbcArt';
