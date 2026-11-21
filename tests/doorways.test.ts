@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { idle } from './input';
 import {
-  type Input,
   ROOM_H,
   ROOM_W,
   type State,
@@ -13,7 +13,6 @@ import {
   tileAt,
 } from '../src/game/world';
 
-const idle: Input = { dx: 0, dy: 0, drop: false, throwBomb: false };
 const DT = 1 / 60;
 
 function walk(

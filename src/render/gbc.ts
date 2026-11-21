@@ -7,7 +7,7 @@
  * `gbcPalette.ts`, so the screen obeys GBC colour rules: 3 colours per sprite, 4 per
  * background quarter-tile, RGB555 throughout.
  */
-import type { Enemy, NpcSpec, PickupKind, ZoneId } from '../game/types';
+import type { Bomb, Enemy, NpcSpec, PickupKind, ZoneId } from '../game/types';
 import {
   ROOM_H,
   ROOM_W,
@@ -468,6 +468,24 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     ctx.drawImage(obj(pickupSprite[kind]), dx, dy);
   }
 
+  /** A live bomb's fuse frame; Blackpowder's last-second swell flashes red (a palette swap). */
+  function drawBomb(
+    ctx: CanvasRenderingContext2D,
+    b: Bomb,
+    dx: number,
+    dy: number,
+    time: number,
+  ): void {
+    const frame =
+      b.fuse > 0.55
+        ? Math.floor(time * 10) % 2
+        : b.fuse > 0.2
+          ? 1 + (Math.floor(time * 16) % 2)
+          : 2 + (Math.floor(time * 24) % 2);
+    const pal = b.kind === 'powder' && frame === 2 ? 'red' : undefined;
+    drawSheetCell(ctx, (b.kind === 'ember' ? 4 : 0) + frame, 2, dx, dy, false, pal);
+  }
+
   function drawPip(ctx: CanvasRenderingContext2D, s: State, time: number): void {
     if (s.invulnTimer > 0 && Math.floor(time * 18) % 2 === 0) return;
 
@@ -483,6 +501,13 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
     if (time < hurtAnimUntil) {
       drawSheetCell(ctx, 4, 1, dx, dy);
+      return;
+    }
+    // Holding a bomb overhead, Zelda-style, until its button is released
+    const carried = s.bombs.find((b) => b.carriedBy !== undefined);
+    if (carried) {
+      drawSheetCell(ctx, 5, 1, dx, dy);
+      drawBomb(ctx, carried, dx, dy - 12, time);
       return;
     }
 
@@ -638,10 +663,12 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
 
       // 2. Ghost Drop & Throw landing reticles (`GAME.md` §2)
       const { dropTile, throwTile } = computeGhostTargets(world, s);
-      const isEmber = s.selectedBomb === 'ember';
+      // The drop marker always shows; the throw marker only while a bomb is held overhead
+      const carried = s.bombs.find((b) => b.carriedBy !== undefined);
+      const isEmber = carried?.kind === 'ember';
       const pulse = Math.floor(time * 5) % 2;
-      drawReticle(mainCtx, dropTile[0], dropTile[1], isEmber ? FIRE_MID : FIRE_LIGHT, true, pulse);
-      if (throwTile[0] !== dropTile[0] || throwTile[1] !== dropTile[1]) {
+      if (!carried) drawReticle(mainCtx, dropTile[0], dropTile[1], FIRE_LIGHT, true, pulse);
+      if (carried && (throwTile[0] !== dropTile[0] || throwTile[1] !== dropTile[1])) {
         drawReticle(
           mainCtx,
           throwTile[0],
@@ -711,26 +738,16 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       for (const b of s.bombs) {
-        if (b.flight) continue;
-        const baseCol = b.kind === 'ember' ? 4 : 0;
-        const frame =
-          b.fuse > 0.55
-            ? Math.floor(time * 10) % 2
-            : b.fuse > 0.2
-              ? 1 + (Math.floor(time * 16) % 2)
-              : 2 + (Math.floor(time * 24) % 2);
+        if (b.flight || b.carriedBy !== undefined) continue;
         actors.push({
           footY: b.y,
           draw: () =>
-            drawSheetCell(
+            drawBomb(
               mainCtx,
-              baseCol + frame,
-              2,
+              b,
               Math.round(b.x * TILE_PX - 8),
               Math.round(b.y * TILE_PX - 9),
-              false,
-              // Blackpowder's last-second swell flashes red: a palette swap, not new art
-              b.kind === 'powder' && frame === 2 ? 'red' : undefined,
+              time,
             ),
         });
       }

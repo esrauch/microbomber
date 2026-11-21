@@ -28,12 +28,20 @@ minute campaign.
 All controls live in a **band below the room**:
 
 - **Left thumb:** a virtual analogue joystick.
-- **Right thumb:**
-  - **💣 Drop:** tap to drop the selected bomb on your tile.
-  - **Throw:** lobs a bomb `2–3` tiles the way you're facing. If you're standing on a live bomb it throws that one; otherwise it throws a fresh one. For bombs that can go off early (Gale), it also **pops** them.
-  - **The quick-swap row:** the unlocked bomb icons in a row above the buttons. One tap selects; there's no pause menu.
+- **Right thumb:** two item buttons, **B** and **A**, as in Link's Awakening DX
+  and the Oracle games. Each holds one item (a bomb type):
+  - **Tap** drops that bomb on your tile.
+  - **Hold** lifts a bomb overhead: the live bomb you're standing on if there is
+    one, otherwise a fresh one. You can walk while holding it, and its fuse keeps
+    burning.
+  - **Release** throws it `2–3` tiles the way you're facing. The throw marker
+    only shows while you're holding a bomb.
+  - For bombs that can go off early (Gale), a tap on its button while one is live
+    **pops** it.
+- **START** opens the pause subscreen: pick an item, then press B or A to equip
+  it there (it swaps if it was on the other button). The game pauses meanwhile.
 
-**One gesture per button.** No holds, flicks, or "tap near a bomb" overloads.
+New bombs share a `0.7 s` cooldown; lifting a bomb that's already down doesn't.
 
 **Precision aids** (a virtual stick can't do one-tile precision on its own):
 
@@ -220,7 +228,7 @@ puzzles and fights, and opens new overworld routes.
 | 4 | **Basalt Vault** | Multi-button doors, eye-beam turrets, synchronised statues, slide-and-stop puzzles | **The Ironclad Bull:** an invulnerable charger; make a basalt pillar so it stuns itself, then bomb it. | **The Prism Golem:** sweeps beams round a shielded core; block beams with basalt, freeze its track with Frost, and bank blasts behind its guard. |
 | 5 | **Ironblight Spire** | `8–10` rooms combining all five bombs | **The Rust Warden:** a duellist who copies your last bomb's element; answer each with its opposite. | **Lord Verdigris**, in four phases: Ember (light the braziers to reveal him), Gale (vault the pits and punt bombs up), Frost (bridge the moat, bank a shot), Basalt (shield from beams, then a multi-bomb finish). |
 
-## 6. Upgrades (no submenus)
+## 6. Upgrades
 
 Hidden behind cracked overworld walls, in optional Shrine rooms, and in short
 island puzzles:

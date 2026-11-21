@@ -30,6 +30,7 @@ export const FIRE_DURATION = 2.5; // seconds an Ember hearth patch burns
 export const THROW_RANGE = 3; // tiles lobbed ahead
 export const THROW_DURATION = 0.24; // seconds in flight
 export const BOMB_COOLDOWN = 0.7; // seconds between placing new bombs
+export const LIFT_DELAY = 0.18; // hold an item button this long to lift instead of drop
 const PLAYER_RADIUS = 0.28;
 const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
@@ -289,7 +290,8 @@ export function newState(
     maxHp: 6,
     heartShards: 0,
     unlockedBombs: ['powder'],
-    selectedBomb: 'powder',
+    slots: ['powder', null],
+    buttonTime: [0, 0],
     maxBombs: 2,
     blastRadius: 1,
     smallKeys: 0,
@@ -420,7 +422,12 @@ function hasBlockAt(s: State, tx: number, ty: number): boolean {
 
 function hasSolidBombAt(s: State, tx: number, ty: number): boolean {
   return s.bombs.some(
-    (b) => !b.flight && !b.graceOverlap && Math.floor(b.x) === tx && Math.floor(b.y) === ty,
+    (b) =>
+      !b.flight &&
+      b.carriedBy === undefined &&
+      !b.graceOverlap &&
+      Math.floor(b.x) === tx &&
+      Math.floor(b.y) === ty,
   );
 }
 
@@ -810,7 +817,10 @@ function collectPickup(s: State, pickup: ActivePickup): void {
       break;
     case 'ember-bomb':
       if (!s.unlockedBombs.includes('ember')) s.unlockedBombs.push('ember');
-      s.selectedBomb = 'ember';
+      if (!s.slots.includes('ember')) {
+        const free = s.slots.indexOf(null);
+        s.slots[free >= 0 ? free : 1] = 'ember';
+      }
       showBanner(
         s,
         'Learned the EMBER BOMB! Lights braziers, burns brambles & wooden shields, and lights the dark.',
@@ -864,6 +874,79 @@ function collectPickup(s: State, pickup: ActivePickup): void {
  * Advance simulation by `dt` seconds.
  * Returns `true` when a room cut occurred (edge walk or portal warp) so the view fades &autosaves.
  */
+function newBomb(s: State, kind: BombKind, x: number, y: number): Bomb {
+  s.bombCooldown = BOMB_COOLDOWN;
+  return {
+    id: s.nextEntityId++,
+    kind,
+    x,
+    y,
+    fuse: kind === 'ember' ? EMBER_FUSE : POWDER_FUSE,
+    graceOverlap: false,
+  };
+}
+
+/** New bombs are limited by the satchel and share a cooldown. */
+function canPlaceBomb(s: State): boolean {
+  return s.bombs.length < s.maxBombs && s.bombCooldown <= 0;
+}
+
+function dropBomb(world: World, s: State, kind: BombKind | null): void {
+  if (!kind || !canPlaceBomb(s)) return;
+  const [bx, by] = computeGhostTargets(world, s).dropTile;
+  if (
+    s.bombs.some(
+      (b) =>
+        !b.flight && b.carriedBy === undefined && Math.floor(b.x) === bx && Math.floor(b.y) === by,
+    )
+  ) {
+    return;
+  }
+  s.bombs.push({ ...newBomb(s, kind, bx + 0.5, by + 0.5), graceOverlap: true });
+  s.events.push('bomb-drop');
+}
+
+/** Lift a live bomb underfoot (whatever its kind), else a fresh one from button `slot`. */
+function liftBomb(s: State, slot: 0 | 1): void {
+  const kind = s.slots[slot];
+  const underfoot = s.bombs.find(
+    (b) => !b.flight && b.carriedBy === undefined && Math.hypot(b.x - s.x, b.y - s.y) < 0.75,
+  );
+  if (underfoot) {
+    underfoot.carriedBy = slot;
+    underfoot.graceOverlap = false;
+  } else if (kind && canPlaceBomb(s)) {
+    s.bombs.push({ ...newBomb(s, kind, s.x, s.y), carriedBy: slot });
+  } else {
+    return;
+  }
+  s.events.push('bomb-lift');
+}
+
+function throwCarried(world: World, s: State, slot: 0 | 1): void {
+  const b = s.bombs.find((bomb) => bomb.carriedBy === slot);
+  if (!b) return;
+  const [tx, ty] = computeGhostTargets(world, s).throwTile;
+  delete b.carriedBy;
+  b.flight = {
+    startX: s.x,
+    startY: s.y,
+    targetX: tx + 0.5,
+    targetY: ty + 0.5,
+    elapsed: 0,
+    duration: THROW_DURATION,
+  };
+  s.events.push('bomb-throw');
+}
+
+/** Pause-menu equip: put `kind` on button `slot` (0 = B, 1 = A), swapping if it's on the other. */
+export function equipItem(s: State, slot: 0 | 1, kind: BombKind): void {
+  if (!s.unlockedBombs.includes(kind)) return;
+  const other = slot === 0 ? 1 : 0;
+  if (s.slots[other] === kind) s.slots[other] = s.slots[slot];
+  s.slots[slot] = kind;
+}
+
 export function tick(world: World, s: State, input: Input, dt: number): boolean {
   s.blasts = [];
   s.events = [];
@@ -875,10 +958,6 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
   if (s.invulnTimer > 0) s.invulnTimer = Math.max(0, s.invulnTimer - dt);
   if (s.portalCooldown > 0) s.portalCooldown = Math.max(0, s.portalCooldown - dt);
   if (s.bombCooldown > 0) s.bombCooldown = Math.max(0, s.bombCooldown - dt);
-
-  if (input.selectBomb && s.unlockedBombs.includes(input.selectBomb)) {
-    s.selectedBomb = input.selectBomb;
-  }
 
   // 1. Player movement + corner sliding (`GAME.md` §2) + knockback velocity
   const inLen = Math.hypot(input.dx, input.dy);
@@ -990,66 +1069,34 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     }
   }
 
-  // 2. Bomb Drop & Throw (`GAME.md` §2 — one gesture per button)
-  const { dropTile, throwTile } = computeGhostTargets(world, s);
-
-  // New bombs share a cooldown; re-throwing a bomb already on the ground does not
-  const canPlace = s.bombs.length < s.maxBombs && s.bombCooldown <= 0;
-  if (input.drop && canPlace) {
-    const [bx, by] = dropTile;
-    const occupied = s.bombs.some(
-      (b) => !b.flight && Math.floor(b.x) === bx && Math.floor(b.y) === by,
-    );
-    if (!occupied) {
-      s.bombs.push({
-        id: s.nextEntityId++,
-        kind: s.selectedBomb,
-        x: bx + 0.5,
-        y: by + 0.5,
-        fuse: s.selectedBomb === 'ember' ? EMBER_FUSE : POWDER_FUSE,
-        graceOverlap: true,
-      });
-      s.bombCooldown = BOMB_COOLDOWN;
-      s.events.push('bomb-drop');
+  // 2. Item buttons (`GAME.md` §2)
+  // A carried bomb rides overhead with Pip
+  for (const b of s.bombs) {
+    if (b.carriedBy !== undefined) {
+      b.x = s.x;
+      b.y = s.y;
     }
   }
 
-  if (input.throwBomb) {
-    // If standing on/beside a grounded bomb on our tile, throw that one; else lob a fresh one
-    const underfoot = s.bombs.find((b) => !b.flight && Math.hypot(b.x - s.x, b.y - s.y) < 0.75);
-    const [tx, ty] = throwTile;
-    if (underfoot) {
-      underfoot.graceOverlap = false;
-      underfoot.flight = {
-        startX: underfoot.x,
-        startY: underfoot.y,
-        targetX: tx + 0.5,
-        targetY: ty + 0.5,
-        elapsed: 0,
-        duration: THROW_DURATION,
-      };
-      s.events.push('bomb-throw');
-    } else if (canPlace) {
-      s.bombCooldown = BOMB_COOLDOWN;
-      s.bombs.push({
-        id: s.nextEntityId++,
-        kind: s.selectedBomb,
-        x: s.x,
-        y: s.y,
-        fuse: s.selectedBomb === 'ember' ? EMBER_FUSE : POWDER_FUSE,
-        graceOverlap: false,
-        flight: {
-          startX: s.x,
-          startY: s.y,
-          targetX: tx + 0.5,
-          targetY: ty + 0.5,
-          elapsed: 0,
-          duration: THROW_DURATION,
-        },
-      });
-      s.events.push('bomb-throw');
+  // Item buttons B and A (`GAME.md` §2): tap drops the slot's bomb, holding lifts one
+  // overhead (a live bomb underfoot, else a fresh one), and releasing throws it.
+  ([input.holdB ?? false, input.holdA ?? false] as const).forEach((held, i) => {
+    const was = s.buttonTime[i] ?? 0;
+    const carrying = s.bombs.some((b) => b.carriedBy !== undefined);
+    if (held) {
+      s.buttonTime[i] = was + dt;
+      if (was < LIFT_DELAY && was + dt >= LIFT_DELAY && !carrying) {
+        liftBomb(s, i === 0 ? 0 : 1);
+      }
+    } else if (was > 0) {
+      s.buttonTime[i] = 0;
+      if (carrying) {
+        if (was >= LIFT_DELAY) throwCarried(world, s, i === 0 ? 0 : 1);
+      } else if (was < LIFT_DELAY) {
+        dropBomb(world, s, s.slots[i] ?? null);
+      }
     }
-  }
+  });
 
   // 3. Update active bombs (flight, overlap grace, impact detonation, fuse)
   const toDetonate: Bomb[] = [];
@@ -1341,7 +1388,7 @@ export function exportSave(s: State): SaveData {
     maxHp: s.maxHp,
     heartShards: s.heartShards,
     unlockedBombs: [...s.unlockedBombs],
-    selectedBomb: s.selectedBomb,
+    slots: [...s.slots],
     maxBombs: s.maxBombs,
     blastRadius: s.blastRadius,
     smallKeys: s.smallKeys,
@@ -1382,8 +1429,14 @@ export function importSave(world: World, raw: unknown): State | null {
     s.unlockedBombs = d.unlockedBombs.filter((b): b is BombKind => b === 'powder' || b === 'ember');
     if (!s.unlockedBombs.includes('powder')) s.unlockedBombs.unshift('powder');
   }
-  if (d.selectedBomb && s.unlockedBombs.includes(d.selectedBomb)) {
-    s.selectedBomb = d.selectedBomb;
+  // Older saves had one selected bomb and no slots: start from B = Blackpowder, A = Ember
+  const okSlot = (v: unknown): BombKind | null =>
+    (v === 'powder' || v === 'ember') && s.unlockedBombs.includes(v) ? v : null;
+  if (Array.isArray(d.slots) && d.slots.length === 2) {
+    s.slots = [okSlot(d.slots[0]), okSlot(d.slots[1])];
+    if (s.slots[0] && s.slots[0] === s.slots[1]) s.slots[1] = null;
+  } else {
+    s.slots = ['powder', okSlot('ember')];
   }
   if (typeof d.maxBombs === 'number') s.maxBombs = Math.max(2, Math.min(4, d.maxBombs));
   if (typeof d.blastRadius === 'number') s.blastRadius = Math.max(1, Math.min(2, d.blastRadius));

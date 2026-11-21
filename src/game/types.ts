@@ -162,6 +162,8 @@ export interface Bomb {
   fuse: number;
   /** True while the player is still overlapping a freshly dropped bomb on their tile. */
   graceOverlap: boolean;
+  /** Held overhead by the player (fuse still burning): the button that lifted it, 0 = B, 1 = A. */
+  carriedBy?: 0 | 1;
   /** Flight state when thrown (`2–3` tiles arc). */
   flight?: {
     startX: number;
@@ -242,12 +244,9 @@ export interface Input {
   /** Analogue movement vector (-1..1 each). */
   dx: number;
   dy: number;
-  /** Tap Drop button this tick. */
-  drop: boolean;
-  /** Tap Throw button this tick. */
-  throwBomb: boolean;
-  /** Optional bomb type quick-select this tick. */
-  selectBomb?: BombKind;
+  /** Item buttons held this tick (`GAME.md` §2): tap drops the slot's bomb, hold lifts, release throws. */
+  holdB?: boolean;
+  holdA?: boolean;
 }
 
 export interface State {
@@ -279,9 +278,11 @@ export interface State {
   maxHp: number;
   heartShards: number;
 
-  /** Unlocked bombs and currently selected bomb. */
+  /** Unlocked bombs, and the item equipped on each button: `[B, A]`, set in the pause menu. */
   unlockedBombs: BombKind[];
-  selectedBomb: BombKind;
+  slots: [BombKind | null, BombKind | null];
+  /** Seconds each item button `[B, A]` has been held (0 while up). */
+  buttonTime: [number, number];
   maxBombs: number;
   blastRadius: number;
 
@@ -331,7 +332,7 @@ export interface SaveData {
   maxHp: number;
   heartShards: number;
   unlockedBombs: BombKind[];
-  selectedBomb: BombKind;
+  slots: [BombKind | null, BombKind | null];
   maxBombs: number;
   blastRadius: number;
   smallKeys: number;

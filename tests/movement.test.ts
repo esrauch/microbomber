@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { type Input, campaignWorld, cardinalFacing, newState, tick } from '../src/game/world';
-
-const idle: Input = { dx: 0, dy: 0, drop: false, throwBomb: false };
+import { idle, tapB, throwB } from './input';
+import { campaignWorld, cardinalFacing, newState, tick } from '../src/game/world';
 
 describe('movement feel', () => {
   it('stops flush against a wall even with a coarse frame step', () => {
@@ -55,14 +54,15 @@ describe('movement feel', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
     s.enemies = [];
-    tick(world, s, { ...idle, drop: true }, 1 / 60);
+    tapB(world, s);
     expect(s.bombs).toHaveLength(1);
-    tick(world, s, { ...idle, throwBomb: true }, 1 / 60); // picks up the dropped bomb
+    throwB(world, s); // lifts the dropped bomb underfoot and throws it
+    expect(s.bombs).toHaveLength(1);
     expect(s.bombs[0]?.flight).toBeDefined();
-    for (let i = 0; i < 10; i++) tick(world, s, { ...idle, drop: true }, 1 / 60);
+    tapB(world, s);
     expect(s.bombs).toHaveLength(1);
     for (let i = 0; i < 40; i++) tick(world, s, idle, 1 / 60);
-    tick(world, s, { ...idle, drop: true }, 1 / 60);
+    tapB(world, s);
     expect(s.bombs).toHaveLength(2);
   });
 });

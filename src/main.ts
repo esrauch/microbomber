@@ -9,6 +9,7 @@ import {
   type State,
   campaignWorld,
   currentRoom,
+  equipItem,
   exportSave,
   importSave,
   newState,
@@ -304,7 +305,7 @@ Object.assign(fade.style, {
 stage.append(fade);
 
 // =========================================================================
-// Dedicated Control Band (`GAME.md` §2): Joystick + Quick-Swap + Drop & Throw
+// Dedicated Control Band (`GAME.md` §2): Joystick, START, and item buttons B and A
 // =========================================================================
 const joystick = mountJoystick(controls);
 
@@ -316,11 +317,11 @@ Object.assign(rightCluster.style, {
   gap: '8px',
 });
 
-const quickSwapRow = document.createElement('div');
-Object.assign(quickSwapRow.style, {
+const topRow = document.createElement('div');
+Object.assign(topRow.style, {
   display: 'flex',
   alignItems: 'center',
-  gap: '6px',
+  gap: '8px',
 });
 
 const satchelPips = document.createElement('div');
@@ -328,67 +329,46 @@ Object.assign(satchelPips.style, {
   fontSize: '11.5px',
   fontWeight: '800',
   color: '#cbd5c0',
-  marginRight: '4px',
   letterSpacing: '2px',
 });
 
-const bombBtns = new Map<BombKind, HTMLButtonElement>();
-const BOMB_META: Record<BombKind, { icon: string; label: string; color: string }> = {
-  powder: { icon: '💣', label: 'Powder', color: '#fbbf24' },
-  ember: { icon: '🔥', label: 'Ember', color: '#f97316' },
+const startBtn = document.createElement('button');
+startBtn.textContent = 'START';
+Object.assign(startBtn.style, {
+  height: '26px',
+  padding: '0 12px',
+  borderRadius: '999px',
+  border: '2px solid #4a5568',
+  background: '#1e2620',
+  color: '#e2e8f0',
+  fontSize: '11px',
+  fontWeight: '800',
+  letterSpacing: '0.08em',
+  cursor: 'pointer',
+  touchAction: 'none',
+});
+topRow.append(satchelPips, startBtn);
+
+const BOMB_META: Record<BombKind, { icon: string; label: string }> = {
+  powder: { icon: '💣', label: 'Blackpowder' },
+  ember: { icon: '🔥', label: 'Ember' },
 };
 
-let queuedDrop = false;
-let queuedThrow = false;
-let queuedSelect: BombKind | undefined;
+/** Item buttons held right now: `[B, A]`. Tap drops, hold lifts, release throws. */
+const buttonHeld: [boolean, boolean] = [false, false];
 
-for (const kind of ['powder', 'ember'] as const) {
-  const meta = BOMB_META[kind];
-  const btn = document.createElement('button');
-  btn.textContent = `${meta.icon} ${meta.label}`;
-  Object.assign(btn.style, {
-    height: '30px',
-    padding: '0 10px',
-    borderRadius: '999px',
-    border: '2px solid #4a5568',
-    background: '#1e2620',
-    color: '#e2e8f0',
-    fontSize: '12px',
-    fontWeight: '800',
-    cursor: 'pointer',
-    touchAction: 'none',
-  });
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    queuedSelect = kind;
-  });
-  bombBtns.set(kind, btn);
-  quickSwapRow.append(btn);
-}
-quickSwapRow.prepend(satchelPips);
+let menuOpen = false;
+let menuCursor: BombKind | null = null;
 
-const actionRow = document.createElement('div');
-Object.assign(actionRow.style, {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '10px',
-});
-
-const makeActionBtn = (
-  icon: string,
-  caption: string,
-  borderCol: string,
-  bgCol: string,
-  onPress: () => void,
-): HTMLButtonElement => {
+const makeItemBtn = (slot: 0 | 1, letter: 'B' | 'A'): HTMLButtonElement => {
   const b = document.createElement('button');
-  b.innerHTML = `<span style="font-size:24px;line-height:1">${icon}</span><span style="font-size:11px;font-weight:800;letter-spacing:0.03em">${caption}</span>`;
+  b.innerHTML = `<span style="font-size:24px;line-height:1"></span><span style="font-size:12px;font-weight:800;letter-spacing:0.05em">${letter}</span>`;
   Object.assign(b.style, {
     width: '74px',
     height: '74px',
     borderRadius: '50%',
-    border: `3px solid ${borderCol}`,
-    background: bgCol,
+    border: '3px solid #f6e05e',
+    background: 'rgba(45, 38, 24, 0.85)',
     color: '#fff9eb',
     display: 'flex',
     flexDirection: 'column',
@@ -401,44 +381,172 @@ const makeActionBtn = (
   });
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    onPress();
+    if (menuOpen) {
+      // In the pause menu, B and A equip the highlighted item, as on the GBC subscreen
+      equipCursor(slot);
+      return;
+    }
+    try {
+      b.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointer events may omit capture support.
+    }
+    buttonHeld[slot] = true;
+  });
+  const release = (): void => {
+    buttonHeld[slot] = false;
+  };
+  b.addEventListener('pointerup', release);
+  b.addEventListener('pointercancel', release);
+  b.addEventListener('lostpointercapture', release);
+  return b;
+};
+
+const actionRow = document.createElement('div');
+Object.assign(actionRow.style, {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+});
+// Game Boy order: B on the left, A on the right
+const itemBtns: [HTMLButtonElement, HTMLButtonElement] = [makeItemBtn(0, 'B'), makeItemBtn(1, 'A')];
+actionRow.append(...itemBtns);
+
+rightCluster.append(topRow, actionRow);
+controls.append(rightCluster);
+
+// =========================================================================
+// Pause subscreen (START): pick an item, then press B or A to equip it
+// =========================================================================
+const menuEl = document.createElement('div');
+Object.assign(menuEl.style, {
+  position: 'absolute',
+  inset: '0',
+  zIndex: '25',
+  display: 'none',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '14px',
+  padding: '16px',
+  background: 'rgba(14, 18, 15, 0.94)',
+  color: '#f4eedc',
+  textAlign: 'center',
+});
+stage.append(menuEl);
+
+const menuButton = (html: string, active: boolean): HTMLButtonElement => {
+  const b = document.createElement('button');
+  b.innerHTML = html;
+  Object.assign(b.style, {
+    minWidth: '96px',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    border: `3px solid ${active ? '#f6e05e' : '#4a5568'}`,
+    background: active ? 'rgba(66, 52, 28, 0.92)' : '#1e2620',
+    color: '#f4eedc',
+    fontSize: '13px',
+    fontWeight: '800',
+    cursor: 'pointer',
   });
   return b;
 };
 
-const dropBtn = makeActionBtn('💣', 'DROP', '#f6e05e', 'rgba(45, 38, 24, 0.85)', () => {
-  queuedDrop = true;
-});
-const throwBtn = makeActionBtn('🎯', 'THROW', '#63b3ed', 'rgba(24, 40, 56, 0.85)', () => {
-  queuedThrow = true;
-});
-actionRow.append(dropBtn, throwBtn);
+function renderMenu(): void {
+  menuEl.replaceChildren();
+  const title = document.createElement('div');
+  title.textContent = 'ITEMS';
+  Object.assign(title.style, { fontSize: '18px', fontWeight: '900', letterSpacing: '0.2em' });
 
-rightCluster.append(quickSwapRow, actionRow);
-controls.append(rightCluster);
+  const slotsRow = document.createElement('div');
+  Object.assign(slotsRow.style, { display: 'flex', gap: '12px' });
+  (['B', 'A'] as const).forEach((letter, i) => {
+    const slot = i === 0 ? 0 : 1;
+    const kind = state.slots[slot];
+    const label = kind ? `${BOMB_META[kind].icon} ${BOMB_META[kind].label}` : '—';
+    const b = menuButton(`<div style="font-size:11px;opacity:0.7">${letter}</div>${label}`, false);
+    b.addEventListener('click', () => equipCursor(slot));
+    slotsRow.append(b);
+  });
 
-// Keyboard support (WASD / Arrows, Space = Drop, E / Shift / Enter = Throw, 1 / 2 / Tab = Swap)
+  const grid = document.createElement('div');
+  Object.assign(grid.style, {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '10px',
+  });
+  for (const kind of state.unlockedBombs) {
+    const b = menuButton(
+      `<div style="font-size:26px;line-height:1.1">${BOMB_META[kind].icon}</div>${BOMB_META[kind].label}`,
+      kind === menuCursor,
+    );
+    b.addEventListener('click', () => {
+      menuCursor = kind;
+      renderMenu();
+    });
+    grid.append(b);
+  }
+
+  const hint = document.createElement('div');
+  hint.textContent = 'Pick an item, then press B or A to equip it.';
+  Object.assign(hint.style, { fontSize: '12px', color: '#cbd5c0' });
+
+  const resume = menuButton('▶ Resume', false);
+  resume.addEventListener('click', () => toggleMenu(false));
+
+  menuEl.append(title, slotsRow, grid, hint, resume);
+}
+
+function equipCursor(slot: 0 | 1): void {
+  if (!menuCursor) return;
+  equipItem(state, slot, menuCursor);
+  persistState(state);
+  renderMenu();
+  syncHud(true);
+}
+
+function toggleMenu(open = !menuOpen): void {
+  menuOpen = open;
+  buttonHeld[0] = false;
+  buttonHeld[1] = false;
+  if (open) {
+    menuCursor = state.slots[0] ?? state.unlockedBombs[0] ?? null;
+    renderMenu();
+  }
+  menuEl.style.display = open ? 'flex' : 'none';
+  startBtn.style.borderColor = open ? '#f6e05e' : '#4a5568';
+}
+startBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  toggleMenu();
+});
+
+// Keyboard: WASD / Arrows move, J / Space = B, K / E = A (hold to lift, release to throw),
+// Enter / Esc / P = START. In the menu, left/right pick an item and J / K equip it.
 const held = new Set<string>();
+const B_KEYS = [' ', 'j'];
+const A_KEYS = ['k', 'e'];
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
-  held.add(k);
-  if (e.key === ' ') {
-    e.preventDefault();
-    queuedDrop = true;
-  } else if (k === 'e' || k === 'j' || k === 'enter' || k === 'shift') {
-    e.preventDefault();
-    queuedThrow = true;
-  } else if (k === '1') {
-    queuedSelect = 'powder';
-  } else if (k === '2') {
-    queuedSelect = 'ember';
-  } else if (k === 'tab' || k === 'q') {
-    e.preventDefault();
-    if (state.unlockedBombs.length > 1) {
-      const idx = state.unlockedBombs.indexOf(state.selectedBomb);
-      queuedSelect = state.unlockedBombs[(idx + 1) % state.unlockedBombs.length];
-    }
+  if (k === ' ' || k === 'tab') e.preventDefault();
+  if (k === 'enter' || k === 'escape' || k === 'p') {
+    if (!e.repeat) toggleMenu();
+    return;
   }
+  if (menuOpen) {
+    if (e.repeat) return;
+    const list = state.unlockedBombs;
+    const idx = menuCursor ? list.indexOf(menuCursor) : -1;
+    if (k === 'arrowleft' || k === 'a') menuCursor = list[Math.max(0, idx - 1)] ?? null;
+    if (k === 'arrowright' || k === 'd')
+      menuCursor = list[Math.min(list.length - 1, idx + 1)] ?? null;
+    if (B_KEYS.includes(k)) equipCursor(0);
+    else if (A_KEYS.includes(k)) equipCursor(1);
+    else renderMenu();
+    return;
+  }
+  held.add(k);
 });
 window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
 
@@ -454,17 +562,12 @@ const readInput = (): Input => {
     dx = stick.dx;
     dy = stick.dy;
   }
-  const out: Input = {
+  return {
     dx,
     dy,
-    drop: queuedDrop,
-    throwBomb: queuedThrow,
-    ...(queuedSelect ? { selectBomb: queuedSelect } : {}),
+    holdB: buttonHeld[0] || B_KEYS.some((k) => held.has(k)),
+    holdA: buttonHeld[1] || A_KEYS.some((k) => held.has(k)),
   };
-  queuedDrop = false;
-  queuedThrow = false;
-  queuedSelect = undefined;
-  return out;
 };
 
 // =========================================================================
@@ -485,7 +588,7 @@ function syncHud(force = false): void {
     state.heartShards,
     state.smallKeys,
     state.hasBossKey,
-    state.selectedBomb,
+    state.slots.join(','),
     state.unlockedBombs.join(','),
     readyBombs,
     state.maxBombs,
@@ -547,21 +650,13 @@ function syncHud(force = false): void {
     }
   }
 
-  // Quick-swap bomb buttons & satchel pips
+  // Satchel pips & the items on B and A
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
-  for (const [kind, btn] of bombBtns) {
-    const unlocked = state.unlockedBombs.includes(kind);
-    btn.style.display = unlocked ? 'inline-flex' : 'none';
-    btn.style.alignItems = 'center';
-    const active = state.selectedBomb === kind;
-    const col = BOMB_META[kind].color;
-    btn.style.borderColor = active ? col : '#4a5568';
-    btn.style.background = active ? 'rgba(66, 52, 28, 0.92)' : '#1e2620';
-    btn.style.color = active ? '#fffaf0' : '#a0aec0';
-  }
-  const dropIcon = dropBtn.querySelector('span');
-  if (dropIcon) dropIcon.textContent = BOMB_META[state.selectedBomb].icon;
+  state.slots.forEach((kind, i) => {
+    const icon = itemBtns[i]?.querySelector('span');
+    if (icon) icon.textContent = kind ? BOMB_META[kind].icon : '·';
+  });
 
   // Boss HP bar
   if (boss) {
@@ -610,7 +705,7 @@ const frame = (now: number): void => {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  if (!cutting) {
+  if (!cutting && !menuOpen) {
     const moved = tick(world, state, readInput(), dt);
     for (const ev of state.events) {
       sfx.play(ev);
