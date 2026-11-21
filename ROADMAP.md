@@ -4,135 +4,122 @@ Burn-down for the "retro look, modern play" decisions in [`GAME.md` §10](GAME.m
 Tick items off as they land; every phase ends with a phone playtest before the
 next starts. `npm run check` passes at every tick.
 
-## Phase 1: Roll and Pull out
+Phases 1-5 (Roll, bomb physics, physics puzzles, systemic world and AI, the
+PixiJS renderer) and the place-and-kick change are built and committed; what is
+left from them is under [Future milestones](#future-milestones).
 
-Two fixed verbs, tuned before physics and AI are built on top of them.
+## Phase 6: Make it look professional
 
-- [x] **One equipped bomb:** replace `slots: [B, A]` with `equipped: BombKind | null`;
-      saves migrate (`equipped = slots[0]`).
-- [x] **START menu:** pick the equipped bomb or **None**; the game pauses.
-- [x] **B = Roll:** about `2` tiles in `0.25 s` along the stick (or facing when
-      idle), i-frames for the middle `0.15 s`, `0.35 s` recovery; slides along walls
-      and stops at solids.
-- [x] ~~**Roll lays a bomb:** the equipped bomb is left where the roll started.~~
-      Built, then removed as the default (2026-11-22); kept as a possible unlock
-      (see Later).
-- [x] **A = Pull out:** hold to lift and carry, release to throw, quick tap to drop
-      at your feet (move today's tap/hold/release logic onto A alone).
-- [x] **Analog throw:** aim along the stick's exact angle (360°) with a fixed lob.
-- [x] **Arc preview:** a dotted throw arc while carrying (replaces the throw marker).
-- [x] **Input buffer:** presses during roll recovery or the bomb cooldown fire when
-      they end (`100–150 ms` window).
-- [x] **Magnetized pickups:** pickups drift to Pip within about `1` tile.
-- [x] **Pip roll frames:** south, north, east (west flipped), wired into `drawPip`.
-- [x] **Snappy motion pass:** squash and stretch on landing and popping, eased
-      tweens for pickups, doors and push blocks, anticipation on the lift.
-- [x] **Control band:** B labelled Roll, A labelled Pull out with the equipped
-      bomb's icon.
-- [x] **Tests:** roll distance, i-frames, recovery, bomb laying, buffer, migration.
-- [x] **Docs:** rewrite `GAME.md` §2 for Roll and Pull out.
-- [ ] **Playtest checkpoint:** roll length, i-frame window and buffer feel on a
-      phone.
+Phone screenshots of the Square, Crypt Foyer, Lantern Hall and Bramble Woods
+showed the pixel art is mostly fine; the jank is in the framing, filtering, depth
+sorting and dressing. Five changes, in order of impact.
 
-## Phase 2: Bomb physics
+### 6.1 Pixel-perfect framing
 
-- [x] **Fixed timestep:** a `60 Hz` simulation with an accumulator in the main
-      loop; `tick` always takes the fixed `dt`, so tests stay deterministic.
-- [x] **Bomb bodies:** position, velocity and radius; friction; rebound off solid
-      tiles; pits swallow; water stops them (drift comes in Phase 4).
-- [x] **Throw lands and rolls:** the lob arc hands off to bounce and roll.
-- [x] **Kick:** walking into a grounded bomb sends it rolling.
-- [x] **Blast shove:** a radial impulse on bombs, enemies, push blocks and Pip (one
-      knockback model for all of them).
-- [x] **Chains:** a shoved bomb that's hit again detonates; impact detonation for
-      thrown Blackpowder still applies.
-- [x] **Grace and traps:** recheck walk-through grace and doorway rules with moving
-      bombs (never trapped, never knocked out of a room).
-- [x] **Tests:** deterministic scenarios for bounce, roll-out distance, kick, shove
-      and chains.
-- [ ] **Playtest checkpoint:** friction, bounciness and kick strength.
+The `176 × 208` frame is stretched about `2.05×` on a `375 px` phone, so art
+pixels come out at uneven sizes and shimmer in motion.
 
-## Phase 3: Physics puzzles
+- [x] **Integer scaling:** present at a whole number of device pixels per art
+      pixel (`5×` on a `411 px @ 2.625×` phone) and centre it; nearest-neighbour
+      only.
+- [x] **Bezel instead of dead bands:** fill the empty space above and below the
+      playfield with a GBC-style frame in the zone's palette.
+- [x] **Dialogue strip:** move dialogue into a fixed text area in the bezel so it
+      never covers the play area.
+- [x] **Tests:** the integer-scale chooser for common phone and desktop sizes.
 
-- [x] **Contact triggers:** switches, braziers, buttons and cracked walls react to
-      bombs and blasts by contact radius, not tile.
-- [x] **Slopes:** a directional slope tile (rules, art, autotiling) that rolls
-      bombs downhill.
-- [x] **Ember Crypt rework**, room by room, using rolling and banking:
-  - [x] Crypt Foyer
-  - [x] Block Antechamber
-  - [x] Crystal Crossroads
-  - [x] Vault of Sparks
-  - [x] Alchemist Reliquary
-  - [x] Lantern Hall (miniboss)
-  - [x] Bramble Crypt
-  - [x] Hall of Three Flames
-  - [x] Sanctum Ante-Room
-  - [x] Sanctum of Ash (boss)
-- [x] **Overworld secrets:** recheck every cracked-wall and bramble secret.
-- [x] **Tests:** each puzzle has a scripted solve; the doorway walk test still
-      passes.
-- [ ] **Playtest checkpoint:** every room solvable and readable on a phone.
+### 6.2 One pixel-art UI language
 
-## Phase 4: Systemic world and AI
+The HUD, dialogue, boss bar and controls use the system font and generic rounded
+web buttons (`ASSETS.md` §1.6 specifies the GBC double-lined box; it was never
+built).
 
-- [x] **Spreading fire:** dry grass and brambles burn tile by tile; crates burn;
-      braziers in range light; water and stone stop it.
-- [x] **Water currents:** bombs float and drift; current tiles.
-- [x] **Wind:** gusts carry smoke, fire and light objects (groundwork for Gale).
-- [x] **Enemy state machines:** patrol, notice, chase, recover, with clear
-      wind-up telegraphs.
-- [x] **Fuse awareness:** enemies flee lit fuses and stumble when hit.
-- [x] **World reactions:** bats put out flames, slimes split in fire, shielders
-      kick bombs back.
-- [x] **Bosses:** Wickgeist and Cinderhull updated for physics bombs and the new AI.
-- [x] **Tests:** fire-spread bounds, current drift, AI state transitions.
-- [ ] **Playtest checkpoint:** emergent chaos stays fair and readable.
+- [x] **Decide the font:** a bundled open-licence (OFL) pixel font, or one we
+      draw (authored in-repo `8 × 8` GBC TrueType SFNT `CinderholmPixel`).
+- [x] **Pixel font everywhere:** HUD, dialogue, boss bar, START menu.
+- [x] **Pixel-art controls:** B and A buttons with pressed states, and a pixel
+      joystick ring and knob.
+- [x] **No truncated text:** the objective line wraps or scrolls instead of
+      ending in an ellipsis.
+- [x] **One box style:** every panel uses the same double-lined GBC frame.
 
-## Mechanic change (2026-11-22): place and kick
+### 6.3 Re-tune lighting and bloom
 
-- [x] **A = Place:** a press puts the equipped bomb just in front of Pip (cardinal
-      facing, centred in the lane); lift, carry, throw and the arc preview are gone.
-- [x] **Orthogonal kicks:** walking into a bomb kicks it along the dominant axis
-      only; kicked Blackpowder impact-detonates on enemies.
-- [x] **Puzzles re-verified:** every Ember Crypt scripted solve passes with place
-      and kick.
-- [ ] **Playtest checkpoint:** placing and kicking feel on a phone.
+Bloom keys off brightness, so sunlit sand and grass glow and the overworld looks
+hazy and smeared. Outdoor lighting is flat. The crypt and dark-room torch pools
+already work.
 
-## Phase 5: PixiJS renderer (HD-2D lite)
+- [x] **Emissive-driven bloom:** bloom only flames, blasts, sparks and warp pads
+      (the G-buffer's emissive channel), not bright ground.
+- [x] **Shadows:** a stronger directional sun outdoors, soft contact shadows under
+      characters, bombs and props, and darkening along wall bases.
+- [x] **Cleaner light pools:** remove the muddy red-brown cast from the lantern and
+      keep shadows in the zone's ink colour rather than grey.
 
-Built 2026-11-22 but **not yet seen running**: headless-browser verification was not
-available, so every item below is unit-tested and type-checked only until the first
-playtest.
+### 6.4 Draw order and grounding
 
-- [~] **PixiJS port:** done as a presentation layer (`src/render/hd/hdView.ts`): the
-      Canvas2D renderer still composes the native-resolution albedo frame and a sprite
-      G-buffer (`gbcAux.ts`), and PixiJS lights, blooms, grades, adds particles and
-      presents. Falls back to Canvas2D without WebGL. Moving the layers themselves
-      onto Pixi sprites is still open.
-- [x] **Lighting:** normal-mapped point lights from braziers, fire patches, Ember
-      flasks, fuse sparks, blast flashes, projectiles, warp pads, the exposed boss
-      core and Pip's lantern (dark rooms only); per-zone ambient and sun
-      (`lights.ts`). Flames, blasts and sparks are emissive.
-- [x] **Auto normal maps:** derived in the shader from albedo luminance (lighter =
-      raised, ink = edge) for all tiles and non-hero sprites.
-- [~] **Hand normal maps for hero assets:** Pip, Wickgeist and Cinderhull have
-      hand-tuned height profiles (per palette index plus a dome) drawn into the
-      G-buffer; per-pixel hand-painted maps and the landmark stamps are still open.
-- [x] **Bloom and colour grading:** bright pass blurred at native resolution and
-      added back; per-zone saturation, contrast and tint in the lighting pass.
-- [x] **Particles:** sparks, smoke, debris, embers, dust and splash droplets from
-      game events, plus rising embers from fires and braziers (`particles.ts`).
-- [x] **Room slides:** eased `0.32 s` push between adjacent rooms with parallax cloud
-      shadows in the overworld; portals and respawns still fade.
+A bomb placed north of Pip, and a slime, draw on top of his head; Pip stands on
+top of the floor medallion; nothing has a shadow.
+
+- [x] **Sort by foot position:** every actor, bomb and prop sorts by where it
+      touches the ground, so things north of Pip draw behind him.
+- [x] **Decals below actors:** floor medallions and chute arrows always draw
+      beneath actors.
+- [x] **Height-aware shadows:** every actor and bomb casts a shadow that follows
+      its height, including bombs mid-hop.
+- [x] **Tests:** the depth-sort order for stacked actors, bombs and props.
+
+### 6.5 Tile-art variety pass
+
+The biggest art job.
+
+- [x] **Tree borders:** `3-4` canopy variants plus an edge treatment, so walls
+      stop repeating one canopy.
+- [x] **Water:** natural autotiled shorelines with animated foam, replacing the
+      capsule pond.
+- [x] **Crypt floors:** flagstone variants and occasional decals (cracks, moss,
+      scorch, rugs) to break up the flat fields.
+- [x] **Chutes:** carved stone troughs with motion lines instead of conveyor
+      chevrons.
+- [x] **Grounded buildings:** a foundation and path apron under the workshop and
+      smithy.
+
+### Phase 6 checkpoint
+
+- [x] **Screenshot review:** retake the four rooms (and a blast mid-explosion,
+      which the first pass missed) on a phone-sized viewport and compare.
+- [ ] **Playtest checkpoint:** does it look and feel like a finished game on a
+      real phone?
+
+## Future milestones
+
+Left over from earlier phases, not yet scheduled.
+
+### Playtests on a real phone
+
+- [ ] **Roll:** roll length, i-frame window and input-buffer feel.
+- [ ] **Bomb physics:** friction, bounciness and kick strength.
+- [ ] **Place and kick:** how placing in front of Pip and kicking feel.
+- [ ] **Physics puzzles:** every Ember Crypt room solvable and readable.
+- [ ] **Systemic world and AI:** fire spread, wind and enemy reactions stay fair
+      and readable.
+- [ ] **Lighting:** bombs and blast reach stay readable under the lit renderer.
+
+### Renderer
+
+- [ ] **Move the layers onto Pixi sprites:** today the Canvas2D code (`gbc.ts`)
+      still composes the native-resolution albedo frame and the sprite G-buffer
+      (`gbcAux.ts`) and PixiJS lights and presents it; move ground, props,
+      Y-sorted actors, overhead and ceiling onto Pixi itself.
 - [ ] **Performance:** a steady `60 fps` on a mid-range phone.
-- [ ] **Playtest checkpoint:** readability of bombs and blast reach under lighting.
-
-## Later and revisit
-
-- [ ] **Impact feedback:** decide on hit-stop, screen shake and haptics once
-      physics lands.
+- [ ] **Hero normal maps:** Pip, Wickgeist and Cinderhull have hand-tuned height
+      profiles (per palette index plus a dome); hand-paint per-pixel maps for them
+      and for the landmark stamps.
 - [ ] **Hand-author the remaining normal maps** if we keep this lighting.
+
+### Game feel and design
+
+- [ ] **Impact feedback:** decide on hit-stop, screen shake and haptics.
 - [ ] **Bomb-laying roll (unlockable):** a satchel upgrade or Shrine relic that
       makes rolls leave the equipped bomb behind, with puzzles built for it
       (`GAME.md` §10).

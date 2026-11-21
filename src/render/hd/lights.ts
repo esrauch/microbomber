@@ -1,9 +1,9 @@
 /**
- * HD-2D lighting model (`GAME.md` §10, ROADMAP Phase 5): turns game state into an ambient
- * term, a sun, and point lights in native pixels. Pure (no DOM or WebGL) so it is testable;
- * `hdView.ts` feeds the result to the lighting shader.
+ * HD-2D lighting model (`GAME.md` §10, ROADMAP Phase 5 & §6.3): turns game state into an
+ * ambient term, a directional sun, chromatic zone shadow ink, and point lights in native pixels.
+ * Pure (no DOM or WebGL) so it is testable; `hdView.ts` feeds the result to the lighting shader.
  */
-import type { State, World } from '../../game/types';
+import type { State, World, ZoneId } from '../../game/types';
 import { currentRoom, isRoomLit } from '../../game/world';
 
 const TILE = 16;
@@ -29,6 +29,8 @@ export interface Lighting {
   /** Direction toward the sun (x right, y down the screen, z up out of it) and its colour. */
   sunDir: Rgb3;
   sunColor: Rgb3;
+  /** Chromatic GBC shadow ink colour for the active zone (never neutral grey). */
+  shadowInk: Rgb3;
   lights: PointLight[];
 }
 
@@ -46,6 +48,13 @@ const WARM: Rgb3 = [1.0, 0.62, 0.3];
 const FIRE: Rgb3 = [1.0, 0.5, 0.2];
 const SPARK: Rgb3 = [1.0, 0.86, 0.45];
 const CYAN: Rgb3 = [0.45, 0.85, 1.0];
+/** Clean moon-ivory lantern pool so dark-room violet flagstones keep their true hues. */
+const LANTERN: Rgb3 = [0.96, 0.94, 0.98];
+
+/** Deep chromatic GBC shadow ink per zone (forest-pine teal outdoors, plum-indigo in shrines). */
+export function zoneShadowInk(zone: ZoneId): Rgb3 {
+  return zone === 'ember-crypt' ? [0.07, 0.05, 0.14] : [0.06, 0.12, 0.16];
+}
 
 /** Deterministic flicker in roughly [0.85, 1.1] that differs per light. */
 function flicker(time: number, seed: number): number {
@@ -66,9 +75,10 @@ export function computeLighting(
     ? [0.05, 0.05, 0.09]
     : crypt
       ? [0.36, 0.32, 0.44]
-      : [0.62, 0.62, 0.66];
-  const sunColor: Rgb3 = crypt || darkUnlit ? [0.12, 0.1, 0.16] : [0.55, 0.5, 0.42];
-  const sunDir: Rgb3 = [-0.45, -0.62, 0.64];
+      : [0.48, 0.5, 0.54];
+  const sunColor: Rgb3 = crypt || darkUnlit ? [0.12, 0.1, 0.16] : [0.72, 0.66, 0.52];
+  const sunDir: Rgb3 = crypt || darkUnlit ? [-0.45, -0.62, 0.64] : [-0.52, -0.64, 0.56];
+  const shadowInk = zoneShadowInk(s.zone);
 
   const lights: PointLight[] = [];
   const add = (l: PointLight): void => {
@@ -156,8 +166,8 @@ export function computeLighting(
     }
   }
   if (room?.dark) {
-    // Pip's lantern: a small warm pool, so a dark room is never pitch black around Pip
-    add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 40, color: WARM, intensity: 0.85 });
+    // Pip's lantern: a clean moon-ivory pool so dark-room flagstones keep their true hues
+    add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 44, color: LANTERN, intensity: 0.92 });
   }
 
   // Keep the lights nearest Pip when there are too many for the shader
@@ -168,5 +178,5 @@ export function computeLighting(
     lights.length = MAX_LIGHTS;
   }
 
-  return { ambient, sunDir, sunColor, lights };
+  return { ambient, sunDir, sunColor, shadowInk, lights };
 }

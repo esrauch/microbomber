@@ -1,6 +1,8 @@
 /**
- * microbomber: Vertical Slice entry point (`GAME.md`).
- * Portrait layout: Top Status + Minimap -> 2D GBC Sprite Stage -> Dedicated Control Band.
+ * microbomber: Vertical Slice entry point (`GAME.md`, `ROADMAP.md` §6.1–6.2).
+ * Portrait layout:
+ *   `#topbar` (GBC HUD + Minimap) -> `#stage` (Zone Bezel + Integer Playfield)
+ *   -> `#dialogue-strip` (Fixed GBC Dialogue / Prompt Box) -> `#controls` (Pixel Stick + B/A).
  */
 import buildInfo from 'virtual:build-info';
 import type { BlastVisual, BombKind } from './game/types';
@@ -21,8 +23,18 @@ import {
 import { OBJ, type ObjSpriteName } from './render/gbcArt';
 import { hudIconDataUrl, makeGbcView } from './render/gbc';
 import { type HdView, SLIDE_SECONDS, createHdView } from './render/hd/hdView';
+import {
+  actionButtonDataUrl,
+  applyGbcBoxFrame,
+  bezelTileDataUrl,
+  computeIntegerFrame,
+  soundIconDataUrl,
+} from './ui/bezel';
 import { mountJoystick } from './ui/joystick';
+import { PIXEL_FONT_FAMILY, installPixelFont } from './ui/pixelFont';
 import { makeSfx } from './ui/sfx';
+
+installPixelFont();
 
 const SAVE_KEY = 'microbomber.save.v3';
 const LEGACY_SAVE_KEY = 'microbomber.save.v2';
@@ -32,18 +44,28 @@ const INTRO_BANNER =
 
 function pxIcon(name: ObjSpriteName, size: number): string {
   if (!(name in OBJ)) {
-    return `<span style="display:inline-flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;font-weight:900">↷</span>`;
+    return `<span style="display:inline-flex;width:${size}px;height:${size}px;align-items:center;justify-content:center">↷</span>`;
   }
   return `<img src="${hudIconDataUrl(name, 3)}" width="${size}" height="${size}" style="image-rendering:pixelated;display:inline-block;vertical-align:middle" alt="" />`;
 }
 
+function soundBadgeHtml(muted: boolean): string {
+  const src = soundIconDataUrl(muted, 2);
+  const label = muted ? 'SOUND: OFF' : 'SOUND: ON';
+  return `<img src="${src}" width="16" height="16" style="image-rendering:pixelated;display:inline-block;vertical-align:middle;margin-right:6px" alt="" /><span>${label}</span>`;
+}
+
 const topbar = document.querySelector<HTMLElement>('#topbar');
 const stage = document.querySelector<HTMLElement>('#stage');
+const dialogueStrip = document.querySelector<HTMLElement>('#dialogue-strip');
 const controls = document.querySelector<HTMLElement>('#controls');
-if (!topbar || !stage || !controls) {
+if (!topbar || !stage || !dialogueStrip || !controls) {
   throw new Error('index.html is missing required shell elements');
 }
+const topbarEl = topbar;
 const stageEl = stage;
+const dialogueStripEl = dialogueStrip;
+const controlsEl = controls;
 
 const world = campaignWorld();
 const sfx = makeSfx();
@@ -93,19 +115,30 @@ try {
   throw err;
 }
 
-function rebuildRoom(): void {
-  stageEl.style.background = state.zone === 'ember-crypt' ? '#110d18' : '#101611';
-  hd.canvas.style.borderColor = state.zone === 'ember-crypt' ? '#443658' : '#2d3d30';
-  view.rebuild(world, state);
-}
-
 const resize = (): void => {
-  hd.resize(stageEl.clientWidth || 360, stageEl.clientHeight || 480);
+  const stageW = stageEl.clientWidth || 360;
+  const stageH = stageEl.clientHeight || 480;
+  const dpr = window.devicePixelRatio || 1;
+  const frame = computeIntegerFrame(stageW, stageH, dpr);
+  const hdWithScale = hd as HdView & {
+    setScale?: (deviceScale: number, cssWidth: number, cssHeight: number) => void;
+  };
+  if (hdWithScale.setScale) {
+    hdWithScale.setScale(frame.deviceScale, frame.cssWidth, frame.cssHeight);
+  } else {
+    hd.resize(stageW, stageH);
+    hd.canvas.style.width = `${frame.cssWidth}px`;
+    hd.canvas.style.height = `${frame.cssHeight}px`;
+  }
 };
 window.addEventListener('resize', resize);
+if (typeof ResizeObserver !== 'undefined') {
+  const stageObserver = new ResizeObserver(() => resize());
+  stageObserver.observe(stageEl);
+}
 
 // =========================================================================
-// Top HUD: Hearts, Keys, Room Title/Objective, Auto-Drawn Minimap, Settings
+// Top HUD: Hearts, Keys, Non-Truncated Room Title/Objective, Minimap, Gear
 // =========================================================================
 const statusLeft = document.createElement('div');
 Object.assign(statusLeft.style, {
@@ -113,25 +146,26 @@ Object.assign(statusLeft.style, {
   flexDirection: 'column',
   gap: '3px',
   minWidth: '0',
+  flex: '1 1 auto',
 });
 
 const heartsRow = document.createElement('div');
 Object.assign(heartsRow.style, {
   display: 'flex',
   alignItems: 'center',
+  flexWrap: 'wrap',
   gap: '6px',
-  fontSize: '15px',
-  fontWeight: '800',
+  fontSize: '10px',
   lineHeight: '1.1',
 });
 
 const roomMetaRow = document.createElement('div');
 Object.assign(roomMetaRow.style, {
-  fontSize: '11.5px',
-  color: '#cbd5c0',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
+  fontSize: '8.5px',
+  lineHeight: '1.3',
+  color: '#d8e0d0',
+  whiteSpace: 'normal',
+  overflowWrap: 'break-word',
 });
 statusLeft.append(heartsRow, roomMetaRow);
 
@@ -139,7 +173,7 @@ const statusRight = document.createElement('div');
 Object.assign(statusRight.style, {
   display: 'flex',
   alignItems: 'center',
-  gap: '8px',
+  gap: '6px',
   flexShrink: '0',
 });
 
@@ -148,21 +182,22 @@ Object.assign(minimapEl.style, {
   display: 'grid',
   gap: '2px',
   padding: '3px',
-  background: '#111612',
-  border: '1px solid #38463a',
-  borderRadius: '6px',
+  background: '#101414',
+  border: '2px solid #485848',
+  boxShadow: 'inset 0 0 0 1px #181420',
 });
 
 const gearBtn = document.createElement('button');
 gearBtn.innerHTML = pxIcon('HUD_GEAR', 18);
 gearBtn.title = 'Settings & Reset';
 Object.assign(gearBtn.style, {
-  width: '30px',
-  height: '30px',
-  borderRadius: '4px',
-  border: '2px solid #4a5d4c',
-  background: '#222b24',
-  color: '#f4eedc',
+  width: '28px',
+  height: '28px',
+  borderRadius: '0',
+  border: '2px solid #98a888',
+  boxShadow: '0 0 0 1px #181420, inset 0 -2px 0 #485848',
+  background: '#202820',
+  color: '#f8f8f0',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -170,48 +205,49 @@ Object.assign(gearBtn.style, {
   padding: '0',
 });
 statusRight.append(minimapEl, gearBtn);
-topbar.append(statusLeft, statusRight);
+topbarEl.append(statusLeft, statusRight);
 
-// Settings popover
+// Settings popover (GBC double-lined pixel frame)
 const settingsModal = document.createElement('div');
 Object.assign(settingsModal.style, {
   position: 'absolute',
-  top: '8px',
-  right: '8px',
+  top: '6px',
+  right: '6px',
   zIndex: '30',
   display: 'none',
   flexDirection: 'column',
-  gap: '8px',
-  padding: '12px',
-  borderRadius: '10px',
-  background: 'rgba(22, 28, 23, 0.96)',
-  border: '1.5px solid #556957',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
-  fontSize: '13px',
-  minWidth: '190px',
+  gap: '6px',
+  padding: '6px',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.72)',
+  fontSize: '9.5px',
+  minWidth: '198px',
 });
 const muteBtn = document.createElement('button');
 const resetSaveBtn = document.createElement('button');
 for (const btn of [muteBtn, resetSaveBtn]) {
   Object.assign(btn.style, {
-    padding: '7px 10px',
-    borderRadius: '7px',
-    border: '1px solid #4a5d4c',
-    background: '#2a362b',
-    color: '#f4eedc',
-    fontWeight: '700',
-    fontSize: '12.5px',
+    padding: '6px 8px',
+    borderRadius: '0',
+    border: '2px solid #889880',
+    boxShadow: '0 0 0 1px #181420, inset 0 -2px 0 #384838',
+    background: '#243024',
+    color: '#f8f8f0',
+    fontFamily: `'${PIXEL_FONT_FAMILY}', monospace`,
+    fontSize: '9px',
+    lineHeight: '1.25',
+    display: 'inline-flex',
+    alignItems: 'center',
     cursor: 'pointer',
     textAlign: 'left',
   });
 }
 
-muteBtn.textContent = '🔊 Sound: On';
+muteBtn.innerHTML = soundBadgeHtml(false);
 muteBtn.addEventListener('click', () => {
   sfx.muted = !sfx.muted;
-  muteBtn.textContent = sfx.muted ? '🔇 Sound: Off' : '🔊 Sound: On';
+  muteBtn.innerHTML = soundBadgeHtml(sfx.muted);
 });
-const RESET_LABEL = '↺ New Game (Reset Save)';
+const RESET_LABEL = '↺ NEW GAME (RESET SAVE)';
 resetSaveBtn.textContent = RESET_LABEL;
 // Two-tap confirm: the first tap arms the button, a second tap within 3 s erases the save
 let resetArmedUntil = 0;
@@ -219,7 +255,7 @@ resetSaveBtn.addEventListener('click', () => {
   const now = performance.now();
   if (now > resetArmedUntil) {
     resetArmedUntil = now + 3000;
-    resetSaveBtn.textContent = '⚠ Tap again to erase your save';
+    resetSaveBtn.textContent = '⚠ TAP AGAIN TO ERASE SAVE';
     window.setTimeout(() => {
       if (performance.now() >= resetArmedUntil) resetSaveBtn.textContent = RESET_LABEL;
     }, 3050);
@@ -242,10 +278,11 @@ resetSaveBtn.addEventListener('click', () => {
 });
 const buildStamp = document.createElement('div');
 Object.assign(buildStamp.style, {
-  fontSize: '11px',
-  color: '#9aa899',
-  borderTop: '1px solid #334034',
-  paddingTop: '6px',
+  fontSize: '8px',
+  lineHeight: '1.25',
+  color: '#98a898',
+  borderTop: '1px solid #384838',
+  paddingTop: '5px',
 });
 buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
 settingsModal.append(muteBtn, resetSaveBtn, buildStamp);
@@ -256,72 +293,63 @@ gearBtn.addEventListener('click', () => {
 });
 
 // =========================================================================
-// Stage Overlays: Boss HP Bar, Storybook Banner, Flip-Screen Fade
+// Stage Overlays: Boss HP Bar & Flip-Screen Fade (Dialogue moved to Bezel!)
 // =========================================================================
 const bossBarWrap = document.createElement('div');
 Object.assign(bossBarWrap.style, {
   position: 'absolute',
-  top: '8px',
-  left: '12px',
-  right: '12px',
+  top: '6px',
+  left: '10px',
+  right: '10px',
   display: 'none',
   flexDirection: 'column',
-  gap: '3px',
-  padding: '5px 9px',
-  borderRadius: '3px',
-  background: '#181020',
-  border: '2px solid #e89840',
-  boxShadow: 'inset 0 0 0 2px #100c18, 0 4px 12px rgba(0,0,0,0.6)',
+  gap: '4px',
+  padding: '2px 5px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.68)',
   pointerEvents: 'none',
   zIndex: '10',
 });
 const bossTitleEl = document.createElement('div');
 Object.assign(bossTitleEl.style, {
-  fontSize: '11.5px',
-  fontWeight: '800',
-  color: '#fbd38d',
+  fontSize: '8.5px',
+  lineHeight: '1.2',
+  color: '#f8d858',
   display: 'flex',
+  flexWrap: 'wrap',
+  gap: '4px',
   justifyContent: 'space-between',
 });
 const bossTrack = document.createElement('div');
 Object.assign(bossTrack.style, {
-  height: '7px',
-  borderRadius: '2px',
-  background: '#2d2438',
-  border: '1px solid #100c18',
+  height: '8px',
+  borderRadius: '0',
+  background: '#281c38',
+  border: '1px solid #181420',
   overflow: 'hidden',
 });
 const bossFill = document.createElement('div');
 Object.assign(bossFill.style, {
   height: '100%',
   width: '100%',
-  background: 'linear-gradient(90deg, #e03028, #f88820)',
-  transition: 'width 0.12s ease',
+  background:
+    'repeating-linear-gradient(90deg, #e82830 0px, #e82830 6px, #f88820 6px, #f88820 8px)',
+  transition: 'width 0.1s steps(12, end)',
 });
 bossTrack.append(bossFill);
 bossBarWrap.append(bossTitleEl, bossTrack);
-stage.append(bossBarWrap);
+stageEl.append(bossBarWrap);
 
-const bannerEl = document.createElement('div');
-Object.assign(bannerEl.style, {
-  position: 'absolute',
-  left: '10px',
-  right: '10px',
-  bottom: '10px',
-  padding: '8px 12px',
-  borderRadius: '3px',
-  background: '#141820',
-  border: '2px solid #f8d848',
-  boxShadow: 'inset 0 0 0 2px #2c3848, 0 4px 14px rgba(0, 0, 0, 0.65)',
+// Dedicated fixed-height GBC Dialogue Strip docked in bezel below `#stage` (`§6.1`)
+const dialogueContent = document.createElement('div');
+Object.assign(dialogueContent.style, {
+  width: '100%',
+  fontSize: '8.5px',
+  lineHeight: '1.3',
   color: '#f8f8f0',
-  fontSize: '12.5px',
-  fontWeight: '700',
-  lineHeight: '1.35',
-  pointerEvents: 'none',
-  display: 'none',
-  zIndex: '12',
+  whiteSpace: 'normal',
+  overflowWrap: 'break-word',
 });
-stage.append(bannerEl);
+dialogueStripEl.append(dialogueContent);
 
 const fade = document.createElement('div');
 Object.assign(fade.style, {
@@ -333,19 +361,19 @@ Object.assign(fade.style, {
   transition: 'opacity 85ms linear',
   zIndex: '20',
 });
-stage.append(fade);
+stageEl.append(fade);
 
 // =========================================================================
-// Dedicated Control Band (`GAME.md` §2): Joystick, START, B = Roll, A = Place
+// Dedicated Control Band (`GAME.md` §2): Pixel Stick, START, B=Roll, A=Place
 // =========================================================================
-const joystick = mountJoystick(controls);
+const joystick = mountJoystick(controlsEl);
 
 const rightCluster = document.createElement('div');
 Object.assign(rightCluster.style, {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-end',
-  gap: '8px',
+  gap: '6px',
 });
 
 const topRow = document.createElement('div');
@@ -357,23 +385,23 @@ Object.assign(topRow.style, {
 
 const satchelPips = document.createElement('div');
 Object.assign(satchelPips.style, {
-  fontSize: '11.5px',
-  fontWeight: '800',
-  color: '#cbd5c0',
+  fontSize: '10px',
+  lineHeight: '1',
+  color: '#f8d858',
   letterSpacing: '2px',
 });
 
 const startBtn = document.createElement('button');
 startBtn.textContent = 'START';
 Object.assign(startBtn.style, {
-  height: '26px',
-  padding: '0 12px',
-  borderRadius: '999px',
-  border: '2px solid #4a5568',
-  background: '#1e2620',
-  color: '#e2e8f0',
-  fontSize: '11px',
-  fontWeight: '800',
+  height: '24px',
+  padding: '0 10px',
+  borderRadius: '0',
+  border: '2px solid #98a898',
+  boxShadow: '0 0 0 1px #181420, inset 0 -2px 0 #384838',
+  background: '#202820',
+  color: '#f8f8f0',
+  fontSize: '8.5px',
   letterSpacing: '0.08em',
   cursor: 'pointer',
   touchAction: 'none',
@@ -396,17 +424,27 @@ const pressLatch: [boolean, boolean] = [false, false];
 let menuOpen = false;
 let menuCursor: BombKind | null = null;
 
-const makeVerbBtn = (
-  slot: 0 | 1,
-  badgeLabel: string,
-  borderCol: string,
-  bgCol: string,
-  extraShadow = '',
-): [HTMLButtonElement, HTMLSpanElement] => {
+interface VerbBtnHandles {
+  button: HTMLButtonElement;
+  inner: HTMLSpanElement;
+  icon: HTMLSpanElement;
+}
+
+const makeVerbBtn = (slot: 0 | 1, kind: 'B' | 'A', badgeLabel: string): VerbBtnHandles => {
   const b = document.createElement('button');
+  const inner = document.createElement('span');
+  Object.assign(inner.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '1px',
+    pointerEvents: 'none',
+    transform: 'translateY(-1px)',
+  });
   const iconSpan = document.createElement('span');
   Object.assign(iconSpan.style, {
-    height: '26px',
+    height: '24px',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -415,27 +453,29 @@ const makeVerbBtn = (
   const labelSpan = document.createElement('span');
   labelSpan.textContent = badgeLabel;
   Object.assign(labelSpan.style, {
-    fontSize: '9.5px',
-    fontWeight: '800',
+    fontSize: '7.5px',
     lineHeight: '1.05',
-    letterSpacing: '0.01em',
+    letterSpacing: '0.02em',
     whiteSpace: 'nowrap',
+    textShadow: '0 1px 0 #181420, 1px 0 0 #181420',
   });
-  b.append(iconSpan, labelSpan);
+  inner.append(iconSpan, labelSpan);
+  b.append(inner);
   Object.assign(b.style, {
-    width: '74px',
-    height: '74px',
-    padding: '0 2px',
-    borderRadius: '50%',
-    border: `3px solid ${borderCol}`,
-    background: bgCol,
-    color: '#fff9eb',
+    width: '68px',
+    height: '68px',
+    padding: '0',
+    border: 'none',
+    borderRadius: '0',
+    backgroundColor: 'transparent',
+    backgroundImage: `url("${actionButtonDataUrl(kind, false)}")`,
+    backgroundSize: '68px 68px',
+    backgroundRepeat: 'no-repeat',
+    imageRendering: 'pixelated',
+    color: '#f8f8f0',
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '2px',
-    boxShadow: `${extraShadow ? `${extraShadow}, ` : ''}0 4px 10px rgba(0, 0, 0, 0.45)`,
     cursor: 'pointer',
     touchAction: 'none',
   });
@@ -453,14 +493,16 @@ const makeVerbBtn = (
     }
     buttonHeld[slot] = true;
     pressLatch[slot] = true;
+    syncActionCapVisuals();
   });
   const release = (): void => {
     buttonHeld[slot] = false;
+    syncActionCapVisuals();
   };
   b.addEventListener('pointerup', release);
   b.addEventListener('pointercancel', release);
   b.addEventListener('lostpointercapture', release);
-  return [b, iconSpan];
+  return { button: b, inner, icon: iconSpan };
 };
 
 const actionRow = document.createElement('div');
@@ -470,21 +512,19 @@ Object.assign(actionRow.style, {
   gap: '10px',
 });
 // Game Boy order: B = Roll on the left, A = Place on the right
-const [rollBtn, rollBtnIcon] = makeVerbBtn(
-  0,
-  'B · Roll',
-  '#4fd1c5',
-  'rgba(20, 42, 44, 0.88)',
-  'inset 0 0 0 1.5px rgba(246, 224, 94, 0.42)',
-);
-const [placeBtn, placeBtnIcon] = makeVerbBtn(1, 'A · Place', '#f6e05e', 'rgba(45, 38, 24, 0.88)');
+const rollHandles = makeVerbBtn(0, 'B', 'B·ROLL');
+const placeHandles = makeVerbBtn(1, 'A', 'A·PLACE');
+const rollBtn = rollHandles.button;
+const rollBtnIcon = rollHandles.icon;
+const placeBtn = placeHandles.button;
+const placeBtnIcon = placeHandles.icon;
 actionRow.append(rollBtn, placeBtn);
 
 rightCluster.append(topRow, actionRow);
-controls.append(rightCluster);
+controlsEl.append(rightCluster);
 
 // =========================================================================
-// Pause subscreen (START): pick the equipped bomb or None; game pauses
+// Pause subscreen (START): GBC-framed Satchel Subscreen
 // =========================================================================
 const menuEl = document.createElement('div');
 Object.assign(menuEl.style, {
@@ -492,30 +532,37 @@ Object.assign(menuEl.style, {
   inset: '0',
   zIndex: '25',
   display: 'none',
-  flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '14px',
-  padding: '16px',
-  background: 'rgba(14, 18, 15, 0.94)',
-  color: '#f4eedc',
+  padding: '10px',
+  background: 'rgba(12, 14, 18, 0.84)',
+  color: '#f8f8f0',
   textAlign: 'center',
 });
-stage.append(menuEl);
+const menuPanel = document.createElement('div');
+Object.assign(menuPanel.style, {
+  width: '100%',
+  maxWidth: '336px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '10px',
+  padding: '8px',
+  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.75)',
+});
+menuEl.append(menuPanel);
+stageEl.append(menuEl);
 
 const menuButton = (html: string, active: boolean, equipped = false): HTMLButtonElement => {
   const b = document.createElement('button');
   b.innerHTML = html;
-  const borderCol = active ? '#f6e05e' : equipped ? '#4fd1c5' : '#4a5568';
+  applyGbcBoxFrame(b, state.zone, active ? 'gold' : equipped ? 'boss' : 'normal');
   Object.assign(b.style, {
-    minWidth: '96px',
-    padding: '10px 12px',
-    borderRadius: '10px',
-    border: `3px solid ${borderCol}`,
-    background: active ? 'rgba(66, 52, 28, 0.92)' : '#1e2620',
-    color: '#f4eedc',
-    fontSize: '13px',
-    fontWeight: '800',
+    minWidth: '88px',
+    padding: '4px 8px',
+    color: '#f8f8f0',
+    fontSize: '9px',
+    lineHeight: '1.25',
     cursor: 'pointer',
   });
   return b;
@@ -526,22 +573,27 @@ function menuChoices(): Array<BombKind | null> {
 }
 
 function renderMenu(): void {
-  menuEl.replaceChildren();
+  applyGbcBoxFrame(menuPanel, state.zone, 'gold');
+  menuPanel.replaceChildren();
   const title = document.createElement('div');
-  title.textContent = 'EQUIP BOMB';
-  Object.assign(title.style, { fontSize: '18px', fontWeight: '900', letterSpacing: '0.18em' });
+  title.textContent = '★ SPARK SATCHEL ★';
+  Object.assign(title.style, {
+    fontSize: '11px',
+    color: '#f8d858',
+    letterSpacing: '0.08em',
+  });
 
   const currentStatus = document.createElement('div');
   currentStatus.innerHTML = state.equipped
-    ? `Equipped: ${pxIcon(BOMB_META[state.equipped].sprite, 18)} <strong>${BOMB_META[state.equipped].label}</strong>`
-    : 'Equipped: <strong>None</strong> (Pure Roll)';
+    ? `EQUIPPED: ${pxIcon(BOMB_META[state.equipped].sprite, 16)} <span style="color:#f8d858">${BOMB_META[state.equipped].label.toUpperCase()}</span>`
+    : 'EQUIPPED: <span style="color:#cbd5c0">NONE</span> (PURE ROLL)';
   Object.assign(currentStatus.style, {
-    fontSize: '12.5px',
+    fontSize: '8.5px',
+    lineHeight: '1.3',
     color: '#e2e8f0',
-    padding: '5px 12px',
-    borderRadius: '999px',
-    background: '#1a221c',
-    border: '1px solid #38463a',
+    padding: '3px 8px',
+    background: '#101418',
+    border: '1px solid #485848',
   });
 
   const grid = document.createElement('div');
@@ -549,17 +601,17 @@ function renderMenu(): void {
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: '10px',
+    gap: '8px',
   });
   for (const kind of menuChoices()) {
     const isCursor = kind === menuCursor;
     const isEquipped = kind === state.equipped;
     const tag = isEquipped
-      ? '<div style="font-size:10px;color:#68d391;margin-top:3px;letter-spacing:0.06em">EQUIPPED</div>'
-      : '<div style="font-size:10px;color:#9aa899;margin-top:3px">&nbsp;</div>';
+      ? '<div style="font-size:7.5px;color:#68d391;margin-top:3px">▸ EQUIPPED</div>'
+      : '<div style="font-size:7.5px;color:#98a898;margin-top:3px">&nbsp;</div>';
     const cardHtml = kind
-      ? `<div style="line-height:1.1;margin-bottom:4px">${pxIcon(BOMB_META[kind].sprite, 32)}</div>${BOMB_META[kind].label}${tag}`
-      : `<div style="height:32px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;font-size:22px;font-weight:900;color:#cbd5c0">—</div>None${tag}`;
+      ? `<div style="line-height:1.1;margin-bottom:3px">${pxIcon(BOMB_META[kind].sprite, 28)}</div>${BOMB_META[kind].label}${tag}`
+      : `<div style="height:28px;display:flex;align-items:center;justify-content:center;margin-bottom:3px;font-size:14px;color:#cbd5c0">—</div>None${tag}`;
     const b = menuButton(cardHtml, isCursor, isEquipped);
     b.addEventListener('click', () => {
       applyEquip(kind);
@@ -568,14 +620,17 @@ function renderMenu(): void {
   }
 
   const hint = document.createElement('div');
-  hint.textContent =
-    'Tap the bomb for A to place (or None) · B = Roll · A = Place · walk into a bomb to kick it';
-  Object.assign(hint.style, { fontSize: '12px', color: '#cbd5c0' });
+  hint.textContent = 'Select bomb for [A] PLACE · [B] ROLL · walk into a bomb to kick it';
+  Object.assign(hint.style, {
+    fontSize: '8px',
+    lineHeight: '1.35',
+    color: '#cbd5c0',
+  });
 
-  const resume = menuButton('▶ Resume', false);
+  const resume = menuButton('▶ RESUME', false);
   resume.addEventListener('click', () => toggleMenu(false));
 
-  menuEl.append(title, currentStatus, grid, hint, resume);
+  menuPanel.append(title, currentStatus, grid, hint, resume);
 }
 
 function applyEquip(kind: BombKind | null): void {
@@ -588,17 +643,41 @@ function applyEquip(kind: BombKind | null): void {
 
 const held = new Set<string>();
 
+// Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Place),
+// Enter / Esc / P = START. In the menu, left/right cycle choices and J / Space / K / E equip.
+const B_KEYS = [' ', 'j'];
+const A_KEYS = ['k', 'e'];
+
+let prevBVisual = false;
+let prevAVisual = false;
+
+function syncActionCapVisuals(): void {
+  const bDown = !menuOpen && (buttonHeld[0] || B_KEYS.some((k) => held.has(k)));
+  const aDown = !menuOpen && (buttonHeld[1] || A_KEYS.some((k) => held.has(k)));
+  if (bDown !== prevBVisual) {
+    prevBVisual = bDown;
+    rollBtn.style.backgroundImage = `url("${actionButtonDataUrl('B', bDown)}")`;
+    rollHandles.inner.style.transform = bDown ? 'translateY(1px)' : 'translateY(-1px)';
+  }
+  if (aDown !== prevAVisual) {
+    prevAVisual = aDown;
+    placeBtn.style.backgroundImage = `url("${actionButtonDataUrl('A', aDown)}")`;
+    placeHandles.inner.style.transform = aDown ? 'translateY(1px)' : 'translateY(-1px)';
+  }
+}
+
 function toggleMenu(open = !menuOpen): void {
   menuOpen = open;
   buttonHeld[0] = false;
   buttonHeld[1] = false;
   held.clear();
+  syncActionCapVisuals();
   if (open) {
     menuCursor = state.equipped;
     renderMenu();
   }
   menuEl.style.display = open ? 'flex' : 'none';
-  startBtn.style.borderColor = open ? '#f6e05e' : '#4a5568';
+  startBtn.style.borderColor = open ? '#f8d858' : '#98a898';
 }
 startBtn.addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -615,10 +694,6 @@ for (const type of ['contextmenu', 'selectstart'] as const) {
   });
 }
 
-// Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Place),
-// Enter / Esc / P = START. In the menu, left/right cycle choices and J / Space / K / E equip.
-const B_KEYS = [' ', 'j'];
-const A_KEYS = ['k', 'e'];
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === ' ' || k === 'tab') e.preventDefault();
@@ -645,8 +720,12 @@ window.addEventListener('keydown', (e) => {
   if (B_KEYS.includes(k)) pressLatch[0] = true;
   if (A_KEYS.includes(k)) pressLatch[1] = true;
   held.add(k);
+  syncActionCapVisuals();
 });
-window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
+window.addEventListener('keyup', (e) => {
+  held.delete(e.key.toLowerCase());
+  syncActionCapVisuals();
+});
 
 const readInput = (): Input => {
   let dx = 0;
@@ -672,8 +751,39 @@ const readInput = (): Input => {
 };
 
 // =========================================================================
-// HUD Synchronization (diffed so DOM only updates when values change)
+// Zone Bezel & Unified GBC Box Skinning + HUD Synchronization
 // =========================================================================
+let prevSkinnedZone: State['zone'] | null = null;
+let prevBannerActive: boolean | null = null;
+
+function syncZoneChrome(force = false): void {
+  const bannerActive = Boolean(state.bannerText);
+  if (force || state.zone !== prevSkinnedZone) {
+    prevSkinnedZone = state.zone;
+    const isCrypt = state.zone === 'ember-crypt';
+    stageEl.style.backgroundColor = isCrypt ? '#181420' : '#182818';
+    stageEl.style.backgroundImage = `url("${bezelTileDataUrl(state.zone, 2)}")`;
+    hd.canvas.style.boxShadow = isCrypt
+      ? '0 0 0 2px #181420, 0 0 0 4px #685088, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.75)'
+      : '0 0 0 2px #181420, 0 0 0 4px #406838, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.72)';
+    applyGbcBoxFrame(topbarEl, state.zone, 'normal');
+    applyGbcBoxFrame(bossBarWrap, state.zone, 'boss');
+    applyGbcBoxFrame(settingsModal, state.zone, 'gold');
+    controlsEl.style.background = isCrypt ? '#1c1628' : '#182018';
+    controlsEl.style.boxShadow = isCrypt ? 'inset 0 2px 0 #584870' : 'inset 0 2px 0 #485848';
+    prevBannerActive = null;
+  }
+  if (force || bannerActive !== prevBannerActive) {
+    prevBannerActive = bannerActive;
+    applyGbcBoxFrame(dialogueStripEl, state.zone, bannerActive ? 'gold' : 'normal');
+  }
+}
+
+function rebuildRoom(): void {
+  syncZoneChrome();
+  view.rebuild(world, state);
+}
+
 let prevHudSig = '';
 let prevRollBusy = false;
 
@@ -681,8 +791,7 @@ function syncRollBtnFeedback(): void {
   const rollBusy = state.rollTimer > 0 || state.rollRecoveryTimer > 0;
   if (rollBusy !== prevRollBusy) {
     prevRollBusy = rollBusy;
-    rollBtn.style.opacity = rollBusy ? '0.62' : '1';
-    rollBtn.style.borderColor = rollBusy ? '#2c7a7b' : '#4fd1c5';
+    rollBtn.style.opacity = rollBusy ? '0.68' : '1';
   }
 }
 
@@ -711,6 +820,7 @@ function syncHud(force = false): void {
 
   if (!force && sig === prevHudSig) return;
   prevHudSig = sig;
+  syncZoneChrome(force);
 
   // Pixel Hearts + Keys + Cores (zero OS emojis!)
   const totalHearts = Math.floor(state.maxHp / 2);
@@ -719,15 +829,16 @@ function syncHud(force = false): void {
     const rem = state.hp - i * 2;
     const hName: ObjSpriteName =
       rem >= 2 ? 'HUD_HEART_FULL' : rem === 1 ? 'HUD_HEART_HALF' : 'HUD_HEART_EMPTY';
-    heartImgs.push(pxIcon(hName, 15));
+    heartImgs.push(pxIcon(hName, 14));
   }
   const extras: string[] = [];
-  if (state.heartShards % 2 === 1) extras.push(`${pxIcon('HUD_SHARD', 14)}½`);
-  if (state.smallKeys > 0) extras.push(`${pxIcon('HUD_KEY', 14)}×${state.smallKeys}`);
-  if (state.hasBossKey) extras.push(pxIcon('HUD_BOSS_KEY', 15));
-  if (state.cores.includes('cinder')) extras.push(`${pxIcon('PICKUP_CINDER_CORE', 15)}`);
-  heartsRow.innerHTML = `<span style="display:inline-flex;gap:2px;align-items:center">${heartImgs.join('')}</span>${extras.length ? `<span style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;font-size:13px">${extras.join('')}</span>` : ''}`;
+  if (state.heartShards % 2 === 1) extras.push(`${pxIcon('HUD_SHARD', 13)}½`);
+  if (state.smallKeys > 0) extras.push(`${pxIcon('HUD_KEY', 13)}×${state.smallKeys}`);
+  if (state.hasBossKey) extras.push(pxIcon('HUD_BOSS_KEY', 14));
+  if (state.cores.includes('cinder')) extras.push(`${pxIcon('PICKUP_CINDER_CORE', 14)}`);
+  heartsRow.innerHTML = `<span style="display:inline-flex;gap:2px;align-items:center">${heartImgs.join('')}</span>${extras.length ? `<span style="display:inline-flex;gap:5px;align-items:center;margin-left:4px;font-size:9.5px">${extras.join('')}</span>` : ''}`;
 
+  // Non-truncated room name + full objective (wraps cleanly across 2 pixel lines, zero `...`)
   const zonePrefix = state.zone === 'ember-crypt' ? 'Ember Crypt' : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
   roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
@@ -748,15 +859,15 @@ function syncHud(force = false): void {
       Object.assign(cell.style, {
         width: '7px',
         height: '7px',
-        borderRadius: '1.5px',
+        borderRadius: '0',
         background: isCur
-          ? '#fbbf24'
+          ? '#f8d848'
           : visited
             ? state.zone === 'ember-crypt'
-              ? '#9f7aea'
-              : '#68d391'
+              ? '#a078e8'
+              : '#60c878'
             : exists
-              ? '#273129'
+              ? '#283428'
               : 'transparent',
       });
       minimapEl.append(cell);
@@ -766,34 +877,48 @@ function syncHud(force = false): void {
   // Satchel pips & fixed-verb sprites on B = Roll and A = Place
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
-  rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 26);
+  rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 24);
   placeBtnIcon.innerHTML = state.equipped
-    ? pxIcon(BOMB_META[state.equipped].sprite, 26)
-    : '<span style="font-size:18px;font-weight:900;opacity:0.75">—</span>';
-  placeBtn.style.borderColor = state.equipped ? '#f6e05e' : '#718096';
+    ? pxIcon(BOMB_META[state.equipped].sprite, 24)
+    : '<span style="font-size:14px;opacity:0.75">—</span>';
+  placeBtn.style.opacity = state.equipped ? '1' : '0.76';
 
   // Boss HP bar
   if (boss) {
     bossBarWrap.style.display = 'flex';
-    const bName = boss.kind === 'cinderhull' ? 'CINDERHULL · Shrine Boss' : 'WICKGEIST · Phantom';
+    const bName = boss.kind === 'cinderhull' ? 'CINDERHULL · BOSS' : 'WICKGEIST · PHANTOM';
     const shieldTag = boss.armored
       ? boss.kind === 'cinderhull'
-        ? 'Thorn Armor (Use Ember!)'
-        : 'In Shadow (Light Brazier!)'
-      : 'Exposed!';
+        ? 'THORNS (USE EMBER!)'
+        : 'IN DARK (LIGHT BRAZIER!)'
+      : 'EXPOSED!';
     bossTitleEl.innerHTML = `<span>${bName}</span><span>${shieldTag}</span>`;
     bossFill.style.width = `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
   } else {
     bossBarWrap.style.display = 'none';
   }
 
-  // Storybook Banner
+  // Fixed-height Bezel Dialogue Strip (never covers playfield & never resizes `#stage`!)
+  dialogueContent.replaceChildren();
   if (state.bannerText) {
-    bannerEl.style.display = 'block';
-    bannerEl.textContent = state.bannerText;
+    dialogueContent.style.color = '#f8f8f0';
+    const arrow = document.createElement('span');
+    arrow.textContent = '▸ ';
+    arrow.style.color = '#f8d848';
+    dialogueContent.append(arrow, document.createTextNode(state.bannerText));
   } else {
-    bannerEl.style.display = 'none';
+    dialogueContent.style.color = state.zone === 'ember-crypt' ? '#b0a0c8' : '#98b098';
+    const line1 = document.createElement('div');
+    line1.textContent = `▸ ${room?.objective ?? 'Explore Cinderholm Isle'}`;
+    const line2 = document.createElement('div');
+    line2.style.color = state.zone === 'ember-crypt' ? '#8878a0' : '#789078';
+    line2.style.marginTop = '2px';
+    line2.textContent = '[B] ROLL · [A] PLACE · [START] SATCHEL';
+    dialogueContent.append(line1, line2);
   }
+
+  // Re-check stage size in case topbar wrapped to 1 vs 2 lines
+  resize();
 }
 
 // Initial room build, layout & HUD render
@@ -814,6 +939,7 @@ const REBUILD_EVENTS = new Set([
 const MAX_FRAME_STEPS = 6;
 
 let last = performance.now();
+let renderTime = 0;
 let accumulator = 0;
 let cutting = false;
 
@@ -822,6 +948,7 @@ const frame = (now: number): void => {
   (window as Window & { __microbomberBooted?: boolean }).__microbomberBooted = true;
   const elapsed = Math.min(0.1, Math.max(0, (now - last) / 1000));
   last = now;
+  renderTime += elapsed;
 
   state.events = [];
   state.blasts = [];
@@ -872,7 +999,7 @@ const frame = (now: number): void => {
     if (moved && slides) {
       // Walking off an edge: the old room slides out as the next one slides in
       persistState(state);
-      hd.beginRoomSlide(slideDx, slideDy, now / 1000);
+      hd.beginRoomSlide(slideDx, slideDy, renderTime);
       rebuildRoom();
       syncHud(true);
       cutting = true;
@@ -899,7 +1026,8 @@ const frame = (now: number): void => {
 
   syncHud();
   syncRollBtnFeedback();
-  view.sync(world, state, now / 1000);
-  hd.render(world, state, now / 1000, elapsed);
+  syncActionCapVisuals();
+  view.sync(world, state, renderTime);
+  hd.render(world, state, renderTime, elapsed);
 };
 requestAnimationFrame(frame);

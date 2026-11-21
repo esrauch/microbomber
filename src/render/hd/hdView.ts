@@ -1,16 +1,17 @@
 /**
- * HD-2D lite presentation layer on WebGL via PixiJS (`GAME.md` §10, ROADMAP Phase 5).
+ * HD-2D lite presentation layer on WebGL via PixiJS (`GAME.md` §10, ROADMAP Phase 5 & §6.3).
  *
  * The Canvas2D renderer (`gbc.ts`) still composes each frame at native resolution: that is
  * the albedo pass, plus a sprite G-buffer (`gbcAux.ts`). This view takes both as textures
  * and adds what the GBC never could:
  *
- * 1. Lighting: normal-mapped point lights, ambient and sun (`lights.ts`), with normals from
- *    hand-tuned hero heights or auto-generated from albedo luminance; emissive pixels glow.
- *    Colour grading happens in the same pass.
- * 2. Bloom: a bright pass blurred at native resolution, added back smoothly upscaled.
- * 3. Particles (`particles.ts`) at full screen resolution.
- * 4. Room slides with an eased push and parallax cloud shadows.
+ * 1. Lighting: normal-mapped point lights, ambient and directional sun (`lights.ts`), soft
+ *    wall-base & silhouette contact shadows, and chromatic GBC zone-ink shadow depth.
+ * 2. Emissive-driven bloom: extracts only G-buffer emissive pixels (flames, blasts, sparks,
+ *    fuse tips, Cinder Core) and active warp/seal pads, blurred at native resolution so
+ *    sunlit grass and paths stay razor-sharp.
+ * 3. Particles (`particles.ts`) at full integer-scaled screen resolution.
+ * 4. Room slides with an eased push and subtle parallax cloud shadows.
  *
  * If WebGL is unavailable `createHdView` rejects, and the game keeps the Canvas2D renderer.
  */
@@ -28,20 +29,22 @@ import {
   TilingSprite,
   UniformGroup,
 } from 'pixi.js';
-import type { State, World } from '../../game/types';
-import { type GbcView, NATIVE_H, NATIVE_W, computeGbcCanvasSize } from '../gbc';
+import type { State, Tile, World } from '../../game/types';
+import { ROOM_H, ROOM_W, currentRoom, tileAt } from '../../game/world';
+import { type GbcView, NATIVE_H, NATIVE_W, TILE_PX, computeGbcCanvasSize } from '../gbc';
 import { type Flash, MAX_LIGHTS, computeLighting } from './lights';
 import { ParticleSystem } from './particles';
 
-const UP = 4;
-const DW = NATIVE_W * UP;
-const DH = NATIVE_H * UP;
+const DEFAULT_UP = 4;
+const MAX_EMISSIVE_PADS = 4;
 export const SLIDE_SECONDS = 0.32;
 
 export interface HdView {
   /** Present the frame `gbc` just composed. */
   render(world: World, s: State, time: number, dt: number): void;
   resize(stageWidth: number, stageHeight: number): void;
+  /** Set integer device-pixel scale (`1..8`) and CSS presentation size (`ROADMAP.md` §6.1). */
+  setScale(deviceScale: number, cssWidth: number, cssHeight: number): void;
   /** Keep the last frame and push it out as the next room slides in from `(dx, dy)`. */
   beginRoomSlide(dx: number, dy: number, time: number): void;
   readonly canvas: HTMLCanvasElement;
@@ -69,6 +72,7 @@ out vec4 finalColor;
 
 uniform sampler2D uTexture;
 uniform sampler2D uAux;
+uniform sampler2D uWall;
 // highp to match the vertex shader: mobile drivers refuse to link a shared uniform whose
 // precision differs between stages (PixiJS defaults fragment shaders to mediump)
 uniform highp vec4 uInputSize;
@@ -77,27 +81,45 @@ uniform vec2 uFrameSize;
 uniform vec3 uAmbient;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
+uniform vec3 uShadowInk;
 uniform vec4 uGrade;
 uniform vec3 uTint;
 uniform int uLightCount;
 uniform vec4 uLightPos[${MAX_LIGHTS}];
 uniform vec4 uLightColor[${MAX_LIGHTS}];
+uniform int uPadCount;
+uniform vec4 uEmissivePads[${MAX_EMISSIVE_PADS}];
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
-// Height at native pixel px: hand-tuned for heroes, else albedo luminance (ink = low edge)
+vec4 auxAt(vec2 px) {
+    vec2 p = clamp(px, vec2(0.5), uFrameSize - 0.5);
+    return texture(uAux, p / uFrameSize);
+}
+
+// Height at native pixel px: hand-tuned when B >= 128, else albedo luminance (ink = low edge)
 float heightAt(vec2 px) {
     vec2 p = clamp(px, vec2(0.5), uFrameSize - 0.5);
     vec4 aux = texture(uAux, p / uFrameSize);
     float autoH = luma(texture(uTexture, p * uInputSize.zw).rgb);
-    return aux.a > 0.5 && aux.b > 0.5 ? aux.r : autoH;
+    return aux.a > 0.5 && aux.b > 0.49 ? aux.r : autoH;
+}
+
+float wallAt(vec2 px) {
+    vec2 p = clamp(px, vec2(0.5), uFrameSize - 0.5);
+    return texture(uWall, p / uFrameSize).r;
+}
+
+float solidSpriteAt(vec2 px) {
+    vec4 a = auxAt(px);
+    return a.a > 0.5 && a.g < 0.2 ? 1.0 : 0.0;
 }
 
 void main(void)
 {
     vec4 albedo = texture(uTexture, vTextureCoord);
     vec2 px = vTextureCoord * uInputSize.xy;
-    vec4 aux = texture(uAux, px / uFrameSize);
+    vec4 aux = auxAt(px);
 
     float h0 = heightAt(px);
     float hl = heightAt(px + vec2(-1.0, 0.0));
@@ -119,11 +141,51 @@ void main(void)
         light += lc.rgb * lc.a * att * diffuse;
     }
 
-    // Flames, blasts and sparks are their own light source
+    // Wall-base & actor/bomb contact shadows on walkable floor pixels
+    float ao = 1.0;
+    if (aux.a < 0.5 && wallAt(px) < 0.5) {
+        float lx = mod(px.x, 16.0);
+        float ly = mod(px.y, 16.0);
+        float wallN = wallAt(vec2(px.x, px.y - ly - 1.0)) * (1.0 - smoothstep(0.0, 4.5, ly)) * 0.26;
+        float wallW = wallAt(vec2(px.x - lx - 1.0, px.y)) * (1.0 - smoothstep(0.0, 3.0, lx)) * 0.14;
+        float wallS = wallAt(vec2(px.x, px.y + (16.0 - ly) + 0.5)) * smoothstep(14.0, 16.0, ly) * 0.08;
+        float hu2 = heightAt(px + vec2(0.0, -2.0));
+        float hu4 = heightAt(px + vec2(0.0, -4.0));
+        float ridge = smoothstep(0.22, 0.46, max(hu2 - h0, (hu4 - h0) * 0.75)) * 0.20;
+
+        float contact =
+            solidSpriteAt(px + vec2(0.0, -1.0)) * 0.34 +
+            solidSpriteAt(px + vec2(-1.0, -1.0)) * 0.18 +
+            solidSpriteAt(px + vec2(1.0, -1.0)) * 0.14 +
+            solidSpriteAt(px + vec2(0.0, -2.0)) * 0.18 +
+            solidSpriteAt(px + vec2(-1.0, -2.0)) * 0.09 +
+            solidSpriteAt(px + vec2(0.0, -3.0)) * 0.07;
+
+        float occ = max(max(wallN, wallW + wallS), max(ridge, clamp(contact, 0.0, 1.0) * 0.26));
+        ao = clamp(1.0 - occ, 0.72, 1.0);
+    }
+
+    // Flames, blasts, sparks, fuse tips and unlocked warp/seal pads emit their own light
     float emissive = aux.a > 0.5 ? aux.g : 0.0;
+    if (aux.a < 0.5) {
+        for (int i = 0; i < ${MAX_EMISSIVE_PADS}; i++) {
+            if (i >= uPadCount) break;
+            vec4 pad = uEmissivePads[i];
+            float d = length(px - pad.xy);
+            float ring = smoothstep(pad.z, pad.z * 0.25, d);
+            emissive = max(emissive, ring * pad.w * smoothstep(0.22, 0.62, luma(albedo.rgb)));
+        }
+    }
+    ao = mix(ao, 1.0, emissive);
     light = max(light, vec3(1.15 * emissive));
 
-    vec3 c = albedo.rgb * light;
+    // Chromatic zone-ink shadow blending so shaded faces & contact shadows never turn dull grey
+    float lightLuma = luma(light);
+    float shadowAmt = clamp(1.0 - lightLuma * ao, 0.0, 1.0) * (1.0 - emissive);
+    float inkVis = smoothstep(0.02, 0.26, lightLuma);
+    vec3 inkTarget = (uShadowInk + albedo.rgb * 0.18) * inkVis;
+    vec3 c = mix(albedo.rgb * light * ao, inkTarget, shadowAmt * 0.55);
+
     float l = luma(c);
     c = mix(vec3(l), c, uGrade.x);
     c = (c - 0.5) * uGrade.y + 0.5;
@@ -134,15 +196,59 @@ void main(void)
 
 const BRIGHT_FRAGMENT = `in vec2 vTextureCoord;
 out vec4 finalColor;
+
 uniform sampler2D uTexture;
+uniform sampler2D uAux;
+uniform highp vec4 uInputSize;
+uniform vec2 uFrameSize;
+uniform int uPadCount;
+uniform vec4 uEmissivePads[${MAX_EMISSIVE_PADS}];
+
+float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
 void main(void)
 {
-    vec3 c = texture(uTexture, vTextureCoord).rgb;
-    float peak = max(c.r, max(c.g, c.b));
-    finalColor = vec4(c * smoothstep(0.72, 0.98, peak), 1.0);
+    vec3 lit = texture(uTexture, vTextureCoord).rgb;
+    vec2 px = clamp(vTextureCoord * uInputSize.xy, vec2(0.5), uFrameSize - 0.5);
+    vec4 aux = texture(uAux, px / uFrameSize);
+
+    // Emissive-driven bloom: only G-buffer emissives & active warp/seal runes glow
+    float em = aux.a > 0.5 && aux.g > 0.05 ? aux.g : 0.0;
+    if (aux.a < 0.5) {
+        for (int i = 0; i < ${MAX_EMISSIVE_PADS}; i++) {
+            if (i >= uPadCount) break;
+            vec4 pad = uEmissivePads[i];
+            float d = length(px - pad.xy);
+            float ring = smoothstep(pad.z, pad.z * 0.25, d);
+            em = max(em, ring * pad.w * smoothstep(0.22, 0.62, luma(lit)));
+        }
+    }
+
+    finalColor = vec4(lit * em * 0.95, 1.0);
 }
 `;
+
+/** True when tile `t` is a raised wall, cliff, tree, door, or solid prop that casts base shadow. */
+function isShadowCasterTile(t: Tile, crystalColor: 'red' | 'blue'): boolean {
+  if (
+    t === '#' ||
+    t === 'Y' ||
+    t === '%' ||
+    t === '=' ||
+    t === 'B' ||
+    t === 'W' ||
+    t === 'C' ||
+    t === 'T' ||
+    t === 'D' ||
+    t === 'K' ||
+    t === 'S'
+  ) {
+    return true;
+  }
+  if (t === 'R') return crystalColor === 'red';
+  if (t === 'U') return crystalColor === 'blue';
+  return false;
+}
 
 /**
  * Compile and link a vertex/fragment pair the way PixiJS will (GLSL ES 3.0, highp vertex,
@@ -224,10 +330,11 @@ const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdView> {
+  let upScale = DEFAULT_UP;
   const app = new Application();
   await app.init({
-    width: DW,
-    height: DH,
+    width: NATIVE_W * upScale,
+    height: NATIVE_H * upScale,
     preference: 'webgl',
     backgroundAlpha: 0,
     antialias: false,
@@ -247,20 +354,37 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   }
   const canvas = app.canvas;
   canvas.id = 'game-hd';
+  canvas.style.imageRendering = 'pixelated';
+
+  const wallCanvas = document.createElement('canvas');
+  wallCanvas.width = ROOM_W;
+  wallCanvas.height = ROOM_H;
+  const wallCtx = wallCanvas.getContext('2d');
+  const wallImg = wallCtx ? wallCtx.createImageData(ROOM_W, ROOM_H) : null;
 
   const albedoTex = canvasTexture(gbc.frame, 'nearest');
   const auxTex = canvasTexture(gbc.aux, 'nearest');
+  const wallTex = canvasTexture(wallCanvas, 'nearest');
+
+  const padArray = new Float32Array(MAX_EMISSIVE_PADS * 4);
 
   const lightUniforms = new UniformGroup({
     uFrameSize: { value: new Float32Array([NATIVE_W, NATIVE_H]), type: 'vec2<f32>' },
     uAmbient: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSunDir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSunColor: { value: new Float32Array(3), type: 'vec3<f32>' },
+    uShadowInk: { value: new Float32Array(3), type: 'vec3<f32>' },
     uGrade: { value: new Float32Array(4), type: 'vec4<f32>' },
     uTint: { value: new Float32Array(3), type: 'vec3<f32>' },
     uLightCount: { value: 0, type: 'i32' },
     uLightPos: { value: new Float32Array(MAX_LIGHTS * 4), type: 'vec4<f32>', size: MAX_LIGHTS },
     uLightColor: { value: new Float32Array(MAX_LIGHTS * 4), type: 'vec4<f32>', size: MAX_LIGHTS },
+    uPadCount: { value: 0, type: 'i32' },
+    uEmissivePads: {
+      value: new Float32Array(MAX_EMISSIVE_PADS * 4),
+      type: 'vec4<f32>',
+      size: MAX_EMISSIVE_PADS,
+    },
   });
   const lightFilter = new Filter({
     glProgram: GlProgram.from({
@@ -272,6 +396,18 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       lightUniforms,
       uAux: auxTex.source,
       uAuxSampler: auxTex.source.style,
+      uWall: wallTex.source,
+      uWallSampler: wallTex.source.style,
+    },
+  });
+
+  const brightUniforms = new UniformGroup({
+    uFrameSize: { value: new Float32Array([NATIVE_W, NATIVE_H]), type: 'vec2<f32>' },
+    uPadCount: { value: 0, type: 'i32' },
+    uEmissivePads: {
+      value: new Float32Array(MAX_EMISSIVE_PADS * 4),
+      type: 'vec4<f32>',
+      size: MAX_EMISSIVE_PADS,
     },
   });
   const brightFilter = new Filter({
@@ -280,10 +416,14 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       fragment: BRIGHT_FRAGMENT,
       name: 'hd-bright',
     }),
-    resources: {},
+    resources: {
+      brightUniforms,
+      uAux: auxTex.source,
+      uAuxSampler: auxTex.source.style,
+    },
   });
 
-  // Native-resolution passes
+  // Native-resolution passes (extract emissives unpadded first, then blur into bloomRT)
   const albedoSprite = new Sprite(albedoTex);
   albedoSprite.filters = [lightFilter];
   const litScene = new Container();
@@ -291,30 +431,36 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
 
   let litRT = RenderTexture.create({ width: NATIVE_W, height: NATIVE_H, scaleMode: 'nearest' });
   let prevRT = RenderTexture.create({ width: NATIVE_W, height: NATIVE_H, scaleMode: 'nearest' });
+  const brightRT = RenderTexture.create({ width: NATIVE_W, height: NATIVE_H, scaleMode: 'linear' });
   const bloomRT = RenderTexture.create({ width: NATIVE_W, height: NATIVE_H, scaleMode: 'linear' });
 
   const brightSprite = new Sprite(litRT);
-  brightSprite.filters = [brightFilter, new BlurFilter({ strength: 3, quality: 3 })];
+  brightSprite.filters = [brightFilter];
   const brightScene = new Container();
   brightScene.addChild(brightSprite);
+
+  const blurSprite = new Sprite(brightRT);
+  blurSprite.filters = [new BlurFilter({ strength: 3, quality: 3 })];
+  const blurScene = new Container();
+  blurScene.addChild(blurSprite);
 
   // Display stage
   const worldLayer = new Container();
   const prevSprite = new Sprite(prevRT);
   const litSprite = new Sprite(litRT);
   const bloomSprite = new Sprite(bloomRT);
-  for (const sp of [prevSprite, litSprite, bloomSprite]) sp.scale.set(UP);
+  for (const sp of [prevSprite, litSprite, bloomSprite]) sp.scale.set(upScale);
   bloomSprite.blendMode = 'add';
-  bloomSprite.alpha = 0.75;
+  bloomSprite.alpha = 0.65;
   prevSprite.visible = false;
   worldLayer.addChild(prevSprite, litSprite, bloomSprite);
 
   const clouds = new TilingSprite({
     texture: canvasTexture(makeCloudCanvas(), 'linear'),
-    width: DW,
-    height: DH,
+    width: NATIVE_W * upScale,
+    height: NATIVE_H * upScale,
   });
-  clouds.alpha = 0.16;
+  clouds.alpha = 0.1;
 
   const solidParticles = new Graphics();
   const glowParticles = new Graphics();
@@ -325,15 +471,68 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   const flashes: Flash[] = [];
   let slide: { dx: number; dy: number; start: number } | null = null;
 
+  function syncWallMask(world: World, s: State): void {
+    if (!wallCtx || !wallImg) return;
+    const data = wallImg.data;
+    for (let y = 0; y < ROOM_H; y++) {
+      for (let x = 0; x < ROOM_W; x++) {
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
+        const solid = isShadowCasterTile(t, s.crystalColor) ? 255 : 0;
+        const i = (y * ROOM_W + x) * 4;
+        data[i] = solid;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+        data[i + 3] = 255;
+      }
+    }
+    for (const blk of s.blocks) {
+      const bx = Math.round(blk.x);
+      const by = Math.round(blk.y);
+      if (bx >= 0 && bx < ROOM_W && by >= 0 && by < ROOM_H) {
+        data[(by * ROOM_W + bx) * 4] = 255;
+      }
+    }
+    wallCtx.putImageData(wallImg, 0, 0);
+    wallTex.source.update();
+  }
+
+  function collectEmissivePads(world: World, s: State, time: number): number {
+    padArray.fill(0);
+    let count = 0;
+    const room = currentRoom(world, s);
+    if (s.cryptWarpUnlocked) {
+      for (const p of room?.portals ?? []) {
+        if (!p.requiresWarpUnlock || count >= MAX_EMISSIVE_PADS) continue;
+        padArray.set(
+          [(p.x + 0.5) * TILE_PX, (p.y + 0.5) * TILE_PX, 8.5, 0.85 + 0.12 * Math.sin(time * 3)],
+          count * 4,
+        );
+        count++;
+      }
+    }
+    if (s.spireCinderSlotted || s.cores.includes('cinder')) {
+      for (const st of room?.stamps ?? []) {
+        if (st.id !== 'spire-seal' || count >= MAX_EMISSIVE_PADS) continue;
+        padArray.set(
+          [(st.x + 0.5) * TILE_PX, (st.y + 0.5) * TILE_PX, 8.0, 0.85 + 0.1 * Math.sin(time * 3.5)],
+          count * 4,
+        );
+        count++;
+      }
+    }
+    return count;
+  }
+
   const view: HdView = {
     canvas,
 
     render(world: World, s: State, time: number, dt: number): void {
-      // 1. Upload this frame's albedo and G-buffer
+      // 1. Upload this frame's albedo, sprite G-buffer, and wall shadow-caster mask
       albedoTex.source.update();
       auxTex.source.update();
+      syncWallMask(world, s);
 
-      // 2. Lights, from state and fresh blast flashes
+      // 2. Lights & active emissive floor pads, from state and fresh blast flashes
       for (const bl of s.blasts) {
         if (!bl.shape || bl.shape === 'hub' || bl.shape === 'single') {
           flashes.push({ x: bl.x, y: bl.y, kind: bl.kind, born: time });
@@ -341,19 +540,25 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       }
       while (flashes.length > 0 && time - (flashes[0]?.born ?? time) > 0.4) flashes.shift();
       const lighting = computeLighting(world, s, time, flashes);
+      const padCount = collectEmissivePads(world, s, time);
+
       const u = lightUniforms.uniforms as {
         uAmbient: Float32Array;
         uSunDir: Float32Array;
         uSunColor: Float32Array;
+        uShadowInk: Float32Array;
         uGrade: Float32Array;
         uTint: Float32Array;
         uLightCount: number;
         uLightPos: Float32Array;
         uLightColor: Float32Array;
+        uPadCount: number;
+        uEmissivePads: Float32Array;
       };
       u.uAmbient.set(lighting.ambient);
       u.uSunDir.set(lighting.sunDir);
       u.uSunColor.set(lighting.sunColor);
+      u.uShadowInk.set(lighting.shadowInk);
       const crypt = s.zone === 'ember-crypt';
       u.uGrade.set(crypt ? [1.08, 1.1, 0.5, 0] : [1.12, 1.06, 0.5, 0]);
       u.uTint.set(crypt ? [0.95, 0.92, 1.08] : [1.05, 1.0, 0.92]);
@@ -362,14 +567,25 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         u.uLightPos.set([l.x, l.y, l.z, l.radius], i * 4);
         u.uLightColor.set([l.color[0], l.color[1], l.color[2], l.intensity], i * 4);
       });
+      u.uPadCount = padCount;
+      u.uEmissivePads.set(padArray);
       lightUniforms.update();
 
-      // 3. Lit frame and bloom, at native resolution
+      const bu = brightUniforms.uniforms as {
+        uPadCount: number;
+        uEmissivePads: Float32Array;
+      };
+      bu.uPadCount = padCount;
+      bu.uEmissivePads.set(padArray);
+      brightUniforms.update();
+
+      // 3. Lit frame and emissive-only bloom, at native resolution
       renderer.render({ container: litScene, target: litRT, clear: true });
       brightSprite.texture = litRT;
-      renderer.render({ container: brightScene, target: bloomRT, clear: true });
+      renderer.render({ container: brightScene, target: brightRT, clear: true });
+      renderer.render({ container: blurScene, target: bloomRT, clear: true });
 
-      // 4. Particles in screen space
+      // 4. Particles in integer-scaled screen space
       if (!slide) {
         particles.spawnFromFrame(s, s.events, s.blasts);
         particles.emitAmbient(s, dt);
@@ -380,21 +596,23 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       for (const p of particles.particles) {
         const k = Math.max(0, p.life / p.maxLife);
         const g = p.glow ? glowParticles : solidParticles;
-        const size = p.size * UP * (p.kind === 'smoke' ? 1.6 - k * 0.6 : 1);
+        const size = p.size * upScale * (p.kind === 'smoke' ? 1.6 - k * 0.6 : 1);
         const alpha = p.kind === 'smoke' ? 0.35 * k : p.glow ? k : Math.min(1, k * 2);
-        g.circle(p.x * UP, p.y * UP, size / 2).fill({ color: p.color, alpha });
+        g.circle(p.x * upScale, p.y * upScale, size / 2).fill({ color: p.color, alpha });
       }
 
       // 5. Room slide and parallax clouds
+      const dw = NATIVE_W * upScale;
+      const dh = NATIVE_H * upScale;
       let offX = 0;
       let offY = 0;
       if (slide) {
         const t = Math.min(1, (time - slide.start) / SLIDE_SECONDS);
         const e = easeInOutCubic(t);
-        offX = slide.dx * (1 - e) * DW;
-        offY = slide.dy * (1 - e) * DH;
+        offX = slide.dx * (1 - e) * dw;
+        offY = slide.dy * (1 - e) * dh;
         prevSprite.visible = t < 1;
-        prevSprite.position.set(offX - slide.dx * DW, offY - slide.dy * DH);
+        prevSprite.position.set(offX - slide.dx * dw, offY - slide.dy * dh);
         if (t >= 1) slide = null;
       } else {
         prevSprite.visible = false;
@@ -404,7 +622,11 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       solidParticles.position.set(offX, offY);
       glowParticles.position.set(offX, offY);
       clouds.visible = !crypt;
-      clouds.tilePosition.set(time * 7 + offX * 1.35, time * 3 + offY * 1.35);
+      const cloudScale = upScale / DEFAULT_UP;
+      clouds.tilePosition.set(
+        time * 7 * cloudScale + offX * 1.35,
+        time * 3 * cloudScale + offY * 1.35,
+      );
 
       renderer.render(app.stage);
     },
@@ -413,6 +635,25 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       const { width, height } = computeGbcCanvasSize(stageWidth, stageHeight);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
+      canvas.style.imageRendering = 'pixelated';
+    },
+
+    setScale(deviceScale: number, cssWidth: number, cssHeight: number): void {
+      const nextScale = Math.max(1, Math.min(8, Math.round(deviceScale)));
+      if (nextScale !== upScale) {
+        upScale = nextScale;
+        const dw = NATIVE_W * upScale;
+        const dh = NATIVE_H * upScale;
+        renderer.resize(dw, dh);
+        prevSprite.scale.set(upScale);
+        litSprite.scale.set(upScale);
+        bloomSprite.scale.set(upScale);
+        clouds.width = dw;
+        clouds.height = dh;
+      }
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.style.imageRendering = 'pixelated';
     },
 
     beginRoomSlide(dx: number, dy: number, time: number): void {

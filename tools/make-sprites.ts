@@ -233,6 +233,16 @@ SAMPLE_ROOMS.forEach((spec, idx) => {
       Boolean(g.topShadow),
     );
   }
+  for (const d of plan.decals) {
+    drawProofBgTile(
+      rx0 + d.x * 16,
+      ry0 + d.y * 16,
+      spec.zone,
+      d.tile,
+      Boolean(d.transparentZero),
+      Boolean(d.topShadow),
+    );
+  }
   for (const p of plan.props) {
     drawProofBgTile(
       rx0 + p.x * 16,

@@ -1,19 +1,33 @@
 /**
- * Sprite G-buffer for the HD-2D lighting pass (ROADMAP Phase 5). Every sprite drawn into the
- * frame also draws its "aux" image into a parallel canvas the lighting shader reads:
+ * Sprite G-buffer for the HD-2D lighting pass (ROADMAP Phase 5 & §6.3). Every sprite drawn into
+ * the frame also draws its "aux" image into a parallel canvas the lighting & bloom shaders read:
  *
- * - R: hand-tuned height (0..1) for hero sprites, where B = 255 flags a hero pixel
- * - G: emissive (flames, blasts, sparks glow at full strength in the dark)
- * - opaque black: any other sprite, so it covers a hero or flame drawn behind it
+ * - R: hand-tuned height (0..255) when B >= 128
+ * - G: emissive intensity (0..255; > 0 ONLY on flames, blasts, sparks, fuse tips, Cinder Core,
+ *      and active warp/seal pads — 0 on ground, walls, heroes, and plain sprite bodies)
+ * - B: 255 flags custom hero height in R
+ * - opaque black (0, 0, 0, 255): any non-emissive plain sprite pixel, so it occludes behind it
  *
  * Everything not drawn into aux (tiles, props) gets auto-generated normals from the albedo's
  * luminance in the shader (lighter = raised, ink = edge).
  */
-import { OBJ, type ObjSpriteName } from './gbcArt';
+import { BG, OBJ, type ObjSpriteName } from './gbcArt';
 
 export type AuxKind = 'hero' | 'emissive' | 'plain';
 
-const EMISSIVE_PREFIXES = ['BLAST_', 'FIRE_', 'SPARKLE_', 'PROJ_', 'PICKUP_CINDER_CORE'];
+export interface AuxImageData {
+  readonly width: number;
+  readonly height: number;
+  readonly data: Uint8ClampedArray;
+}
+
+export const EMISSIVE_PREFIXES = [
+  'BLAST_',
+  'FIRE_',
+  'SPARKLE_',
+  'PROJ_',
+  'PICKUP_CINDER_CORE',
+] as const;
 
 export function auxKind(name: string): AuxKind {
   if (name.startsWith('PIP_') || name.startsWith('CINDERHULL_') || name.startsWith('WICKGEIST_')) {
@@ -21,6 +35,10 @@ export function auxKind(name: string): AuxKind {
   }
   if (EMISSIVE_PREFIXES.some((p) => name.startsWith(p))) return 'emissive';
   return 'plain';
+}
+
+function isBombWithGlowingCore(name: string): boolean {
+  return name.startsWith('POWDER_') || name.startsWith('EMBER_');
 }
 
 /**
@@ -64,34 +82,85 @@ export function heroHeight(
   return Math.max(0, Math.min(1, base * 0.8 + (1 - r2) * 0.25));
 }
 
-/** Bake a sprite's aux image (same size as the sprite, transparent where it is). */
-export function bakeAux(name: ObjSpriteName): HTMLCanvasElement {
-  const sprite = OBJ[name];
-  const h = sprite.rows.length;
-  const w = sprite.rows[0]?.length ?? 16;
+function toAuxCanvas(aux: AuxImageData): HTMLCanvasElement {
+  const { width, height, data } = aux;
+  if (typeof document === 'undefined') {
+    return {
+      width,
+      height,
+      getContext: () => ({
+        getImageData: () => ({ width, height, data }),
+      }),
+    } as unknown as HTMLCanvasElement;
+  }
   const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
+  c.width = width;
+  c.height = height;
   const ctx = c.getContext('2d');
   if (!ctx) return c;
-  const img = ctx.createImageData(w, h);
-  const kind = auxKind(name);
-  for (let y = 0; y < h; y++) {
-    const row = sprite.rows[y] ?? '';
-    for (let x = 0; x < w; x++) {
-      const ch = row[x] ?? '.';
-      if (ch === '.') continue;
-      const i = (y * w + x) * 4;
-      if (kind === 'hero') {
-        img.data[i] = Math.round(heroHeight(name, Number(ch), x, y, w, h) * 255);
-        img.data[i + 2] = 255;
-      } else if (kind === 'emissive') {
-        // Ink and the darkest shade stay unlit so a flame keeps its outline
-        img.data[i + 1] = Number(ch) >= 5 ? 0 : 255;
-      }
-      img.data[i + 3] = 255;
-    }
-  }
+  const img = ctx.createImageData(width, height);
+  img.data.set(data);
   ctx.putImageData(img, 0, 0);
   return c;
+}
+
+/** Pure RGBA pixel data for a sprite's aux G-buffer image (DOM-free for headless testing). */
+export function bakeAuxData(name: ObjSpriteName): AuxImageData {
+  const sprite = OBJ[name];
+  const height = sprite.rows.length;
+  const width = sprite.rows[0]?.length ?? 16;
+  const data = new Uint8ClampedArray(width * height * 4);
+  const kind = auxKind(name);
+  const bombCore = isBombWithGlowingCore(name);
+
+  for (let y = 0; y < height; y++) {
+    const row = sprite.rows[y] ?? '';
+    for (let x = 0; x < width; x++) {
+      const ch = row[x] ?? '.';
+      if (ch === '.') continue;
+      const idx = Number(ch);
+      const i = (y * width + x) * 4;
+      if (kind === 'hero') {
+        data[i] = Math.round(heroHeight(name, idx, x, y, width, height) * 255);
+        data[i + 2] = 255;
+      } else if (kind === 'emissive') {
+        // Ink and darkest ember shade stay non-emissive so flames & blasts keep crisp outlines
+        data[i + 1] = idx <= 4 ? 255 : 0;
+      } else if (bombCore && (idx === 1 || idx === 2)) {
+        // Live fuse spark (POWDER_*) and incandescent Ember flask core (EMBER_*) glow & bloom
+        data[i + 1] = 220;
+      }
+      data[i + 3] = 255;
+    }
+  }
+  return { width, height, data };
+}
+
+/** Bake a sprite's aux image (same size as the sprite, transparent where it is). */
+export function bakeAux(name: ObjSpriteName): HTMLCanvasElement {
+  return toAuxCanvas(bakeAuxData(name));
+}
+
+/** Pure RGBA pixel data for an emissive background tile (`warp` rune or `sealLit` Cinder socket). */
+export function bakeTileEmissiveAuxData(kind: 'warp' | 'sealLit'): AuxImageData {
+  const tile = kind === 'warp' ? BG.warp0 : BG.sealSocketLit;
+  const height = tile.rows.length;
+  const width = tile.rows[0]?.length ?? 16;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const row = tile.rows[y] ?? '';
+    for (let x = 0; x < width; x++) {
+      const idx = Number(row[x] ?? 0);
+      if (idx === 0) continue;
+      const i = (y * width + x) * 4;
+      data[i + 1] = idx === 1 ? 230 : idx === 2 ? 140 : 0;
+      data[i + 3] = 255;
+    }
+  }
+  return { width, height, data };
+}
+
+/** Bake a 16x16 emissive G-buffer tile mask for active warp pads and lit Spire seal sockets. */
+export function bakeTileEmissiveAux(kind: 'warp' | 'sealLit'): HTMLCanvasElement {
+  return toAuxCanvas(bakeTileEmissiveAuxData(kind));
 }

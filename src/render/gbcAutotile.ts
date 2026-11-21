@@ -3,10 +3,13 @@
  *
  * Maps any 11x13 `RoomSpec` + live `State` into:
  * - `ground`:   11x13 base terrain BgTiles (grass, curved paths, waterbanks, pit rims,
- *               recessed dungeon floor trim, 2x2 floor medallions, bridge decks)
- * - `props`:    optional overlay BgTiles drawn with index 0 transparent so ground shows
- *               cleanly underneath (crates, fences, balustrades, brambles, braziers,
- *               crystal switches/barriers, buttons, spikes, stairs, landmark walls)
+ *               recessed dungeon floor trim, flagstone variants, walls, cliffs & locked doors)
+ * - `decals`:   flat floor overlays drawn directly over `ground` and ALWAYS below ground actors
+ *               (medallions, Fourfold Spire seal, carved stone chutes, bridges, buttons, spikes,
+ *               stairs, warps, lowered barriers, crypt floor decals, forest-edge trims, building aprons)
+ * - `props`:    raised 3D obstacle/wall BgTiles Y-sorted with actors by foot position
+ *               (crates, fences, balustrades, brambles, braziers, crystal switches, raised barriers,
+ *               shutters, cracked walls, building walls, lower tree trunks & boulders)
  * - `overhead`: 3/4 vertical overlap tiles Y-sorted with actors at `footY = y + 0.99`
  *               (workshop/smithy roof eaves, mausoleum arch pediment, upper tree crowns) so
  *               actors north of the tile tuck behind it while actors/flames south draw in front
@@ -47,6 +50,9 @@ export interface PlacedTile {
 
 export interface RoomRenderPlan {
   ground: PlacedTile[];
+  /** Flat floor inlays, trims, chutes, bridges, buttons, spikes, stairs & warps drawn below actors. */
+  decals: PlacedTile[];
+  /** Raised 3D obstacles & building walls Y-sorted with ground actors. */
   props: PlacedTile[];
   /** 3/4 overlap tiles Y-sorted with actors at `footY = y + 0.99`. */
   overhead: PlacedTile[];
@@ -78,6 +84,12 @@ function makeMask(pred: (dx: number, dy: number) => boolean): NeighbourMask {
     w: pred(-1, 0),
     nw: pred(-1, -1),
   };
+}
+
+function cellHash(x: number, y: number, rx: number, ry: number): number {
+  let h = (x * 374761393 + y * 668265263 + rx * 2147483647 + ry * 1274126177) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
 }
 
 export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
@@ -115,10 +127,8 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     }
   }
 
-  // Authentic LADX / Oracle 2-wide vertical column-run tree tiling (`Top -> Ovl* -> Bot`):
-  // Any contiguous vertical run of 2-wide 'YY' rows (height 2, 3, 4, 5...) renders one unbroken
-  // canopy stack with a rounded top crown, 0+ overlapping middle crowns, and a rooted trunk base—
-  // never leaving a truncated 1-row orphan tree top!
+  // Authentic LADX / Oracle 2-wide vertical column-run tree tiling (`Top -> Ovl* -> Bot`)
+  // with deterministic canopy & gnarled root-flare variants so tree borders never rubber-stamp!
   const treeMap = new Map<string, { tile: BgTile; overhead: boolean }>();
   if (!isCrypt) {
     const claimedCol = new Set<string>();
@@ -130,6 +140,21 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       !claimedCol.has(`${x},${y}`) &&
       !stampedSolid.has(`${x},${y}`) &&
       at(x, y) === 'Y';
+
+    const topCrowns = [
+      [BG.treeNW, BG.treeNE],
+      [BG.treeNW_B, BG.treeNE_B],
+      [BG.treeNW_C, BG.treeNE_C],
+    ] as const;
+    const midCrowns = [
+      [BG.treeOvlW, BG.treeOvlE],
+      [BG.treeOvlW_B, BG.treeOvlE_B],
+      [BG.treeOvlW_C, BG.treeOvlE_C],
+    ] as const;
+    const trunkBases = [
+      [BG.treeSW, BG.treeSE],
+      [BG.treeSW_B, BG.treeSE_B],
+    ] as const;
 
     for (let x = 0; x < ROOM_W - 1; x++) {
       let y = 0;
@@ -144,21 +169,31 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         }
         const yEnd = y - 1;
         if (yEnd - yStart + 1 < 2) {
-          continue; // 1-row孤立 cells fall back to sculpted mossy boulders
+          continue; // 1-row standalone cells fall back to sculpted mossy boulders
         }
+        const colIdx = Math.floor(x / 2);
         for (let ry = yStart; ry <= yEnd; ry++) {
           claimedCol.add(`${x},${ry}`);
           claimedCol.add(`${x + 1},${ry}`);
           if (ry === yStart) {
             const northWalkable = ry > 0 && at(x, ry - 1) !== 'Y' && at(x, ry - 1) !== '#';
-            treeMap.set(`${x},${ry}`, { tile: BG.treeNW, overhead: northWalkable });
-            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeNE, overhead: northWalkable });
+            const rowSeed = cellHash(0, ry, s.rx, s.ry);
+            const step = 1 + (rowSeed & 1); // coprime to 3 so adjacent 2x2 trees never repeat
+            const pair = topCrowns[((rowSeed >>> 2) + colIdx * step) % 3] ?? topCrowns[0];
+            treeMap.set(`${x},${ry}`, { tile: pair[0], overhead: northWalkable });
+            treeMap.set(`${x + 1},${ry}`, { tile: pair[1], overhead: northWalkable });
           } else if (ry < yEnd) {
-            treeMap.set(`${x},${ry}`, { tile: BG.treeOvlW, overhead: false });
-            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeOvlE, overhead: false });
+            const rowSeed = cellHash(1, ry, s.rx, s.ry);
+            const step = 1 + (rowSeed & 1);
+            const pair =
+              midCrowns[((rowSeed >>> 2) + colIdx * step + (ry - yStart)) % 3] ?? midCrowns[0];
+            treeMap.set(`${x},${ry}`, { tile: pair[0], overhead: false });
+            treeMap.set(`${x + 1},${ry}`, { tile: pair[1], overhead: false });
           } else {
-            treeMap.set(`${x},${ry}`, { tile: BG.treeSW, overhead: false });
-            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeSE, overhead: false });
+            const trunkIdx = (colIdx + (cellHash(x >> 2, ry, s.rx, s.ry) & 1)) % 2;
+            const pair = trunkBases[trunkIdx] ?? trunkBases[0];
+            treeMap.set(`${x},${ry}`, { tile: pair[0], overhead: false });
+            treeMap.set(`${x + 1},${ry}`, { tile: pair[1], overhead: false });
           }
         }
       }
@@ -166,11 +201,54 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   }
 
   const ground: PlacedTile[] = [];
+  const decals: PlacedTile[] = [];
   const props: PlacedTile[] = [];
   const overhead: PlacedTile[] = [];
   const ceiling: PlacedTile[] = [];
   const interiorWater: Array<[number, number]> = [];
   const warpPads: Array<{ x: number; y: number; active: boolean }> = [];
+
+  const isTallCaster = (t: Tile): boolean =>
+    t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S';
+
+  // Grounded cobble foundations (`st.y + 1`) and welcoming doorstep aprons (`st.y + 2`)
+  // under Bram's Workshop & the Rusted Smithy
+  const apronCells = new Set<string>();
+  const plinthTiles = [BG.buildingPlinthW, BG.buildingPlinthM, BG.buildingPlinthE] as const;
+  const apronTiles = [BG.buildingApronW, BG.buildingApronDoor, BG.buildingApronE] as const;
+  for (const st of room?.stamps ?? []) {
+    if (st.id !== 'bram-workshop' && st.id !== 'rusted-smithy') continue;
+    const fy = st.y + 1;
+    if (fy >= 0 && fy < ROOM_H) {
+      for (let dx = 0; dx < 3; dx++) {
+        const fx = st.x + dx;
+        const pTile = plinthTiles[dx];
+        if (fx >= 0 && fx < ROOM_W && pTile) {
+          decals.push({ x: fx, y: fy, tile: pTile, transparentZero: true });
+        }
+      }
+    }
+    const ay = st.y + 2;
+    if (ay >= 0 && ay < ROOM_H) {
+      for (let dx = 0; dx < 3; dx++) {
+        const ax = st.x + dx;
+        const aTile = apronTiles[dx];
+        if (ax < 0 || ax >= ROOM_W || !aTile) continue;
+        const wt = at(ax, ay);
+        if (wt === '.' || wt === ':' || wt === ',') {
+          const castShadow = ay > 0 && isTallCaster(at(ax, ay - 1)) && !isTallCaster(wt);
+          decals.push({
+            x: ax,
+            y: ay,
+            tile: aTile,
+            transparentZero: true,
+            topShadow: castShadow,
+          });
+          apronCells.add(`${ax},${ay}`);
+        }
+      }
+    }
+  }
 
   const isWaterCell = (t: Tile): boolean =>
     t === '~' || t === '1' || t === '2' || t === '3' || t === '4';
@@ -202,11 +280,16 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     return at(x, y) !== '#';
   };
 
-  const isTallCaster = (t: Tile): boolean =>
-    t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S';
+  const isRealTree = (tx: number, ty: number): boolean =>
+    tx >= 0 &&
+    tx < ROOM_W &&
+    ty >= 0 &&
+    ty < ROOM_H &&
+    !stampedSolid.has(`${tx},${ty}`) &&
+    at(tx, ty) === 'Y';
 
   // =========================================================================
-  // Pass 1 & 2: Per-Cell Terrain, Mitered Walls, Cliffs, Trees & Props
+  // Pass 1 & 2: Per-Cell Terrain, Decals, Mitered Walls, Cliffs, Trees & Props
   // =========================================================================
   for (let y = 0; y < ROOM_H; y++) {
     for (let x = 0; x < ROOM_W; x++) {
@@ -218,8 +301,17 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       if (isWaterLike(x, y)) {
         const nb = makeMask((dx, dy) => isWaterLike(x + dx, y + dy));
         ground.push({ x, y, tile: resolveBlobTile(WATER_BLOB, nb) });
-        if (t === '~' && nb.n && nb.s && nb.e && nb.w && nb.nw && nb.ne && nb.sw && nb.se) {
+        const pureInterior =
+          t === '~' && nb.n && nb.s && nb.e && nb.w && nb.nw && nb.ne && nb.sw && nb.se;
+        if (pureInterior) {
           interiorWater.push([x, y]);
+        } else if (t === '~' && ((nb.n && nb.s) || (nb.e && nb.w))) {
+          const wh = cellHash(x, y, s.rx, s.ry) & 3;
+          if (wh === 1) {
+            decals.push({ x, y, tile: BG.waterShimmerA, transparentZero: true });
+          } else if (wh === 2) {
+            decals.push({ x, y, tile: BG.waterShimmerB, transparentZero: true });
+          }
         }
       } else if (isPitLike(x, y)) {
         const nb = makeMask((dx, dy) => isPitLike(x + dx, y + dy));
@@ -228,7 +320,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const inTunnel = x <= 1 || x >= ROOM_W - 2 || y <= 1 || y >= ROOM_H - 2;
         if (inTunnel && t !== '#') {
           const ns = y <= 1 || y >= ROOM_H - 2;
-          let tunnelTile = BG.archFloorNS;
+          let tunnelTile: BgTile = BG.archFloorNS;
           if (!ns) {
             const openN = y > 0 && at(x, y - 1) !== '#';
             const openS = y < ROOM_H - 1 && at(x, y + 1) !== '#';
@@ -252,15 +344,25 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
           }
         } else {
           const nb = makeMask((dx, dy) => isCryptChamber(x + dx, y + dy));
+          const fullInterior = nb.n && nb.s && nb.e && nb.w && nb.nw && nb.ne && nb.sw && nb.se;
+          let floorTile = resolveBlobTile(CRYPT_FLOOR_BLOB, nb);
+          if (fullInterior && t !== '#') {
+            const fh = cellHash(x, y, s.rx, s.ry) & 7;
+            if (fh === 1 || fh === 5) {
+              floorTile = BG.cryptFloorVarA;
+            } else if (fh === 3 || fh === 6) {
+              floorTile = BG.cryptFloorVarB;
+            }
+          }
           ground.push({
             x,
             y,
-            tile: resolveBlobTile(CRYPT_FLOOR_BLOB, nb),
+            tile: floorTile,
             topShadow: castShadow,
           });
         }
       } else {
-        // Overworld meadow + organic path blobs
+        // Overworld meadow + organic path blobs + forest-edge fern/clover/root trims
         if (t === ':') {
           const nb = makeMask((dx, dy) => isPathLike(x + dx, y + dy));
           ground.push({ x, y, tile: resolveBlobTile(PATH_BLOB, nb), topShadow: castShadow });
@@ -276,6 +378,77 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
                   : BG.grassOpen;
           ground.push({ x, y, tile: baseGrass, topShadow: castShadow });
         }
+
+        if (t === '.' && !apronCells.has(key)) {
+          if (isRealTree(x, y - 1)) {
+            decals.push({
+              x,
+              y,
+              tile: BG.forestEdgeN,
+              transparentZero: true,
+              topShadow: castShadow,
+            });
+          }
+          if (isRealTree(x - 1, y)) {
+            decals.push({ x, y, tile: BG.forestEdgeW, transparentZero: true });
+          }
+          if (isRealTree(x + 1, y)) {
+            decals.push({ x, y, tile: BG.forestEdgeE, transparentZero: true });
+          }
+        }
+      }
+
+      // --- 1b. Atmospheric Crypt Chamber Floor Decals (never overlapping portals/buttons/tracks) ---
+      if (
+        isCrypt &&
+        x >= 2 &&
+        x <= ROOM_W - 3 &&
+        y >= 2 &&
+        y <= ROOM_H - 3 &&
+        t === '.' &&
+        (room?.rows[y]?.[x] ?? '.') === '.' &&
+        !(x === 5 && y === 6) &&
+        !room?.portals?.some((p) => p.x === x && p.y === y) &&
+        !s.blocks.some((b) => Math.round(b.x) === x && Math.round(b.y) === y)
+      ) {
+        const dh = cellHash(x + 11, y + 23, s.rx, s.ry) & 31;
+        const nearWall = x === 2 || x === ROOM_W - 3 || y === 2 || y === ROOM_H - 3;
+        const nearCorner = (x === 2 || x === ROOM_W - 3) && (y === 2 || y === ROOM_H - 3);
+        const nearTorch = Boolean(
+          room?.torches?.some((tr) => Math.abs(tr.x - x) + Math.abs(tr.y - y) === 1),
+        );
+
+        if (nearTorch && (dh & 3) === 0) {
+          decals.push({
+            x,
+            y,
+            tile: BG.cryptDecalScorch,
+            transparentZero: true,
+            topShadow: castShadow,
+          });
+        } else if (nearCorner && (dh & 1) === 0) {
+          decals.push({
+            x,
+            y,
+            tile: BG.cryptDecalMoss,
+            transparentZero: true,
+            topShadow: castShadow,
+          });
+        } else if (nearWall && dh < 3) {
+          decals.push({
+            x,
+            y,
+            tile: BG.cryptDecalMoss,
+            transparentZero: true,
+            topShadow: castShadow,
+          });
+        } else if (!nearWall && x === 5 && (y === 3 || y === 9) && ((s.rx + s.ry + y) & 1) === 0) {
+          decals.push({ x, y, tile: BG.cryptDecalRug, transparentZero: true });
+        } else if (!nearWall && (dh === 5 || dh === 19)) {
+          decals.push({ x, y, tile: BG.cryptDecalCrack, transparentZero: true });
+        } else if (!nearWall && dh === 11) {
+          decals.push({ x, y, tile: BG.cryptDecalScorch, transparentZero: true });
+        }
       }
 
       // --- 2. Bridge Decks (`_`) ---
@@ -283,7 +456,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const hasW = at(x - 1, y) === '_';
         const hasE = at(x + 1, y) === '_';
         const bTile = !hasW && hasE ? BG.bridgeV_W : hasW && !hasE ? BG.bridgeV_E : BG.bridgeV_Mid;
-        props.push({ x, y, tile: bTile, transparentZero: true });
+        decals.push({ x, y, tile: bTile, transparentZero: true });
         continue;
       }
 
@@ -371,7 +544,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         continue;
       }
 
-      // --- 5. Cracked Walls (`%`), Connected Props & Doors ---
+      // --- 5. Cracked Walls (`%`), Connected Props, Flat Decals & Doors ---
       if (t === '%') {
         props.push({ x, y, tile: BG.crackedWall, transparentZero: true });
       } else if (t === '=') {
@@ -412,12 +585,21 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const raised =
           (t === 'R' && s.crystalColor === 'red') || (t === 'U' && s.crystalColor === 'blue');
         const col: BgPaletteId = t === 'R' ? 'red' : 'blue';
-        props.push({
-          x,
-          y,
-          tile: recolorQuads(raised ? BG.barrierUp : BG.barrierDown, [col, col, col, col]),
-          transparentZero: true,
-        });
+        if (raised) {
+          props.push({
+            x,
+            y,
+            tile: recolorQuads(BG.barrierUp, [col, col, col, col]),
+            transparentZero: true,
+          });
+        } else {
+          decals.push({
+            x,
+            y,
+            tile: recolorQuads(BG.barrierDown, [col, col, col, col]),
+            transparentZero: true,
+          });
+        }
       } else if (t === 'C') {
         const col: BgPaletteId = s.crystalColor === 'red' ? 'red' : 'blue';
         props.push({
@@ -445,28 +627,28 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const ew = x === 0 || x === ROOM_W - 1;
         props.push({ x, y, tile: ew ? BG.shutterEW : BG.shutterNS, transparentZero: true });
       } else if (t === 'O') {
-        props.push({ x, y, tile: solved ? BG.buttonDown : BG.buttonUp, transparentZero: true });
+        decals.push({ x, y, tile: solved ? BG.buttonDown : BG.buttonUp, transparentZero: true });
       } else if (t === '!') {
-        props.push({ x, y, tile: BG.spikes, transparentZero: true });
+        decals.push({ x, y, tile: BG.spikes, transparentZero: true });
       } else if (t === ',') {
-        props.push({ x, y, tile: BG.dryGrass, transparentZero: true, topShadow: castShadow });
+        decals.push({ x, y, tile: BG.dryGrass, transparentZero: true, topShadow: castShadow });
       } else if (t === '1' || t === '2' || t === '3' || t === '4') {
         const currentTile =
           t === '1' ? BG.currentN : t === '2' ? BG.currentS : t === '3' ? BG.currentE : BG.currentW;
-        props.push({ x, y, tile: currentTile, transparentZero: true });
+        decals.push({ x, y, tile: currentTile, transparentZero: true });
       } else if (t === 'n' || t === 's' || t === 'e' || t === 'w') {
         const slopeTile =
           t === 'n' ? BG.slopeN : t === 's' ? BG.slopeS : t === 'e' ? BG.slopeE : BG.slopeW;
-        props.push({ x, y, tile: slopeTile, topShadow: castShadow });
+        decals.push({ x, y, tile: slopeTile, topShadow: castShadow });
       } else if (t === '>') {
         const pSpec = room?.portals?.find((p) => p.x === x && p.y === y);
         const midpoint = Boolean(pSpec?.requiresWarpUnlock);
         if (midpoint) {
           const active = s.cryptWarpUnlocked;
-          props.push({ x, y, tile: active ? BG.warp0 : BG.warpOff, transparentZero: true });
+          decals.push({ x, y, tile: active ? BG.warp0 : BG.warpOff, transparentZero: true });
           warpPads.push({ x, y, active });
         } else {
-          props.push({ x, y, tile: BG.stairs, transparentZero: true });
+          decals.push({ x, y, tile: BG.stairs, transparentZero: true });
         }
       }
     }
@@ -474,7 +656,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
 
   // --- 6. Centered Shrine Seal Ring on (5, 6) in Open Chambers ---
   if (isCrypt && at(5, 6) === '.' && !room?.portals?.some((p) => p.x === 5 && p.y === 6)) {
-    props.push({ x: 5, y: 6, tile: BG.sealRingCenter, transparentZero: true });
+    decals.push({ x: 5, y: 6, tile: BG.sealRingCenter, transparentZero: true });
   }
 
   // --- 7. Bespoke Multi-Tile Landmark Stamps (`bram-workshop`, `rusted-smithy`, `crypt-mausoleum`, `spire-gate`, `spire-seal`) ---
@@ -496,11 +678,13 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
           tile,
           transparentZero: st.id !== 'crypt-mausoleum',
         });
+      } else if (st.id === 'spire-seal') {
+        decals.push({ x: tx, y: ty, tile, transparentZero: true });
       } else {
         props.push({ x: tx, y: ty, tile, transparentZero: st.id !== 'spire-gate' });
       }
     }
   }
 
-  return { ground, props, overhead, ceiling, interiorWater, warpPads, chimneys };
+  return { ground, decals, props, overhead, ceiling, interiorWater, warpPads, chimneys };
 }

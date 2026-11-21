@@ -48,6 +48,87 @@ export function computeGbcCanvasSize(
   };
 }
 
+export type DepthActorKind =
+  | 'pip'
+  | 'slime'
+  | 'mini-slime'
+  | 'bat'
+  | 'shielder'
+  | 'wickgeist'
+  | 'cinderhull'
+  | 'bomb'
+  | 'pickup'
+  | 'npc'
+  | 'block'
+  | 'prop'
+  | 'torchFlame'
+  | 'overhead'
+  | 'microVfx';
+
+export interface DepthSortable {
+  footY: number;
+  orderTie: number;
+}
+
+/**
+ * Ground-contact Y (in tiles) used to depth-sort actors, bombs, and 3/4 props.
+ * Always uses the entity's ground footprint `(x, y)` rather than airborne `y - z` so
+ * a bomb or enemy north of Pip never sorts on top of Pip's head mid-hop.
+ */
+export function actorFootY(kind: DepthActorKind, y: number): number {
+  switch (kind) {
+    case 'mini-slime':
+      return y + 0.32;
+    case 'pickup':
+      return y + 0.34;
+    case 'bat':
+      return y + 0.35;
+    case 'bomb':
+    case 'slime':
+      return y + 0.36;
+    case 'pip':
+    case 'shielder':
+    case 'npc':
+      return y + 0.38;
+    case 'wickgeist':
+      return y + 0.42;
+    case 'cinderhull':
+      return y + 0.85;
+    case 'microVfx':
+      return y + 0.3;
+    case 'prop':
+      return y + 0.9;
+    case 'torchFlame':
+      return y + 0.91;
+    case 'block':
+      return y + 0.92;
+    case 'overhead':
+      return y + 0.99;
+  }
+}
+
+/** Deterministic foot-position depth sort (`6.4`). */
+export function sortDepthItems<T extends DepthSortable>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => a.footY - b.footY || a.orderTie - b.orderTie);
+}
+
+/**
+ * Height-aware contact shadow metrics (`6.4`): shrinks and softens smoothly as an actor
+ * or hopping bomb rises above the floor (`heightTiles >= 0`).
+ */
+export function computeShadowMetrics(
+  baseRadiusPx: number,
+  heightTiles: number,
+): { rx: number; ry: number; alpha: number } {
+  const h = Math.max(0, heightTiles);
+  const scale = 1 / (1 + h * 1.35);
+  return {
+    rx: Math.max(2, Math.round(baseRadiusPx * scale)),
+    ry: Math.max(1, Math.round(baseRadiusPx * 0.46 * scale)),
+    alpha: Math.max(0.14, 0.44 * scale),
+  };
+}
+
 /**
  * Composes each frame offscreen at native resolution: the albedo pass and its sprite
  * G-buffer. The PixiJS view (`hd/hdView.ts`) lights and presents them.
@@ -251,6 +332,7 @@ export function makeGbcView(): GbcView {
 
   let plan: RoomRenderPlan = {
     ground: [],
+    decals: [],
     props: [],
     overhead: [],
     ceiling: [],
@@ -670,7 +752,6 @@ export function makeGbcView(): GbcView {
     }
     const bob = Math.floor(time * 2.2) % 2;
     const dy = Math.round(npc.y * TILE_PX - 12) + bob;
-    drawObjSprite(ctx, 'SHADOW_CELL', dx, Math.round(npc.y * TILE_PX - 8));
     if (npc.id === 'fern') {
       drawObjSprite(ctx, 'NPC_FERN', dx, dy);
     } else if (npc.id === 'hal') {
@@ -678,6 +759,66 @@ export function makeGbcView(): GbcView {
     } else {
       drawObjSprite(ctx, 'NPC_BRAM', dx, dy);
     }
+  }
+
+  /**
+   * Draw a crisp pixel-stepped 2-ring GBC contact shadow in the zone's chromatic ink colour.
+   * Drawn onto `mainCtx` before actors so shadows lie flat on floor/decals and never clobber `auxCtx`.
+   */
+  function drawContactShadow(
+    ctx: CanvasRenderingContext2D,
+    zone: ZoneId,
+    cxPx: number,
+    footYPx: number,
+    baseRadiusPx: number,
+    heightTiles: number,
+  ): void {
+    const { rx, ry, alpha } = computeShadowMetrics(baseRadiusPx, heightTiles);
+    const rgb = zone === 'ember-crypt' ? '18, 12, 34' : '14, 28, 32';
+    const cx = Math.round(cxPx);
+    const cy = Math.round(footYPx);
+
+    ctx.fillStyle = `rgba(${rgb}, ${(alpha * 0.62).toFixed(3)})`;
+    for (let dy = -ry; dy <= ry; dy++) {
+      const ny = dy / Math.max(1, ry + 0.35);
+      const span = Math.max(1, Math.round(rx * Math.sqrt(Math.max(0, 1 - ny * ny))));
+      ctx.fillRect(cx - span, cy + dy, span * 2, 1);
+    }
+    if (rx >= 3) {
+      const irx = Math.max(1, rx - 2);
+      const iry = Math.max(1, ry - 1);
+      ctx.fillStyle = `rgba(${rgb}, ${Math.min(0.56, alpha * 1.15).toFixed(3)})`;
+      for (let dy = -iry; dy <= iry; dy++) {
+        const ny = dy / Math.max(1, iry + 0.35);
+        const span = Math.max(1, Math.round(irx * Math.sqrt(Math.max(0, 1 - ny * ny))));
+        ctx.fillRect(cx - span, cy + dy, span * 2, 1);
+      }
+    }
+  }
+
+  const FLAT_DECAL_ROWS = new Set<string>([
+    BG.sealRingCenter.rows.join(''),
+    BG.sealSocketOff.rows.join(''),
+    BG.sealSocketLit.rows.join(''),
+    BG.slopeN.rows.join(''),
+    BG.slopeS.rows.join(''),
+    BG.slopeE.rows.join(''),
+    BG.slopeW.rows.join(''),
+    BG.bridgeV_W.rows.join(''),
+    BG.bridgeV_Mid.rows.join(''),
+    BG.bridgeV_E.rows.join(''),
+    BG.buttonUp.rows.join(''),
+    BG.buttonDown.rows.join(''),
+    BG.spikes.rows.join(''),
+    BG.stairs.rows.join(''),
+    BG.warpOff.rows.join(''),
+    BG.warp0.rows.join(''),
+    BG.warp1.rows.join(''),
+    BG.barrierDown.rows.join(''),
+  ]);
+
+  function isFlatFloorDecal(tile: BgTile): boolean {
+    return FLAT_DECAL_ROWS.has(tile.rows.join(''));
   }
 
   function drawAlertBadge(
@@ -885,7 +1026,6 @@ export function makeGbcView(): GbcView {
       const bob = Math.round(Math.sin(time * 8 + e.id) * 1.5);
       const dx = Math.round(e.x * TILE_PX - 8);
       const dy = Math.round(e.y * TILE_PX - 11 + bob);
-      drawObjSprite(ctx, 'SHADOW_CELL', dx, Math.round(e.y * TILE_PX - 7));
       drawScaledSprite(
         ctx,
         flap === 0 ? 'BAT_1' : 'BAT_2',
@@ -902,7 +1042,6 @@ export function makeGbcView(): GbcView {
       const step = Math.floor(time * 6 * rateMul + e.id) % 2;
       const dx = Math.round(e.x * TILE_PX - 8);
       const dy = Math.round(e.y * TILE_PX - 10);
-      drawObjSprite(ctx, 'SHADOW_CELL', dx, dy + 2);
       drawScaledSprite(
         ctx,
         step === 0 ? 'SHIELDER_1' : 'SHIELDER_2',
@@ -1006,8 +1145,6 @@ export function makeGbcView(): GbcView {
       drawObjSprite(ctx, fall, dx, dy);
       return;
     }
-
-    drawObjSprite(ctx, 'SHADOW_CELL', dx, Math.round(s.y * TILE_PX - 8));
 
     if (time < holdAnimUntil) {
       drawObjSprite(ctx, 'PIP_GET', dx, dy);
@@ -1134,8 +1271,13 @@ export function makeGbcView(): GbcView {
       for (const g of plan.ground) {
         rctx.drawImage(getPlacedBg(s.zone, g), g.x * TILE_PX, g.y * TILE_PX);
       }
+      for (const d of plan.decals) {
+        rctx.drawImage(getPlacedBg(s.zone, d), d.x * TILE_PX, d.y * TILE_PX);
+      }
       for (const p of plan.props) {
-        rctx.drawImage(getPlacedBg(s.zone, p), p.x * TILE_PX, p.y * TILE_PX);
+        if (isFlatFloorDecal(p.tile)) {
+          rctx.drawImage(getPlacedBg(s.zone, p), p.x * TILE_PX, p.y * TILE_PX);
+        }
       }
       for (const c of plan.ceiling) {
         cctx.drawImage(getPlacedBg(s.zone, c), c.x * TILE_PX, c.y * TILE_PX);
@@ -1372,6 +1514,9 @@ export function makeGbcView(): GbcView {
           wp.x * TILE_PX,
           wp.y * TILE_PX,
         );
+        // Mark active warp runes emissive in aux so emissive-only bloom lights them up
+        auxCtx.fillStyle = 'rgba(0, 235, 0, 1)';
+        auxCtx.fillRect(wp.x * TILE_PX + 3, wp.y * TILE_PX + 3, 10, 10);
       }
       for (const d of openingDoors) {
         drawOpeningDoor(mainCtx, s.zone, d, Math.max(0, time - d.startTime));
@@ -1402,17 +1547,95 @@ export function makeGbcView(): GbcView {
         );
       }
 
-      // 3. Pass 3: Y-sorted ground actors
-      interface Drawable {
-        footY: number;
+      // 2.5. Ground Contact Shadows Pass (above ground & decals, strictly below all actors!)
+      const room = currentRoom(world, s);
+      for (const p of plan.props) {
+        if (isFlatFloorDecal(p.tile)) continue;
+        const cellT = tileAt(world, s, s.zone, s.rx, s.ry, p.x, p.y);
+        if (cellT === 'W' || cellT === 'T' || cellT === 'C') {
+          drawContactShadow(mainCtx, s.zone, (p.x + 0.5) * TILE_PX, (p.y + 0.92) * TILE_PX, 6.5, 0);
+        }
+      }
+      for (const npc of room?.npcs ?? []) {
+        if (npc.id === 'spire-plaque') {
+          drawContactShadow(mainCtx, s.zone, npc.x * TILE_PX, npc.y * TILE_PX + 4, 6, 0);
+        } else {
+          drawContactShadow(mainCtx, s.zone, npc.x * TILE_PX, npc.y * TILE_PX + 4, 5.5, 0);
+        }
+      }
+      for (const p of s.pickups) {
+        const born = pickupSpawnTime.get(p.id) ?? -1;
+        let hopTiles: number;
+        if (born >= 0 && time - born < 0.22) {
+          const u = Math.max(0, Math.min(1, (time - born) / 0.22));
+          hopTiles = (4 * 6 * u * (1 - u)) / TILE_PX;
+        } else {
+          hopTiles = Math.max(0, (1.5 - Math.sin(time * 4.5 + p.x) * 1.5) / TILE_PX);
+        }
+        drawContactShadow(mainCtx, s.zone, p.x * TILE_PX, p.y * TILE_PX + 5, 4.5, hopTiles);
+      }
+      for (const b of s.bombs) {
+        const onWater =
+          b.z <= 0.05 &&
+          isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
+        if (!onWater) {
+          drawContactShadow(mainCtx, s.zone, b.x * TILE_PX, b.y * TILE_PX + 5, 5.5, b.z);
+        }
+      }
+      for (const e of s.enemies) {
+        if (e.kind === 'cinderhull') {
+          drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 14, 13, 0);
+        } else if (e.kind === 'wickgeist') {
+          const hover = 0.24 - Math.sin(time * 5) * 0.08;
+          drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 6, 8.5, hover);
+        } else if (e.kind === 'bat') {
+          const flapH = 0.34 - Math.sin(time * 8 + e.id) * 0.08;
+          drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 5, 5, flapH);
+        } else if (e.kind === 'slime') {
+          const isMini = Boolean(e.splitGen && e.splitGen >= 1);
+          drawContactShadow(
+            mainCtx,
+            s.zone,
+            e.x * TILE_PX,
+            e.y * TILE_PX + (isMini ? 4 : 5),
+            isMini ? 4.2 : 6,
+            0,
+          );
+        } else {
+          drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 5, 6, 0);
+        }
+      }
+      if (time >= fallAnimUntil) {
+        const rollU =
+          s.rollTimer > 0 ? Math.max(0, Math.min(1, 1 - s.rollTimer / ROLL_DURATION)) : 0;
+        const pipHopTiles = s.rollTimer > 0 ? (4 * 2 * rollU * (1 - rollU)) / TILE_PX : 0;
+        drawContactShadow(mainCtx, s.zone, s.x * TILE_PX, s.y * TILE_PX + 5, 5.8, pipHopTiles);
+      }
+
+      // 3. Pass 3: Unified Foot-Sorted Actors, All Bombs (Grounded & Hopping), 3D Props & Overheads
+      interface Drawable extends DepthSortable {
         draw: () => void;
       }
-      const actors: Drawable[] = [];
-      const room = currentRoom(world, s);
+      const rawActors: Drawable[] = [];
+      let tieSeq = 0;
+
+      for (const p of plan.props) {
+        if (isFlatFloorDecal(p.tile)) continue;
+        rawActors.push({
+          footY: actorFootY('prop', p.y),
+          orderTie: tieSeq++,
+          draw: () => {
+            const img = getPlacedBg(s.zone, p);
+            mainCtx.drawImage(img, p.x * TILE_PX, p.y * TILE_PX);
+            eraseAux(img, p.x * TILE_PX, p.y * TILE_PX);
+          },
+        });
+      }
 
       for (const o of plan.overhead) {
-        actors.push({
-          footY: o.y + 0.99,
+        rawActors.push({
+          footY: actorFootY('overhead', o.y),
+          orderTie: tieSeq++,
           draw: () => {
             const img = getPlacedBg(s.zone, o);
             mainCtx.drawImage(img, o.x * TILE_PX, o.y * TILE_PX);
@@ -1422,8 +1645,9 @@ export function makeGbcView(): GbcView {
       }
 
       for (const npc of room?.npcs ?? []) {
-        actors.push({
-          footY: npc.y,
+        rawActors.push({
+          footY: actorFootY('npc', npc.y),
+          orderTie: tieSeq++,
           draw: () => drawNpc(mainCtx, npc, time),
         });
       }
@@ -1453,19 +1677,20 @@ export function makeGbcView(): GbcView {
         const nudge = u >= 1 && blk.pushCharge > 0.05 ? 1 : 0;
         const px = Math.round(visX * TILE_PX + blk.pushDirX * nudge);
         const py = Math.round(visY * TILE_PX + blk.pushDirY * nudge);
-        actors.push({
-          footY: visY + 0.5,
-          draw: () =>
-            mainCtx.drawImage(
-              getPlacedBg(s.zone, {
-                x: blk.x,
-                y: blk.y,
-                tile: BG.pushBlock,
-                transparentZero: true,
-              }),
-              px,
-              py,
-            ),
+        rawActors.push({
+          footY: actorFootY('block', visY),
+          orderTie: tieSeq++,
+          draw: () => {
+            drawContactShadow(mainCtx, s.zone, px + 8, py + 15, 7, 0);
+            const img = getPlacedBg(s.zone, {
+              x: blk.x,
+              y: blk.y,
+              tile: BG.pushBlock,
+              transparentZero: true,
+            });
+            mainCtx.drawImage(img, px, py);
+            eraseAux(img, px, py);
+          },
         });
       }
 
@@ -1477,8 +1702,9 @@ export function makeGbcView(): GbcView {
         const wv = windVectorAt(world, s, t.x + 0.5, t.y + 0.5);
         const leanPx = Math.round(wv.dx * 2.5);
         const tilt = Math.max(-0.28, Math.min(0.28, wv.dx * 0.14));
-        actors.push({
-          footY: t.y + 0.55,
+        rawActors.push({
+          footY: actorFootY('torchFlame', t.y),
+          orderTie: tieSeq++,
           draw: () => {
             if (fast && Math.floor(time * 16) % 4 === 0) return;
             drawScaledSprite(
@@ -1530,24 +1756,23 @@ export function makeGbcView(): GbcView {
         const bob = hopPx > 0 ? 0 : Math.round(Math.sin(time * 4.5 + p.x) * 1.5);
         const dx = Math.round(p.x * TILE_PX - 8);
         const dy = Math.round(p.y * TILE_PX - 9) + bob - hopPx;
-        actors.push({
-          footY: p.y,
-          draw: () => {
-            drawObjSprite(mainCtx, 'SHADOW_CELL', dx, Math.round(p.y * TILE_PX - 8));
-            drawPickup(mainCtx, p.kind, dx, dy, time, sx, sy, tiltRad);
-          },
+        rawActors.push({
+          footY: actorFootY('pickup', p.y),
+          orderTie: tieSeq++,
+          draw: () => drawPickup(mainCtx, p.kind, dx, dy, time, sx, sy, tiltRad),
         });
       }
 
       for (const fx of activeMicroVfx) {
-        actors.push({
-          footY: fx.y - 0.05,
+        rawActors.push({
+          footY: actorFootY('microVfx', fx.y),
+          orderTie: tieSeq++,
           draw: () => drawMicroVfx(mainCtx, s.zone, fx, Math.max(0, time - fx.born)),
         });
       }
 
+      // ALL bombs (both grounded and mid-hop b.z > 0) sort by ground contact footY!
       for (const b of s.bombs) {
-        if (b.z > 0.08) continue;
         const { sx, sy, tiltRad } = computeBombDeform(b, time);
         const gx = Math.round(b.x * TILE_PX - 8);
         const gy = Math.round(b.y * TILE_PX - 8);
@@ -1556,8 +1781,9 @@ export function makeGbcView(): GbcView {
           b.z <= 0.05 &&
           isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
         const waterBob = floatingOnWater ? Math.round(Math.sin(time * 6 + b.id) * 1.5) : 0;
-        actors.push({
-          footY: b.y,
+        rawActors.push({
+          footY: actorFootY('bomb', b.y),
+          orderTie: tieSeq++,
           draw: () => {
             if (floatingOnWater) {
               drawFloatingWaterRing(
@@ -1568,8 +1794,6 @@ export function makeGbcView(): GbcView {
                 b.id,
                 time,
               );
-            } else {
-              drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
             }
             drawBomb(mainCtx, b, gx, gy - 1 - elevPx + waterBob, time, sx, sy, tiltRad);
           },
@@ -1577,21 +1801,25 @@ export function makeGbcView(): GbcView {
       }
 
       for (const e of s.enemies) {
-        actors.push({
-          footY: e.y,
+        const ek: DepthActorKind =
+          e.kind === 'slime' && e.splitGen && e.splitGen >= 1 ? 'mini-slime' : e.kind;
+        rawActors.push({
+          footY: actorFootY(ek, e.y),
+          orderTie: tieSeq++,
           draw: () => drawEnemy(mainCtx, e, time),
         });
       }
 
-      actors.push({
-        footY: s.y,
+      rawActors.push({
+        footY: actorFootY('pip', s.y),
+        orderTie: tieSeq,
         draw: () => drawPip(mainCtx, s, time),
       });
 
-      actors.sort((a, b) => a.footY - b.footY);
-      for (const a of actors) a.draw();
+      const sortedActors = sortDepthItems(rawActors);
+      for (const a of sortedActors) a.draw();
 
-      // 4. Pass 4: Overhead roof eaves, tree crowns, north arch lintels, chimney smoke & wind!
+      // 4. Pass 4: True walk-under north doorway lintels, chimney smoke & wind!
       mainCtx.drawImage(canopyLayer, 0, 0);
       eraseAux(canopyLayer, 0, 0);
       for (const [cx, cy] of plan.chimneys) {
@@ -1603,19 +1831,7 @@ export function makeGbcView(): GbcView {
       }
       drawWindAndGusts(mainCtx, s.zone, room?.wind, s.gusts, time);
 
-      // 5. Airborne bombs (shoved or kicked back into the air)
-      const airborneBombs = s.bombs.filter((b) => b.z > 0.08);
-      airborneBombs.sort((a, b) => a.y - b.y);
-      for (const b of airborneBombs) {
-        const { sx, sy, tiltRad } = computeBombDeform(b, time);
-        const gx = Math.round(b.x * TILE_PX - 8);
-        const gy = Math.round(b.y * TILE_PX - 8);
-        const elevPx = Math.round(b.z * TILE_PX);
-        drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
-        drawBomb(mainCtx, b, gx, gy - 1 - elevPx, time, sx, sy, tiltRad);
-      }
-
-      // 7. Enemy projectiles
+      // 5. Enemy projectiles
       for (const pr of s.projectiles) {
         drawObjSprite(
           mainCtx,
