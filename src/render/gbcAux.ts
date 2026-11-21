@@ -127,8 +127,6 @@ export function bakeAuxData(name: ObjSpriteName): AuxImageData {
       if (kind === 'hero') {
         data[i] = Math.round(heroHeight(name, idx, x, y, width, height) * 255);
         data[i + 2] = 255;
-        // The fuse mouse's tail spark glows like a bomb fuse
-        if (idx === 1 && name.startsWith('MOUSE_')) data[i + 1] = 220;
       } else if (kind === 'emissive') {
         // Ink and darkest ember shade stay non-emissive so flames & blasts keep crisp outlines
         data[i + 1] = idx <= 4 ? 255 : 0;

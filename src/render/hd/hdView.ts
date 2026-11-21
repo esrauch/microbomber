@@ -38,6 +38,7 @@ import { ParticleSystem } from './particles';
 const DEFAULT_UP = 4;
 const MAX_EMISSIVE_PADS = 4;
 const MAX_SHOCKWAVES = 4;
+const MAX_SHADOW_ACTORS = 12;
 export const SLIDE_SECONDS = 0.32;
 
 export interface HdView {
@@ -93,6 +94,8 @@ uniform int uPadCount;
 uniform vec4 uEmissivePads[${MAX_EMISSIVE_PADS}];
 uniform int uShockCount;
 uniform vec4 uShockwaves[${MAX_SHOCKWAVES}];
+uniform int uActorCount;
+uniform vec4 uActors[${MAX_SHADOW_ACTORS}];
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
@@ -192,8 +195,8 @@ void main(void)
         // Outward fixed-stride raymarch from lp.xy along rayDir: sample points depend ONLY on
         // ray angle (never scaled by dist2D), so shadows are pure radial cones with zero rings
         float shadow = 1.0;
+        vec2 rayDir = dist2D > 0.5 ? (px - lp.xy) / dist2D : vec2(0.0, 1.0);
         if (!onWall && dist2D > 14.0) {
-            vec2 rayDir = (px - lp.xy) / dist2D;
             vec2 lightTile = floor(lp.xy / 16.0);
             vec2 pxTile = floor(px / 16.0);
             for (int s = 0; s < 24; s++) {
@@ -207,6 +210,27 @@ void main(void)
                     if (box < 7.0) {
                         shadow = min(shadow, mix(0.2, 0.65, smoothstep(5.2, 7.0, box)));
                         if (shadow <= 0.21) break;
+                    }
+                }
+            }
+        }
+        // Analytical ray-circle directional shadows cast by Pip, enemies, bosses, and NPCs
+        if (!onWall && aux.a < 0.5 && dist2D > 4.0 && shadow > 0.21) {
+            for (int j = 0; j < ${MAX_SHADOW_ACTORS}; j++) {
+                if (j >= uActorCount) break;
+                vec4 act = uActors[j];
+                vec2 toAct = act.xy - lp.xy;
+                float dLA = length(toAct);
+                if (dLA <= act.z + 2.0) continue;
+                float tProj = dot(toAct, rayDir);
+                float along = dist2D - tProj;
+                if (tProj > 0.0 && along > 0.0 && along < act.w) {
+                    float coneR = act.z * clamp(dist2D / max(tProj, 8.0), 1.0, 1.45);
+                    float perp = length(toAct - rayDir * tProj);
+                    if (perp < coneR) {
+                        float edge = smoothstep(coneR * 0.6, coneR, perp);
+                        float fade = smoothstep(act.w, act.w * 0.2, along);
+                        shadow = min(shadow, mix(1.0, 0.18, (1.0 - edge) * fade));
                     }
                 }
             }
@@ -449,6 +473,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
 
   const padArray = new Float32Array(MAX_EMISSIVE_PADS * 4);
   const shockArray = new Float32Array(MAX_SHOCKWAVES * 4);
+  const actorArray = new Float32Array(MAX_SHADOW_ACTORS * 4);
 
   const lightUniforms = new UniformGroup({
     uFrameSize: { value: new Float32Array([NATIVE_W, NATIVE_H]), type: 'vec2<f32>' },
@@ -473,6 +498,12 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       value: new Float32Array(MAX_SHOCKWAVES * 4),
       type: 'vec4<f32>',
       size: MAX_SHOCKWAVES,
+    },
+    uActorCount: { value: 0, type: 'i32' },
+    uActors: {
+      value: new Float32Array(MAX_SHADOW_ACTORS * 4),
+      type: 'vec4<f32>',
+      size: MAX_SHADOW_ACTORS,
     },
   });
   const lightFilter = new Filter({
@@ -644,6 +675,34 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         shockCount++;
       }
 
+      actorArray.fill(0);
+      let actorCount = 0;
+      // 1. Pip (the fuse mouse) casts a directional shadow from every torch, fire, and bomb blast
+      actorArray.set([s.x * TILE_PX, s.y * TILE_PX + 2, 4.4, 30], 0);
+      actorCount = 1;
+      // 2. Enemies & Bosses
+      for (const e of s.enemies) {
+        if (actorCount >= MAX_SHADOW_ACTORS) break;
+        const rad =
+          e.kind === 'cinderhull'
+            ? 12.5
+            : e.kind === 'wickgeist'
+              ? 8.0
+              : e.kind === 'slime' && e.splitGen
+                ? 4.0
+                : 5.5;
+        const reach = e.kind === 'cinderhull' ? 56 : e.kind === 'wickgeist' ? 44 : 34;
+        actorArray.set([e.x * TILE_PX, e.y * TILE_PX + 2, rad, reach], actorCount * 4);
+        actorCount++;
+      }
+      // 3. NPCs
+      const room = currentRoom(world, s);
+      for (const npc of room?.npcs ?? []) {
+        if (actorCount >= MAX_SHADOW_ACTORS) break;
+        actorArray.set([npc.x * TILE_PX, npc.y * TILE_PX + 2, 5.5, 34], actorCount * 4);
+        actorCount++;
+      }
+
       const u = lightUniforms.uniforms as {
         uTime: number;
         uAmbient: Float32Array;
@@ -659,6 +718,8 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         uEmissivePads: Float32Array;
         uShockCount: number;
         uShockwaves: Float32Array;
+        uActorCount: number;
+        uActors: Float32Array;
       };
       u.uTime = time;
       u.uAmbient.set(lighting.ambient);
@@ -678,6 +739,8 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       u.uEmissivePads.set(padArray);
       u.uShockCount = shockCount;
       u.uShockwaves.set(shockArray);
+      u.uActorCount = actorCount;
+      u.uActors.set(actorArray);
       lightUniforms.update();
 
       const bu = brightUniforms.uniforms as {

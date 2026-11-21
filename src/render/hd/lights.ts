@@ -204,16 +204,6 @@ export function computeLighting(
   if (room?.dark) {
     // Pip's lantern: a clean moon-ivory pool so dark-room flagstones keep their true hues
     add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 58, color: LANTERN, intensity: 1.05 });
-  } else {
-    // Pip's burning tail-fuse spark casts a warm personal rim of light in the moonlit night & crypt
-    add({
-      x: s.x * TILE,
-      y: s.y * TILE,
-      z: 10,
-      radius: 36,
-      color: SPARK,
-      intensity: 0.55 * flicker(time, 0),
-    });
   }
   for (const st of room?.stamps ?? []) {
     if (st.id === 'bram-workshop' || st.id === 'rusted-smithy') {
