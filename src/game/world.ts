@@ -917,12 +917,17 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     cornerSlide(world, s, 'y', totalDy, dt);
   }
 
-  // Knockback moves separately: it ignores corner sliding and can carry you over a pit
+  // Knockback moves separately: it ignores corner sliding and can carry you over a pit,
+  // but never out through a doorway; only walking leaves a room
+  const keepInRoom = (v: number, size: number, d: number): number =>
+    d < 0
+      ? Math.max(v, Math.min(v - d, PLAYER_RADIUS))
+      : Math.min(v, Math.max(v - d, size - PLAYER_RADIUS));
   if (Math.abs(knockDx) > 1e-5 && !playerBlockedAt(world, s, s.x + knockDx, s.y, false, true)) {
-    s.x += knockDx;
+    s.x = keepInRoom(s.x + knockDx, ROOM_W, knockDx);
   }
   if (Math.abs(knockDy) > 1e-5 && !playerBlockedAt(world, s, s.x, s.y + knockDy, false, true)) {
-    s.y += knockDy;
+    s.y = keepInRoom(s.y + knockDy, ROOM_H, knockDy);
   }
 
   // Check if knockback pushed player onto pit/water/spikes

@@ -36,4 +36,18 @@ describe('movement feel', () => {
     }
     for (const x of xs) expect(x).toBeLessThanOrEqual(4.5 + 1e-9);
   });
+
+  it('a blast never knocks you out through a doorway, but you can still walk out', () => {
+    const world = campaignWorld();
+    // Crystal Crossroads (1,2): stand in the south doorway with a bomb just inside the room
+    const s = newState(world, 'ember-crypt', 1, 2, 4.5, 10.4);
+    s.enemies = [];
+    s.bombs.push({ id: 999, kind: 'powder', x: 4.5, y: 9.5, fuse: 0.01, graceOverlap: false });
+    let cut = false;
+    for (let i = 0; i < 60; i++) cut = tick(world, s, idle, 1 / 60) || cut;
+    expect(cut).toBe(false);
+    expect([s.rx, s.ry]).toEqual([1, 2]);
+    for (let i = 0; i < 30 && !cut; i++) cut = tick(world, s, { ...idle, dy: 1 }, 1 / 60);
+    expect([s.rx, s.ry]).toEqual([1, 3]);
+  });
 });
