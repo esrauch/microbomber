@@ -20,6 +20,7 @@ import {
 } from './game/world';
 import { OBJ, type ObjSpriteName } from './render/gbcArt';
 import { hudIconDataUrl, makeGbcView } from './render/gbc';
+import { type HdView, SLIDE_SECONDS, createHdView } from './render/hd/hdView';
 import { mountJoystick } from './ui/joystick';
 import { makeSfx } from './ui/sfx';
 
@@ -38,13 +39,11 @@ function pxIcon(name: ObjSpriteName, size: number): string {
 
 const topbar = document.querySelector<HTMLElement>('#topbar');
 const stage = document.querySelector<HTMLElement>('#stage');
-const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const controls = document.querySelector<HTMLElement>('#controls');
-if (!topbar || !stage || !canvas || !controls) {
+if (!topbar || !stage || !controls) {
   throw new Error('index.html is missing required shell elements');
 }
 const stageEl = stage;
-const canvasEl = canvas;
 
 const world = campaignWorld();
 const sfx = makeSfx();
@@ -82,18 +81,26 @@ function loadInitialState(): State {
 
 let state = loadInitialState();
 
-const view = makeGbcView(canvasEl);
+const view = makeGbcView();
+
+// HD-2D lite presentation on WebGL via PixiJS (`GAME.md` §10): the only renderer. The game
+// waits here until it is ready; if it cannot start, the crash panel shows why.
+let hd: HdView;
+try {
+  hd = await createHdView(stageEl, view);
+} catch (err) {
+  console.error('microbomber could not start its WebGL renderer (it needs WebGL2).', err);
+  throw err;
+}
 
 function rebuildRoom(): void {
   stageEl.style.background = state.zone === 'ember-crypt' ? '#110d18' : '#101611';
-  canvasEl.style.borderColor = state.zone === 'ember-crypt' ? '#443658' : '#2d3d30';
+  hd.canvas.style.borderColor = state.zone === 'ember-crypt' ? '#443658' : '#2d3d30';
   view.rebuild(world, state);
 }
 
 const resize = (): void => {
-  const w = stageEl.clientWidth || 360;
-  const h = stageEl.clientHeight || 480;
-  view.resize(w, h);
+  hd.resize(stageEl.clientWidth || 360, stageEl.clientHeight || 480);
 };
 window.addEventListener('resize', resize);
 
@@ -601,7 +608,11 @@ startBtn.addEventListener('pointerdown', (e) => {
 // Long presses on the verb buttons must not open the context menu (Android) or start a
 // text selection (iOS), which would steal the touch and leave a button stuck held
 for (const type of ['contextmenu', 'selectstart'] as const) {
-  window.addEventListener(type, (e) => e.preventDefault());
+  window.addEventListener(type, (e) => {
+    // ...except in the crash report, which must stay selectable for copying
+    if (e.target instanceof Element && e.target.closest('#crash-overlay')) return;
+    e.preventDefault();
+  });
 }
 
 // Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Place),
@@ -808,6 +819,7 @@ let cutting = false;
 
 const frame = (now: number): void => {
   requestAnimationFrame(frame);
+  (window as Window & { __microbomberBooted?: boolean }).__microbomberBooted = true;
   const elapsed = Math.min(0.1, Math.max(0, (now - last) / 1000));
   last = now;
 
@@ -821,6 +833,9 @@ const frame = (now: number): void => {
     let moved = false;
     let needsRebuild = false;
     let gotPickup = false;
+    const fromZone = state.zone;
+    const fromRx = state.rx;
+    const fromRy = state.ry;
 
     for (let step = 0; step < MAX_FRAME_STEPS && accumulator >= FIXED_DT; step++) {
       accumulator -= FIXED_DT;
@@ -847,7 +862,24 @@ const frame = (now: number): void => {
     state.events = frameEvents;
     state.blasts = frameBlasts;
 
-    if (moved) {
+    const slideDx = state.rx - fromRx;
+    const slideDy = state.ry - fromRy;
+    const slides =
+      state.zone === fromZone &&
+      Math.abs(slideDx) + Math.abs(slideDy) === 1 &&
+      !state.events.includes('player-respawn');
+
+    if (moved && slides) {
+      // Walking off an edge: the old room slides out as the next one slides in
+      persistState(state);
+      hd.beginRoomSlide(slideDx, slideDy, now / 1000);
+      rebuildRoom();
+      syncHud(true);
+      cutting = true;
+      window.setTimeout(() => {
+        cutting = false;
+      }, SLIDE_SECONDS * 1000);
+    } else if (moved) {
       persistState(state);
       cutting = true;
       fade.style.opacity = '1';
@@ -868,5 +900,6 @@ const frame = (now: number): void => {
   syncHud();
   syncRollBtnFeedback();
   view.sync(world, state, now / 1000);
+  hd.render(world, state, now / 1000, elapsed);
 };
 requestAnimationFrame(frame);

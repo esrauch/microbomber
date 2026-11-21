@@ -12,6 +12,133 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='9' r='5.5' fill='%23242c44' stroke='%23f8d848' stroke-width='1.5'/%3E%3Ccircle cx='6' cy='7' r='1.3' fill='%23fff'/%3E%3Ccircle cx='10' cy='2.5' r='1.8' fill='%23f97316'/%3E%3C/svg%3E"
     />
     <title>microbomber · The Rust of Cinderholm</title>
+    <script>
+      // Crash reporter: runs before the game's modules, so it catches load and boot failures
+      // too. Shows a copyable report (stack traces, recent console errors, device info).
+      (function () {
+        var reports = [];
+        var seen = {};
+        var logs = [];
+        var overlay = null;
+        var text = null;
+
+        function stamp() {
+          return new Date().toISOString().slice(11, 23);
+        }
+        function show() {
+          if (!document.body) {
+            window.addEventListener('DOMContentLoaded', show);
+            return;
+          }
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'crash-overlay';
+            overlay.innerHTML =
+              '<div class="crash-head"><b>microbomber hit an error</b>' +
+              '<button type="button" data-act="copy">Copy</button>' +
+              '<button type="button" data-act="close">Close</button></div>' +
+              '<textarea readonly spellcheck="false"></textarea>';
+            text = overlay.querySelector('textarea');
+            overlay.addEventListener('click', function (e) {
+              var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+              if (act === 'close') overlay.style.display = 'none';
+              if (act === 'copy') {
+                var btn = e.target;
+                var done = function () {
+                  btn.textContent = 'Copied';
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(text.value).then(done, function () {
+                    text.select();
+                    document.execCommand('copy');
+                    done();
+                  });
+                } else {
+                  text.select();
+                  document.execCommand('copy');
+                  done();
+                }
+              }
+            });
+            document.body.appendChild(overlay);
+          }
+          overlay.style.display = 'flex';
+          text.value =
+            reports.join('\n\n') +
+            '\n\n--- recent console ---\n' +
+            (logs.join('\n') || '(none)') +
+            '\n\n--- device ---\n' +
+            navigator.userAgent +
+            '\n' +
+            location.href +
+            '\nviewport ' +
+            window.innerWidth +
+            'x' +
+            window.innerHeight +
+            ' @' +
+            (window.devicePixelRatio || 1) +
+            'x';
+        }
+        function report(kind, message, stack) {
+          var key = kind + '|' + message;
+          if (seen[key]) {
+            seen[key].count++;
+            return;
+          }
+          var entry = { count: 1 };
+          seen[key] = entry;
+          reports.push('[' + stamp() + '] ' + kind + ': ' + message + (stack ? '\n' + stack : ''));
+          show();
+        }
+        function describe(v) {
+          if (v && v.stack) return String(v.stack);
+          try {
+            return typeof v === 'string' ? v : JSON.stringify(v);
+          } catch (_) {
+            return String(v);
+          }
+        }
+
+        window.addEventListener(
+          'error',
+          function (e) {
+            var el = e.target;
+            if (el && el !== window && (el.src || el.href)) {
+              // A script, module import, stylesheet or image that failed to load
+              report('Failed to load', (el.tagName || 'resource') + ' ' + (el.src || el.href));
+              return;
+            }
+            var where = e.filename ? ' (' + e.filename + ':' + e.lineno + ':' + e.colno + ')' : '';
+            report('Error', (e.message || 'unknown error') + where, e.error && e.error.stack);
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function (e) {
+          report('Unhandled rejection', describe(e.reason));
+        });
+        ['error', 'warn'].forEach(function (level) {
+          var original = console[level];
+          console[level] = function () {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) parts.push(describe(arguments[i]));
+            logs.push('[' + stamp() + '] ' + level + ': ' + parts.join(' '));
+            if (logs.length > 40) logs.shift();
+            if (level === 'error') report('console.error', parts.join(' '));
+            return original.apply(console, arguments);
+          };
+        });
+        // The game sets this once its first frame has drawn
+        setTimeout(function () {
+          if (!window.__microbomberBooted) {
+            report(
+              'Boot',
+              'the game had not drawn its first frame after 8 s (a module that failed to ' +
+                'download, such as a dev-server 504, shows no error of its own)',
+            );
+          }
+        }, 8000);
+      })();
+    </script>
     <style>
       * {
         box-sizing: border-box;
@@ -72,7 +199,7 @@
         align-items: center;
         justify-content: center;
       }
-      #game {
+      #game-hd {
         display: block;
         image-rendering: pixelated;
         image-rendering: crisp-edges;
@@ -92,14 +219,58 @@
         border-top: 2px solid #354336;
         flex-shrink: 0;
       }
+      #crash-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        padding: calc(10px + env(safe-area-inset-top)) 10px 10px;
+        background: rgba(20, 8, 10, 0.96);
+        color: #ffe8e0;
+        font:
+          13px/1.35 system-ui,
+          sans-serif;
+      }
+      #crash-overlay .crash-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #crash-overlay .crash-head b {
+        flex: 1;
+      }
+      #crash-overlay button {
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #ff9a8a;
+        background: #4a1c1c;
+        color: #fff;
+        font-weight: 700;
+      }
+      #crash-overlay textarea {
+        flex: 1;
+        width: 100%;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #6a3a3a;
+        background: #12080a;
+        color: #ffd8cc;
+        font:
+          11px/1.4 ui-monospace,
+          monospace;
+        /* The game blocks selection everywhere else; reports must be selectable */
+        user-select: text;
+        -webkit-user-select: text;
+        -webkit-touch-callout: default;
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <header id="topbar"></header>
-      <main id="stage">
-        <canvas id="game"></canvas>
-      </main>
+      <main id="stage"></main>
       <footer id="controls"></footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

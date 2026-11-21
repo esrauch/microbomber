@@ -14,12 +14,12 @@ import {
   type State,
   type World,
   currentRoom,
-  isRoomLit,
   isWaterTile,
   tileAt,
   windVectorAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
+import { bakeAux } from './gbcAux';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
 import {
   BG_PALETTES,
@@ -48,10 +48,17 @@ export function computeGbcCanvasSize(
   };
 }
 
+/**
+ * Composes each frame offscreen at native resolution: the albedo pass and its sprite
+ * G-buffer. The PixiJS view (`hd/hdView.ts`) lights and presents them.
+ */
 export interface GbcView {
   rebuild(world: World, s: State): void;
   sync(world: World, s: State, time: number): void;
-  resize(stageWidth: number, stageHeight: number): void;
+  /** The native-resolution composed frame (albedo). */
+  readonly frame: HTMLCanvasElement;
+  /** The matching sprite G-buffer (`gbcAux.ts`): hero heights, emissive, occluders. */
+  readonly aux: HTMLCanvasElement;
 }
 
 function canvasOf(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D | null] {
@@ -187,20 +194,11 @@ function easeOutBack(t: number): number {
   return 1 + c3 * (u - 1) ** 3 + c1 * (u - 1) ** 2;
 }
 
-const UPSCALE = 4;
 const INK_CSS = cssRgb(INK_RGB);
 const FIRE_WHITE = cssRgb(OBJ_PALETTES.fire[0]);
 const FIRE_LIGHT = cssRgb(OBJ_PALETTES.fire[1]);
 
-export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
-  canvas.width = NATIVE_W * UPSCALE;
-  canvas.height = NATIVE_H * UPSCALE;
-  const displayCtx = canvas.getContext('2d');
-  if (!displayCtx) {
-    throw new Error('2D display canvas context unavailable');
-  }
-  displayCtx.imageSmoothingEnabled = false;
-
+export function makeGbcView(): GbcView {
   const [frameBuf, mainCtx] = canvasOf(NATIVE_W, NATIVE_H);
   const [roomLayer, rctx] = canvasOf(NATIVE_W, NATIVE_H);
   const [canopyLayer, cctx] = canvasOf(NATIVE_W, NATIVE_H);
@@ -211,8 +209,22 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   rctx.imageSmoothingEnabled = false;
   cctx.imageSmoothingEnabled = false;
 
-  const [darkLayer, darkCtx] = canvasOf(NATIVE_W, NATIVE_H);
-  const darkImg = darkCtx ? darkCtx.createImageData(NATIVE_W, NATIVE_H) : null;
+  // Sprite G-buffer for HD-2D lighting, drawn in step with mainCtx (`gbcAux.ts`)
+  const [auxBuf, maybeAuxCtx] = canvasOf(NATIVE_W, NATIVE_H);
+  if (!maybeAuxCtx) {
+    throw new Error('2D aux canvas context unavailable');
+  }
+  const auxCtx = maybeAuxCtx;
+  auxCtx.imageSmoothingEnabled = false;
+  const auxCache = new Map<ObjSpriteName, HTMLCanvasElement>();
+  const getAux = (name: ObjSpriteName): HTMLCanvasElement => {
+    let c = auxCache.get(name);
+    if (!c) {
+      c = bakeAux(name);
+      auxCache.set(name, c);
+    }
+    return c;
+  };
 
   // Sprite & tile caches
   const objCache = new Map<string, HTMLCanvasElement>();
@@ -296,6 +308,14 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
   }
 
+  /** Overhead art drawn over actors hides them from the G-buffer too. */
+  function eraseAux(img: HTMLCanvasElement, dx: number, dy: number): void {
+    auxCtx.save();
+    auxCtx.globalCompositeOperation = 'destination-out';
+    auxCtx.drawImage(img, dx, dy);
+    auxCtx.restore();
+  }
+
   function drawObjSprite(
     ctx: CanvasRenderingContext2D,
     name: ObjSpriteName,
@@ -304,16 +324,19 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     flipX = false,
     pal?: ObjPaletteId,
   ): void {
-    const sp = getObj(name, pal);
-    if (!flipX) {
-      ctx.drawImage(sp, dx, dy);
-    } else {
-      ctx.save();
-      ctx.translate(dx + sp.width, dy);
-      ctx.scale(-1, 1);
-      ctx.drawImage(sp, 0, 0);
-      ctx.restore();
-    }
+    const blit = (c: CanvasRenderingContext2D, img: HTMLCanvasElement): void => {
+      if (!flipX) {
+        c.drawImage(img, dx, dy);
+      } else {
+        c.save();
+        c.translate(dx + img.width, dy);
+        c.scale(-1, 1);
+        c.drawImage(img, 0, 0);
+        c.restore();
+      }
+    };
+    blit(ctx, getObj(name, pal));
+    if (ctx === mainCtx) blit(auxCtx, getAux(name));
   }
 
   function drawScaledSprite(
@@ -331,16 +354,17 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       drawObjSprite(ctx, name, dx, dy, flipX, pal);
       return;
     }
-    const sp = getObj(name, pal);
-    const pivotX = dx + sp.width * 0.5;
-    const pivotY = dy + sp.height;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.translate(pivotX, pivotY);
-    if (tiltRad !== 0) ctx.rotate(tiltRad);
-    ctx.scale(flipX ? -sx : sx, sy);
-    ctx.drawImage(sp, -sp.width * 0.5, -sp.height);
-    ctx.restore();
+    const blit = (c: CanvasRenderingContext2D, img: HTMLCanvasElement): void => {
+      c.save();
+      c.imageSmoothingEnabled = false;
+      c.translate(dx + img.width * 0.5, dy + img.height);
+      if (tiltRad !== 0) c.rotate(tiltRad);
+      c.scale(flipX ? -sx : sx, sy);
+      c.drawImage(img, -img.width * 0.5, -img.height);
+      c.restore();
+    };
+    blit(ctx, getObj(name, pal));
+    if (ctx === mainCtx) blit(auxCtx, getAux(name));
   }
 
   function drawRotatedObj(
@@ -350,16 +374,19 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     dy: number,
     quarterTurns: number,
   ): void {
-    const sp = getObj(name);
-    if (quarterTurns === 0) {
-      ctx.drawImage(sp, dx, dy);
-      return;
-    }
-    ctx.save();
-    ctx.translate(dx + 8, dy + 8);
-    ctx.rotate((quarterTurns * Math.PI) / 2);
-    ctx.drawImage(sp, -8, -8);
-    ctx.restore();
+    const blit = (c: CanvasRenderingContext2D, img: HTMLCanvasElement): void => {
+      if (quarterTurns === 0) {
+        c.drawImage(img, dx, dy);
+        return;
+      }
+      c.save();
+      c.translate(dx + 8, dy + 8);
+      c.rotate((quarterTurns * Math.PI) / 2);
+      c.drawImage(img, -8, -8);
+      c.restore();
+    };
+    blit(ctx, getObj(name));
+    if (ctx === mainCtx) blit(auxCtx, getAux(name));
   }
 
   function drawOpeningDoor(
@@ -1074,47 +1101,6 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
   }
 
-  function applyDarkRoomMask(ctx: CanvasRenderingContext2D, s: State): void {
-    if (!darkCtx || !darkImg) return;
-    const lights: Array<{ x: number; y: number; r: number }> = [
-      { x: s.x * TILE_PX, y: s.y * TILE_PX - 2, r: 34 },
-    ];
-    for (const f of s.fires) {
-      lights.push({ x: (f.x + 0.5) * TILE_PX, y: (f.y + 0.5) * TILE_PX, r: 28 });
-    }
-    for (const b of s.bombs) {
-      if (b.kind === 'ember') {
-        lights.push({ x: b.x * TILE_PX, y: (b.y - b.z) * TILE_PX, r: 22 });
-      }
-    }
-
-    const data = darkImg.data;
-    for (let py = 0; py < NATIVE_H; py++) {
-      for (let px = 0; px < NATIVE_W; px++) {
-        let minRatio = 99;
-        for (const l of lights) {
-          const d = Math.hypot(px - l.x, py - l.y) / l.r;
-          if (d < minRatio) minRatio = d;
-        }
-        let ink = true;
-        if (minRatio < 0.78) {
-          ink = false;
-        } else if (minRatio < 1.02) {
-          ink = (px + py) % 2 === 0 && (px & 1) === 0;
-        } else if (minRatio < 1.24) {
-          ink = (px + py) % 2 === 0;
-        }
-        const idx = (py * NATIVE_W + px) * 4;
-        data[idx] = INK_RGB[0];
-        data[idx + 1] = INK_RGB[1];
-        data[idx + 2] = INK_RGB[2];
-        data[idx + 3] = ink ? 255 : 0;
-      }
-    }
-    darkCtx.putImageData(darkImg, 0, 0);
-    ctx.drawImage(darkLayer, 0, 0);
-  }
-
   return {
     rebuild(world: World, s: State): void {
       const rk = `${s.zone}:${s.rx},${s.ry}`;
@@ -1361,6 +1347,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       // 1. Pass 1 & 2: Static terrain + animated interior water, warp runes & retracting doors
       mainCtx.imageSmoothingEnabled = false;
       mainCtx.drawImage(roomLayer, 0, 0);
+      auxCtx.clearRect(0, 0, NATIVE_W, NATIVE_H);
 
       const waterFrame = Math.floor(time * 2.6) % 3;
       const waterTile =
@@ -1426,7 +1413,11 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       for (const o of plan.overhead) {
         actors.push({
           footY: o.y + 0.99,
-          draw: () => mainCtx.drawImage(getPlacedBg(s.zone, o), o.x * TILE_PX, o.y * TILE_PX),
+          draw: () => {
+            const img = getPlacedBg(s.zone, o);
+            mainCtx.drawImage(img, o.x * TILE_PX, o.y * TILE_PX);
+            eraseAux(img, o.x * TILE_PX, o.y * TILE_PX);
+          },
         });
       }
 
@@ -1602,6 +1593,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
 
       // 4. Pass 4: Overhead roof eaves, tree crowns, north arch lintels, chimney smoke & wind!
       mainCtx.drawImage(canopyLayer, 0, 0);
+      eraseAux(canopyLayer, 0, 0);
       for (const [cx, cy] of plan.chimneys) {
         const rise = Math.floor((time * 7) % 10);
         const sway = Math.round(Math.sin(time * 4) * 1.5);
@@ -1639,20 +1631,11 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       // 9. Dark-room Bayer-dithered lantern mask (`Lantern Hall`)
-      if (room?.dark && !isRoomLit(world, s)) {
-        applyDarkRoomMask(mainCtx, s);
-      }
 
       // 10. Crisp 4x nearest-neighbour blit to display canvas
-      displayCtx.imageSmoothingEnabled = false;
-      displayCtx.clearRect(0, 0, canvas.width, canvas.height);
-      displayCtx.drawImage(frameBuf, 0, 0, canvas.width, canvas.height);
     },
 
-    resize(stageWidth: number, stageHeight: number): void {
-      const { width, height } = computeGbcCanvasSize(stageWidth, stageHeight);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-    },
+    frame: frameBuf,
+    aux: auxBuf,
   };
 }

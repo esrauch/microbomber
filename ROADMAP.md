@@ -101,17 +101,30 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 
 ## Phase 5: PixiJS renderer (HD-2D lite)
 
-- [ ] **PixiJS port:** move `gbc.ts` layers (ground, props, Y-sorted actors,
-      overhead, ceiling) onto PixiJS, keeping palette-baked textures.
-- [ ] **Lighting:** normal-mapped point lights from flames, fuses, blasts and the
-      lantern; per-room ambient; dark rooms become lighting puzzles.
-- [ ] **Auto normal maps:** generated from palette indices (lighter = raised, ink =
-      edge) for all tiles and non-hero sprites.
-- [ ] **Hand normal maps for hero assets:** Pip, Wickgeist, Cinderhull, landmark
-      stamps.
-- [ ] **Bloom and colour grading.**
-- [ ] **Particles:** smoke, sparks, debris and embers.
-- [ ] **Room slides:** eased slide transitions with parallax canopy and cloud layers.
+Built 2026-11-22 but **not yet seen running**: headless-browser verification was not
+available, so every item below is unit-tested and type-checked only until the first
+playtest.
+
+- [~] **PixiJS port:** done as a presentation layer (`src/render/hd/hdView.ts`): the
+      Canvas2D renderer still composes the native-resolution albedo frame and a sprite
+      G-buffer (`gbcAux.ts`), and PixiJS lights, blooms, grades, adds particles and
+      presents. Falls back to Canvas2D without WebGL. Moving the layers themselves
+      onto Pixi sprites is still open.
+- [x] **Lighting:** normal-mapped point lights from braziers, fire patches, Ember
+      flasks, fuse sparks, blast flashes, projectiles, warp pads, the exposed boss
+      core and Pip's lantern (dark rooms only); per-zone ambient and sun
+      (`lights.ts`). Flames, blasts and sparks are emissive.
+- [x] **Auto normal maps:** derived in the shader from albedo luminance (lighter =
+      raised, ink = edge) for all tiles and non-hero sprites.
+- [~] **Hand normal maps for hero assets:** Pip, Wickgeist and Cinderhull have
+      hand-tuned height profiles (per palette index plus a dome) drawn into the
+      G-buffer; per-pixel hand-painted maps and the landmark stamps are still open.
+- [x] **Bloom and colour grading:** bright pass blurred at native resolution and
+      added back; per-zone saturation, contrast and tint in the lighting pass.
+- [x] **Particles:** sparks, smoke, debris, embers, dust and splash droplets from
+      game events, plus rising embers from fires and braziers (`particles.ts`).
+- [x] **Room slides:** eased `0.32 s` push between adjacent rooms with parallax cloud
+      shadows in the overworld; portals and respawns still fade.
 - [ ] **Performance:** a steady `60 fps` on a mid-range phone.
 - [ ] **Playtest checkpoint:** readability of bombs and blast reach under lighting.
 
