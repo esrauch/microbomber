@@ -24,6 +24,10 @@ const VALID_TILES = new Set([
   '!',
   '>',
   'P',
+  'n',
+  's',
+  'e',
+  'w',
 ]);
 
 const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === 'Y';

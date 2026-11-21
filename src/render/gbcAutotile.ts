@@ -445,6 +445,10 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         props.push({ x, y, tile: solved ? BG.buttonDown : BG.buttonUp, transparentZero: true });
       } else if (t === '!') {
         props.push({ x, y, tile: BG.spikes, transparentZero: true });
+      } else if (t === 'n' || t === 's' || t === 'e' || t === 'w') {
+        const slopeTile =
+          t === 'n' ? BG.slopeN : t === 's' ? BG.slopeS : t === 'e' ? BG.slopeE : BG.slopeW;
+        props.push({ x, y, tile: slopeTile, topShadow: castShadow });
       } else if (t === '>') {
         const pSpec = room?.portals?.find((p) => p.x === x && p.y === y);
         const midpoint = Boolean(pSpec?.requiresWarpUnlock);

@@ -106,4 +106,47 @@ describe('GBC colour and multi-tile rules', () => {
       { x: 5, y: 0, tile: BG.archLintelN, transparentZero: true },
     ]);
   });
+
+  it('defines distinct directional stone slope tiles (slopeN/S/E/W) and maps n/s/e/w cells in buildRoomLayout', () => {
+    const patterns = new Set([
+      BG.slopeN.rows.join(''),
+      BG.slopeS.rows.join(''),
+      BG.slopeE.rows.join(''),
+      BG.slopeW.rows.join(''),
+    ]);
+    expect(patterns.size).toBe(4);
+
+    const world = campaignWorld();
+    world.rooms.set('ember-crypt:9,9', {
+      zone: 'ember-crypt',
+      rx: 9,
+      ry: 9,
+      name: 'Slope Test Chamber',
+      rows: [
+        '###########',
+        '###########',
+        '##.......##',
+        '##...n...##',
+        '##..w.e..##',
+        '##...s...##',
+        '##.......##',
+        '##.......##',
+        '##.......##',
+        '##.......##',
+        '##.......##',
+        '###########',
+        '###########',
+      ],
+    });
+    const st = newState(world, 'ember-crypt', 9, 9, 5.5, 8.5);
+    const plan = buildRoomLayout(world, st);
+    expect(plan.props).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ x: 5, y: 3, tile: BG.slopeN }),
+        expect.objectContaining({ x: 5, y: 5, tile: BG.slopeS }),
+        expect.objectContaining({ x: 6, y: 4, tile: BG.slopeE }),
+        expect.objectContaining({ x: 4, y: 4, tile: BG.slopeW }),
+      ]),
+    );
+  });
 });

@@ -49,12 +49,64 @@ export const THROW_Z0 = 0.55; // initial carry release height in tiles
 export const THROW_VZ0 = 1.9; // initial upward lob velocity
 export const KICK_SPEED = 6.8; // planar speed imparted when walking into a grounded bomb
 export const SHOVE_BOMB_SPEED = 8.4; // planar impulse speed imparted to a blast-shoved bomb
+export const SLOPE_ACCEL = 22.0; // tiles/s² downhill acceleration on 'n' | 's' | 'e' | 'w' slope tiles
+export const SLOPE_MAX_SPEED = 8.2; // terminal downhill roll speed on slopes
+export const BUTTON_CONTACT_RADIUS = 0.58; // centre-to-centre contact radius for 'O' floor buttons
+export const BLAST_CONTACT_PADDING = 0.68; // reach + BLAST_CONTACT_PADDING continuous blast trigger radius
 
 const ROLL_SPEED = ROLL_DISTANCE / ROLL_DURATION;
 const PLAYER_RADIUS = 0.28;
+const PLAYER_SLOPE_DRIFT = 0.75;
 const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
 const AIM_MIN_INPUT = 0.22;
+
+const emberBombTorchContacts = new WeakMap<State, Map<number, Set<string>>>();
+const firePatchTorchContacts = new WeakMap<State, WeakMap<object, Set<string>>>();
+
+function getBombTorchContacts(s: State, bombId: number): Set<string> {
+  let byBomb = emberBombTorchContacts.get(s);
+  if (!byBomb) {
+    byBomb = new Map();
+    emberBombTorchContacts.set(s, byBomb);
+  }
+  let set = byBomb.get(bombId);
+  if (!set) {
+    set = new Set();
+    byBomb.set(bombId, set);
+  }
+  return set;
+}
+
+function getFireTorchContacts(s: State, patch: object): Set<string> {
+  let byPatch = firePatchTorchContacts.get(s);
+  if (!byPatch) {
+    byPatch = new WeakMap();
+    firePatchTorchContacts.set(s, byPatch);
+  }
+  let set = byPatch.get(patch);
+  if (!set) {
+    set = new Set();
+    byPatch.set(patch, set);
+  }
+  return set;
+}
+
+/** Downhill unit vector for `'n' | 's' | 'e' | 'w'` slope tiles, or `null` for non-slopes. */
+export function slopeVector(t: Tile): { dx: number; dy: number } | null {
+  switch (t) {
+    case 'n':
+      return { dx: 0, dy: -1 };
+    case 's':
+      return { dx: 0, dy: 1 };
+    case 'e':
+      return { dx: 1, dy: 0 };
+    case 'w':
+      return { dx: -1, dy: 0 };
+    default:
+      return null;
+  }
+}
 
 export function cellKey(zone: ZoneId, rx: number, ry: number, x: number, y: number): string {
   return `${zone}:${rx},${ry}:${x},${y}`;
@@ -94,10 +146,25 @@ export function tileAt(
 
 /** Whether tile `t` blocks ground walking for the player and non-flying enemies. */
 export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boolean {
-  if (t === '.' || t === ':' || t === '_' || t === 'O' || t === '!' || t === '>') return false;
+  if (
+    t === '.' ||
+    t === ':' ||
+    t === '_' ||
+    t === 'O' ||
+    t === '!' ||
+    t === '>' ||
+    slopeVector(t) !== null
+  ) {
+    return false;
+  }
   if (t === 'R') return crystalColor === 'red';
   if (t === 'U') return crystalColor === 'blue';
   return true;
+}
+
+/** Whether a push block (`'P'`) may slide onto tile `t`. */
+function isPushBlockFloor(t: Tile): boolean {
+  return t === '.' || t === ':' || t === '_' || t === 'O' || slopeVector(t) !== null;
 }
 
 /** Whether tile `t` is a tall wall that stops a thrown bomb's arc. */
@@ -181,6 +248,8 @@ export function enterRoom(
   s.pullBufferTap = false;
   s.bombs = [];
   s.fires = [];
+  emberBombTorchContacts.delete(s);
+  firePatchTorchContacts.delete(s);
   s.blocks = [];
   s.torches = [];
   s.orderedStep = 0;
@@ -388,10 +457,16 @@ export function cardinalFacing(s: Pick<State, 'fx' | 'fy'>): { dx: number; dy: n
  * Move the player along one axis by `d`, stopping flush against whatever blocks it
  * rather than short of it. Returns true if the whole move was free.
  */
-function sweepAxis(world: World, s: State, axis: 'x' | 'y', d: number): boolean {
+function sweepAxis(
+  world: World,
+  s: State,
+  axis: 'x' | 'y',
+  d: number,
+  unlockDoors = true,
+): boolean {
   const at = (f: number): [number, number] =>
     axis === 'x' ? [s.x + d * f, s.y] : [s.x, s.y + d * f];
-  if (!playerBlockedAt(world, s, ...at(1), true)) {
+  if (!playerBlockedAt(world, s, ...at(1), unlockDoors)) {
     [s.x, s.y] = at(1);
     return true;
   }
@@ -740,6 +815,27 @@ function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln =
   return false;
 }
 
+/** Continuous contact-radius check (`BUTTON_CONTACT_RADIUS`) for `'O'` floor buttons. */
+export function isButtonPressed(world: World, s: State, bx: number, by: number): boolean {
+  if (tileAt(world, s, s.zone, s.rx, s.ry, bx, by) !== 'O') return false;
+  const cx = bx + 0.5;
+  const cy = by + 0.5;
+  if (Math.hypot(s.x - cx, s.y - cy) <= BUTTON_CONTACT_RADIUS) return true;
+  if (
+    s.blocks.some((blk) => Math.hypot(blk.x + 0.5 - cx, blk.y + 0.5 - cy) <= BUTTON_CONTACT_RADIUS)
+  ) {
+    return true;
+  }
+  if (
+    s.bombs.some(
+      (b) => !b.carried && b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function checkSolveCondition(world: World, s: State): void {
   if (s.roomSolved) return;
   const room = currentRoom(world, s);
@@ -764,11 +860,7 @@ function checkSolveCondition(world: World, s: State): void {
         if (tileAt(world, s, s.zone, s.rx, s.ry, x, y) === 'O') buttons.push([x, y]);
       }
     }
-    solved =
-      buttons.length > 0 &&
-      buttons.every(
-        ([bx, by]) => hasBlockAt(s, bx, by) || (Math.floor(s.x) === bx && Math.floor(s.y) === by),
-      );
+    solved = buttons.length > 0 && buttons.every(([bx, by]) => isButtonPressed(world, s, bx, by));
   }
 
   if (!solved) return;
@@ -847,6 +939,10 @@ function radialDir(
   return { dirX: dx / dist, dirY: dy / dist, dist };
 }
 
+function isSolidBlastWall(t: Tile): boolean {
+  return t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S';
+}
+
 /** False when a solid indestructible stone/door wall sits directly between blast origin and target. */
 function hasBlastLineOfSight(
   world: World,
@@ -856,14 +952,43 @@ function hasBlastLineOfSight(
   tx: number,
   ty: number,
 ): boolean {
-  for (const frac of [0.35, 0.65]) {
+  for (const frac of [0.2, 0.4, 0.6, 0.8]) {
     const mx = Math.floor(ox + (tx - ox) * frac);
     const my = Math.floor(oy + (ty - oy) * frac);
     if (mx < 0 || my < 0 || mx >= ROOM_W || my >= ROOM_H) continue;
-    const t = tileAt(world, s, s.zone, s.rx, s.ry, mx, my);
-    if (t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S') return false;
+    if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, mx, my))) return false;
   }
   return true;
+}
+
+/** True when the segment from `(ox, oy)` to closest tile point `(clampedX, clampedY)` on `(tx, ty)` is blocked by a solid wall. */
+function isBlastContactOccluded(
+  world: World,
+  s: State,
+  ox: number,
+  oy: number,
+  clampedX: number,
+  clampedY: number,
+  tx: number,
+  ty: number,
+): boolean {
+  const ocx = Math.floor(ox);
+  const ocy = Math.floor(oy);
+  for (let i = 1; i <= 7; i++) {
+    const frac = i / 8;
+    const mx = Math.floor(ox + (clampedX - ox) * frac);
+    const my = Math.floor(oy + (clampedY - oy) * frac);
+    if ((mx === ocx && my === ocy) || (mx === tx && my === ty)) continue;
+    if (mx < 0 || my < 0 || mx >= ROOM_W || my >= ROOM_H) continue;
+    if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, mx, my))) return true;
+  }
+  // Prevent diagonal blasts leaking through a sealed corner between two adjacent solid walls
+  if (Math.abs(tx - ocx) === 1 && Math.abs(ty - ocy) === 1) {
+    const wallA = isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, tx, ocy));
+    const wallB = isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, ocx, ty));
+    if (wallA && wallB) return true;
+  }
+  return false;
 }
 
 function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<number>): Bomb[] {
@@ -887,7 +1012,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       const ty = cy + dy * r;
       if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) break;
       const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
-      if (t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S') break;
+      if (isSolidBlastWall(t)) break;
       ray.push([tx, ty]);
       // Stop arm after hitting a solid destructible/pedestal tile so blasts don't pierce walls
       if (t === '%' || t === 'W' || t === 'B' || t === 'C' || t === 'T') break;
@@ -900,10 +1025,41 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     hitTiles[0][2] = 'single';
   }
 
-  let flippedCrystal = false;
-
   for (const [tx, ty, shape] of hitTiles) {
     s.blasts.push({ x: tx + 0.5, y: ty + 0.5, kind: bomb.kind, shape });
+  }
+
+  // Combine visual '+' arm cells with continuous contact-radius cells around (bomb.x, bomb.y)
+  const triggeredCells = new Map<string, [number, number]>();
+  for (const [tx, ty] of hitTiles) {
+    triggeredCells.set(`${tx},${ty}`, [tx, ty]);
+  }
+  const maxDist = reach + BLAST_CONTACT_PADDING;
+  const maxEdgeDist = reach + (BLAST_CONTACT_PADDING - 0.5); // reach + 0.18
+  const minTx = Math.max(0, Math.floor(bomb.x - maxDist));
+  const maxTx = Math.min(ROOM_W - 1, Math.floor(bomb.x + maxDist));
+  const minTy = Math.max(0, Math.floor(bomb.y - maxDist));
+  const maxTy = Math.min(ROOM_H - 1, Math.floor(bomb.y + maxDist));
+  for (let ty = minTy; ty <= maxTy; ty++) {
+    for (let tx = minTx; tx <= maxTx; tx++) {
+      const key = `${tx},${ty}`;
+      if (triggeredCells.has(key)) continue;
+      const clampedX = Math.max(tx, Math.min(tx + 1, bomb.x));
+      const clampedY = Math.max(ty, Math.min(ty + 1, bomb.y));
+      const edgeDist = Math.hypot(bomb.x - clampedX, bomb.y - clampedY);
+      if (
+        edgeDist <= maxEdgeDist &&
+        !isBlastContactOccluded(world, s, bomb.x, bomb.y, clampedX, clampedY, tx, ty)
+      ) {
+        triggeredCells.set(key, [tx, ty]);
+      }
+    }
+  }
+
+  let flippedCrystal = false;
+  const blastTouchedTorches: string[] = [];
+
+  for (const [tx, ty] of triggeredCells.values()) {
     const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
     const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
 
@@ -918,6 +1074,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         s.events.push('tile-burn');
       }
       if (t === 'T') {
+        blastTouchedTorches.push(ck);
         lightTorchAt(world, s, tx, ty);
       }
     }
@@ -937,9 +1094,16 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       centreTile !== '~' &&
       centreTile !== '^'
     ) {
-      const existing = s.fires.find((f) => f.x === cx && f.y === cy);
-      if (existing) existing.remaining = FIRE_DURATION;
-      else s.fires.push({ x: cx, y: cy, remaining: FIRE_DURATION, tickCooldown: 0 });
+      let patch = s.fires.find((f) => f.x === cx && f.y === cy);
+      if (patch) {
+        patch.remaining = FIRE_DURATION;
+        getFireTorchContacts(s, patch).clear();
+      } else {
+        patch = { x: cx, y: cy, remaining: FIRE_DURATION, tickCooldown: 0 };
+        s.fires.push(patch);
+      }
+      const patchContacts = getFireTorchContacts(s, patch);
+      for (const ck of blastTouchedTorches) patchContacts.add(ck);
     }
   }
 
@@ -960,16 +1124,15 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     s.vy = pipDir.dirY * 7.0 * proximity;
   }
 
-  // 2. Enemies: radial shove velocity scaled by mass + cross-blast damage/armor strip
+  // 2. Enemies: radial shove velocity scaled by mass + continuous/cross-blast damage & armor strip
   const litNow = isRoomLit(world, s);
   for (const enemy of s.enemies) {
-    const hit = hitTiles.some(
-      ([tx, ty]) => Math.hypot(enemy.x - (tx + 0.5), enemy.y - (ty + 0.5)) < 0.92,
-    );
     const eDir = radialDir(bomb.x, bomb.y, enemy.x, enemy.y, enemy.fx || 0, enemy.fy || 1);
-    const inShove =
-      hit ||
-      (eDir.dist <= shoveRadius && hasBlastLineOfSight(world, s, bomb.x, bomb.y, enemy.x, enemy.y));
+    const hasLos = hasBlastLineOfSight(world, s, bomb.x, bomb.y, enemy.x, enemy.y);
+    const hit =
+      hitTiles.some(([tx, ty]) => Math.hypot(enemy.x - (tx + 0.5), enemy.y - (ty + 0.5)) < 0.92) ||
+      (eDir.dist <= reach + 0.55 && hasLos);
+    const inShove = hit || (eDir.dist <= shoveRadius && hasLos);
     if (inShove) {
       const massScale =
         enemy.kind === 'cinderhull'
@@ -1019,10 +1182,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     const destY = blk.y + sdy;
     if (destX >= 1 && destX <= ROOM_W - 2 && destY >= 1 && destY <= ROOM_H - 2) {
       const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
-      if (
-        (destTile === '.' || destTile === ':' || destTile === '_' || destTile === 'O') &&
-        !hasBlockAt(s, destX, destY)
-      ) {
+      if (isPushBlockFloor(destTile) && !hasBlockAt(s, destX, destY)) {
         blk.x = destX;
         blk.y = destY;
         blk.pushCharge = 0;
@@ -1488,17 +1648,44 @@ function advanceRoll(world: World, s: State, budgetDt: number): number {
 
 function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt: number): void {
   if (walkDt <= 0) return;
-  let moveVx = 0;
-  let moveVy = 0;
-  if (inLen > 0.01) {
-    const scale = SPEED / Math.max(1, inLen);
-    moveVx = input.dx * scale;
-    moveVy = input.dy * scale;
-    s.fx = input.dx / inLen;
-    s.fy = input.dy / inLen;
+
+  // Subtle downhill slope drift on Pip when standing on 'n' | 's' | 'e' | 'w' (never out of bounds or into pits)
+  let driftDx = 0;
+  let driftDy = 0;
+  const px = Math.floor(s.x);
+  const py = Math.floor(s.y);
+  if (px >= 0 && px < ROOM_W && py >= 0 && py < ROOM_H) {
+    const sv = slopeVector(tileAt(world, s, s.zone, s.rx, s.ry, px, py));
+    if (sv !== null) {
+      const rawDx = sv.dx * PLAYER_SLOPE_DRIFT * walkDt;
+      const rawDy = sv.dy * PLAYER_SLOPE_DRIFT * walkDt;
+      if (rawDx < 0 && s.x > PLAYER_RADIUS) {
+        driftDx = Math.max(rawDx, PLAYER_RADIUS - s.x);
+      } else if (rawDx > 0 && s.x < ROOM_W - PLAYER_RADIUS) {
+        driftDx = Math.min(rawDx, ROOM_W - PLAYER_RADIUS - s.x);
+      }
+      if (rawDy < 0 && s.y > PLAYER_RADIUS) {
+        driftDy = Math.max(rawDy, PLAYER_RADIUS - s.y);
+      } else if (rawDy > 0 && s.y < ROOM_H - PLAYER_RADIUS) {
+        driftDy = Math.min(rawDy, ROOM_H - PLAYER_RADIUS - s.y);
+      }
+    }
   }
-  const totalDx = moveVx * walkDt;
-  const totalDy = moveVy * walkDt;
+
+  if (inLen <= 0.01) {
+    if (Math.abs(driftDx) > 1e-6) sweepAxis(world, s, 'x', driftDx, false);
+    if (Math.abs(driftDy) > 1e-6) sweepAxis(world, s, 'y', driftDy, false);
+    return;
+  }
+
+  const scale = SPEED / Math.max(1, inLen);
+  const moveVx = input.dx * scale;
+  const moveVy = input.dy * scale;
+  s.fx = input.dx / inLen;
+  s.fy = input.dy / inLen;
+
+  const totalDx = moveVx * walkDt + driftDx;
+  const totalDy = moveVy * walkDt + driftDy;
   if (
     Math.abs(totalDx) > 1e-5 &&
     !sweepAxis(world, s, 'x', totalDx) &&
@@ -1512,6 +1699,44 @@ function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt
     Math.abs(input.dx) < 0.5 * inLen
   ) {
     cornerSlide(world, s, 'y', totalDy, walkDt);
+  }
+}
+
+function applyBombSlopePhysics(b: Bomb, sv: { dx: number; dy: number }, subDt: number): void {
+  b.vx += sv.dx * SLOPE_ACCEL * subDt;
+  b.vy += sv.dy * SLOPE_ACCEL * subDt;
+  const crossDamp = 0.2 * BOMB_FRICTION * subDt;
+  if (sv.dx !== 0) {
+    b.vy = Math.abs(b.vy) <= crossDamp ? 0 : b.vy - Math.sign(b.vy) * crossDamp;
+    if (b.vx * sv.dx > SLOPE_MAX_SPEED) b.vx = sv.dx * SLOPE_MAX_SPEED;
+  } else {
+    b.vx = Math.abs(b.vx) <= crossDamp ? 0 : b.vx - Math.sign(b.vx) * crossDamp;
+    if (b.vy * sv.dy > SLOPE_MAX_SPEED) b.vy = sv.dy * SLOPE_MAX_SPEED;
+  }
+}
+
+function checkLiveEmberTorchContact(world: World, s: State, b: Bomb): void {
+  if (b.kind !== 'ember' || b.carried) return;
+  const contacts = getBombTorchContacts(s, b.id);
+  const bcx = Math.floor(b.x);
+  const bcy = Math.floor(b.y);
+  for (let ty = Math.max(0, bcy - 1); ty <= Math.min(ROOM_H - 1, bcy + 1); ty++) {
+    for (let tx = Math.max(0, bcx - 1); tx <= Math.min(ROOM_W - 1, bcx + 1); tx++) {
+      if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) !== 'T') continue;
+      const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+      const centreDist = Math.hypot(b.x - (tx + 0.5), b.y - (ty + 0.5));
+      const clampedX = Math.max(tx, Math.min(tx + 1, b.x));
+      const clampedY = Math.max(ty, Math.min(ty + 1, b.y));
+      const edgeDist = Math.hypot(b.x - clampedX, b.y - clampedY);
+      if (centreDist <= BOMB_RADIUS + 0.52 || edgeDist <= BOMB_RADIUS + 0.02) {
+        if (!contacts.has(ck)) {
+          contacts.add(ck);
+          lightTorchAt(world, s, tx, ty);
+        }
+      } else if (centreDist > BOMB_RADIUS + 0.68) {
+        contacts.delete(ck);
+      }
+    }
   }
 }
 
@@ -1662,10 +1887,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         const destY = blk.y + pdy;
         if (destX >= 1 && destY >= 1 && destX < ROOM_W - 1 && destY < ROOM_H - 1) {
           const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
-          if (
-            (destTile === '.' || destTile === ':' || destTile === '_' || destTile === 'O') &&
-            !hasBlockAt(s, destX, destY)
-          ) {
+          if (isPushBlockFloor(destTile) && !hasBlockAt(s, destX, destY)) {
             blk.x = destX;
             blk.y = destY;
             s.events.push('block-push');
@@ -1796,6 +2018,17 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     let impactDetonated = false;
 
     for (let step = 0; step < bombSubSteps; step++) {
+      let appliedSlopeThisStep = false;
+      if (b.z <= 0.12) {
+        const sx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
+        const sy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+        const sv = slopeVector(tileAt(world, s, s.zone, s.rx, s.ry, sx, sy));
+        if (sv !== null) {
+          applyBombSlopePhysics(b, sv, bombSubDt);
+          appliedSlopeThisStep = true;
+        }
+      }
+
       stepBombPlanar(world, s, b, bombSubDt, true);
 
       if (b.z > 0 || b.vz > 0) {
@@ -1832,6 +2065,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
         const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
         const groundTile = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
+        const groundSv = slopeVector(groundTile);
         if (groundTile === '^') {
           swallowed = true;
           swallowedIds.add(b.id);
@@ -1843,6 +2077,10 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
             b.vy = 0;
             b.thrown = false;
             s.events.push('bomb-splash');
+          }
+        } else if (groundSv !== null) {
+          if (!appliedSlopeThisStep) {
+            applyBombSlopePhysics(b, groundSv, bombSubDt);
           }
         } else {
           const speed = Math.hypot(b.vx, b.vy);
@@ -1859,6 +2097,11 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
             }
           }
         }
+      }
+
+      checkLiveEmberTorchContact(world, s, b);
+      if (!s.roomSolved && b.z <= 0.12 && room?.condition === 'hold-buttons') {
+        checkSolveCondition(world, s);
       }
 
       if (b.graceOverlap && Math.hypot(b.x - s.x, b.y - s.y) > PLAYER_RADIUS + BOMB_RADIUS + 0.06) {
@@ -1916,6 +2159,10 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
+  if (!s.roomSolved && room?.condition === 'hold-buttons') {
+    checkSolveCondition(world, s);
+  }
+
   if (toDetonate.length > 0) {
     const activeIds = new Set(s.bombs.map((b) => b.id));
     detonateBombs(
@@ -1925,10 +2172,44 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     );
   }
 
-  // 4. Update burning Ember patches (`2.5 s`)
+  const bombTorchMap = emberBombTorchContacts.get(s);
+  if (bombTorchMap && bombTorchMap.size > 0) {
+    const liveIds = new Set(s.bombs.map((b) => b.id));
+    for (const id of bombTorchMap.keys()) {
+      if (!liveIds.has(id)) bombTorchMap.delete(id);
+    }
+  }
+
+  // 4. Update burning Ember patches (`2.5 s`) & adjacent contact ignition
   for (const f of s.fires) {
     f.remaining -= dt;
     f.tickCooldown = Math.max(0, f.tickCooldown - dt);
+
+    const fcx = Math.round(f.x);
+    const fcy = Math.round(f.y);
+    const patchContacts = getFireTorchContacts(s, f);
+    for (let ty = Math.max(0, fcy - 1); ty <= Math.min(ROOM_H - 1, fcy + 1); ty++) {
+      for (let tx = Math.max(0, fcx - 1); tx <= Math.min(ROOM_W - 1, fcx + 1); tx++) {
+        if (Math.hypot(tx + 0.5 - (f.x + 0.5), ty + 0.5 - (f.y + 0.5)) > 1.15) continue;
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+        const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+        if (t === 'B' || t === 'W') {
+          s.burnedTiles.add(ck);
+          s.events.push('tile-burn');
+        } else if (t === 'T') {
+          const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
+          if (torch?.order !== undefined) {
+            if (!patchContacts.has(ck)) {
+              patchContacts.add(ck);
+              lightTorchAt(world, s, tx, ty);
+            }
+          } else {
+            lightTorchAt(world, s, tx, ty);
+          }
+        }
+      }
+    }
+
     if (f.tickCooldown <= 0) {
       const litNow = isRoomLit(world, s);
       for (const e of s.enemies) {

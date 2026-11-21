@@ -35,6 +35,7 @@ export type BombKind = 'powder' | 'ember';
  * 'O' floor button (opens shutter / spawns reward when stepped on or weighted by a push block)
  * '!' floor spikes (deal 1 half-heart hazard damage on contact)
  * '>' stair / warp portal (transitions between zones or midpoint warp pad)
+ * 'n' | 's' | 'e' | 'w' directional stone slope / chute (rolls grounded bombs downhill N/S/E/W)
  */
 export type Tile =
   | '.'
@@ -57,7 +58,11 @@ export type Tile =
   | 'S'
   | 'O'
   | '!'
-  | '>';
+  | '>'
+  | 'n'
+  | 's'
+  | 'e'
+  | 'w';
 
 export type StampId =
   'bram-workshop' | 'rusted-smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';

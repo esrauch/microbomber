@@ -54,23 +54,23 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 
 ## Phase 3: Physics puzzles
 
-- [ ] **Contact triggers:** switches, braziers, buttons and cracked walls react to
+- [x] **Contact triggers:** switches, braziers, buttons and cracked walls react to
       bombs and blasts by contact radius, not tile.
-- [ ] **Slopes:** a directional slope tile (rules, art, autotiling) that rolls
+- [x] **Slopes:** a directional slope tile (rules, art, autotiling) that rolls
       bombs downhill.
-- [ ] **Ember Crypt rework**, room by room, using rolling and banking:
-  - [ ] Crypt Foyer
-  - [ ] Block Antechamber
-  - [ ] Crystal Crossroads
-  - [ ] Vault of Sparks
-  - [ ] Alchemist Reliquary
-  - [ ] Lantern Hall (miniboss)
-  - [ ] Bramble Crypt
-  - [ ] Hall of Three Flames
-  - [ ] Sanctum Ante-Room
-  - [ ] Sanctum of Ash (boss)
-- [ ] **Overworld secrets:** recheck every cracked-wall and bramble secret.
-- [ ] **Tests:** each puzzle has a scripted solve; the doorway walk test still
+- [x] **Ember Crypt rework**, room by room, using rolling and banking:
+  - [x] Crypt Foyer
+  - [x] Block Antechamber
+  - [x] Crystal Crossroads
+  - [x] Vault of Sparks
+  - [x] Alchemist Reliquary
+  - [x] Lantern Hall (miniboss)
+  - [x] Bramble Crypt
+  - [x] Hall of Three Flames
+  - [x] Sanctum Ante-Room
+  - [x] Sanctum of Ash (boss)
+- [x] **Overworld secrets:** recheck every cracked-wall and bramble secret.
+- [x] **Tests:** each puzzle has a scripted solve; the doorway walk test still
       passes.
 - [ ] **Playtest checkpoint:** every room solvable and readable on a phone.
 
