@@ -420,6 +420,14 @@ function hasBlockAt(s: State, tx: number, ty: number): boolean {
   return s.blocks.some((b) => b.x === tx && b.y === ty);
 }
 
+/** True while any part of the player overlaps tile `(tx, ty)`. */
+function playerTouchesTile(s: State, tx: number, ty: number): boolean {
+  return (
+    Math.abs(s.x - (tx + 0.5)) < 0.5 + PLAYER_RADIUS &&
+    Math.abs(s.y - (ty + 0.5)) < 0.5 + PLAYER_RADIUS
+  );
+}
+
 function hasSolidBombAt(s: State, tx: number, ty: number): boolean {
   return s.bombs.some(
     (b) =>
@@ -1101,7 +1109,9 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
   // 3. Update active bombs (flight, overlap grace, impact detonation, fuse)
   const toDetonate: Bomb[] = [];
   for (const b of s.bombs) {
-    if (b.graceOverlap && Math.hypot(s.x - b.x, s.y - b.y) > 0.78) {
+    // Your own bomb is walk-through until you have fully left its tile; ending grace any
+    // earlier would leave you standing inside something solid
+    if (b.graceOverlap && !playerTouchesTile(s, Math.floor(b.x), Math.floor(b.y))) {
       b.graceOverlap = false;
     }
     if (b.flight) {
@@ -1126,6 +1136,8 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
         b.x = b.flight.targetX;
         b.y = b.flight.targetY;
         delete b.flight;
+        // Landing on a tile you're touching (a point-blank throw at a wall) is walk-through too
+        b.graceOverlap = playerTouchesTile(s, Math.floor(b.x), Math.floor(b.y));
         const landedTile = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y));
         // Instant detonation if thrown directly onto a Crystal, Brazier, Bramble, Crate, Pit, or Water
         if (

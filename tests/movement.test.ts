@@ -65,4 +65,34 @@ describe('movement feel', () => {
     tapB(world, s);
     expect(s.bombs).toHaveLength(2);
   });
+
+  it('your own bomb never traps you: grace lasts until you have fully left its tile', () => {
+    const world = campaignWorld();
+    // Drop off-centre, then walk away at every angle in open floor
+    for (let a = 0; a < 16; a++) {
+      const s = newState(world, 'overworld', 3, 2, 4.25, 4.25);
+      s.enemies = [];
+      tapB(world, s);
+      const dx = Math.cos((a * Math.PI) / 8);
+      const dy = Math.sin((a * Math.PI) / 8);
+      const x0 = s.x;
+      const y0 = s.y;
+      for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx, dy }, 1 / 60);
+      expect(Math.hypot(s.x - x0, s.y - y0), `angle ${a}`).toBeGreaterThan(1.1);
+    }
+  });
+
+  it('a point-blank throw at a wall lands under you without trapping you', () => {
+    const world = campaignWorld();
+    const s = newState(world, 'overworld', 3, 2, 1.5, 1.5);
+    s.enemies = [];
+    s.aimX = 0;
+    s.aimY = -1;
+    throwB(world, s);
+    for (let i = 0; i < 20; i++) tick(world, s, idle, 1 / 60);
+    expect(s.bombs).toHaveLength(1);
+    const x0 = s.x;
+    for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx: 1 }, 1 / 60);
+    expect(s.x - x0).toBeGreaterThan(1);
+  });
 });
