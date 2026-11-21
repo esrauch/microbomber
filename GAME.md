@@ -27,27 +27,37 @@ minute campaign.
 
 All controls live in a **band below the room**:
 
-- **Left thumb:** a virtual analogue joystick.
-- **Right thumb:** two item buttons, **B** and **A**, as in Link's Awakening DX
-  and the Oracle games. Each holds one item (a bomb type):
-  - **Tap** drops that bomb on your tile.
-  - **Hold** lifts a bomb overhead: the live bomb you're standing on if there is
-    one, otherwise a fresh one. You can walk while holding it, and its fuse keeps
-    burning.
-  - **Release** throws it `2–3` tiles the way you're facing. The throw marker
-    only shows while you're holding a bomb.
-  - For bombs that can go off early (Gale), a tap on its button while one is live
-    **pops** it.
-- **START** opens the pause subscreen: pick an item, then press B or A to equip
-  it there (it swaps if it was on the other button). The game pauses meanwhile.
+- **Left thumb:** a virtual analogue joystick (`360°` movement, roll direction,
+  and throw aim).
+- **Right thumb:** two fixed-verb buttons, **B** on the left and **A** on the
+  right:
+  - **B = Roll:** dodges about `2` tiles in `0.25 s` along the stick (or current
+    facing when idle), with invulnerability frames during the middle `0.15 s`
+    and `0.35 s` recovery; automatically leaves the equipped bomb where the roll
+    started whenever the satchel, cooldown, and selection allow.
+  - **A = Pull out:**
+    - **Tap** drops the equipped bomb at your feet.
+    - **Hold** lifts a live bomb underfoot (or pulls out a fresh equipped bomb
+      overhead while its fuse keeps burning); you can walk while carrying it.
+    - **Release** throws it along the joystick's exact `360°` angle (or facing
+      when idle) with a fixed lob. While carrying, a **dotted throw arc**
+      previews the trajectory.
+- **START:** pauses the game and picks the single equipped bomb (or **None** for
+  pure dodge rolls without laying bombs).
 
-New bombs share a `0.7 s` cooldown; lifting a bomb that's already down doesn't.
+Placing or pulling a fresh bomb triggers a `0.7 s` cooldown; lifting a bomb that
+is already live underfoot does not.
 
-**Precision aids** (a virtual stick can't do one-tile precision on its own):
+**Input forgiveness and feel aids:**
 
-- **Bombs snap to tile centres.** A ghost marker shows the tile the next bomb will land on (dropped or thrown).
-- **Corner sliding:** walking into the edge of a doorway or block nudges you round it, so you never snag.
-- **Generous timing:** at least `0.3 s` of slack on blast-jumps, timed torches and anything else timed, because touch input lags.
+- **Input buffer:** presses during roll recovery or the `0.7 s` bomb cooldown
+  are buffered (`100–150 ms` window) and fire as soon as recovery or cooldown
+  ends.
+- **Magnetized pickups:** pickups drift toward Pip within about `1` tile.
+- **Corner sliding:** walking or rolling into the edge of a doorway or block
+  nudges you round it, so you never snag.
+- **Generous timing:** at least `0.3 s` of slack on blast-jumps, timed braziers,
+  and other timed challenges to forgive touch latency.
 
 ## 3. Story and setting: *The Rust of Cinderholm*
 
@@ -268,3 +278,48 @@ and puzzle structure, not for copying layouts.
    control band on a real phone before building more.
 2. Then Shrines 2–4 in order, each adding one bomb and its combinations.
 3. Then the Spire and the finale.
+
+## 10. Retro look, modern play (decided 2026-11-21)
+
+The palette, the obvious grid map and the pixel art stay a strong homage to GBC
+Zelda. Everything else (movement, rendering, animation, physics, AI, world
+interactions) may go well beyond what even the GBA could do.
+
+### Decisions
+
+| Area | Decision |
+|---|---|
+| **Feel priorities** | **Input forgiveness** (buffer presses for `100–150 ms`, magnetized pickups, read intent over exact timing) and **snappy motion** (squash and stretch, eased tweens on pickups, doors and blocks, anticipation frames; nothing moves linearly). |
+| **Buttons** | Two fixed verbs, replacing the B / A item slots of §2. **B = Roll:** a short, snappy dodge (about `2` tiles in `0.25 s`, i-frames for the middle `0.15 s`, `0.35 s` recovery) that leaves the equipped bomb where the roll started. **A = Pull out:** hold to lift the equipped bomb and carry it, release to throw; a quick tap drops it at your feet. **START** picks the one equipped bomb, or **none** for pure dodge rolls. |
+| **Throwing** | Aimed along the joystick's exact angle (360°) with a fixed lob; the bomb lands, then bounces and rolls by physics. A dotted arc previews the throw while carrying. |
+| **Bomb physics** | **Full physics:** thrown bombs bounce and roll to a stop with friction and wall rebounds; blasts shove bombs, enemies and pushable objects outward; walking into a bomb kicks it. |
+| **Puzzles** | **Designed for physics:** roll bombs down slopes into cracks, bank them off walls, ride currents. Switches and braziers trigger on contact radius, not tile. |
+| **World** | **Spreading fire** (dry grass and brambles burn tile by tile, crates burn, braziers light in range, water and stone stop it), **dynamic light** (every flame, fuse, blast and lantern casts light and shadow; dark rooms become lighting puzzles), **water and wind** (bombs float and drift on currents; wind carries smoke, fire and light objects). |
+| **Enemy AI** | **Systemic:** clear telegraphs and state machines (patrol, notice, chase, recover), fleeing lit fuses, stumbling when hit, and reacting to the world (bats put out flames, slimes split in fire, shielders kick bombs back). |
+| **Rendering** | **HD-2D lite on WebGL via PixiJS:** pixel art with real-time normal-mapped lighting, bloom and colour grading. **Normal maps are auto-generated** from each sprite's and tile's palette indices, except hero assets (Pip, bosses, landmark stamps), which are hand-authored. If we keep this lighting, hand-author the rest later. |
+| **Transitions** | Rooms **slide** between screens with easing and **parallax** depth layers (canopy, clouds). |
+
+### Build order
+
+Tracked as a burn-down checklist in [`ROADMAP.md`](ROADMAP.md).
+
+1. **Roll and Pull out** with input forgiveness, so physics and AI get tuned
+   against the real controls.
+2. **Bomb physics** (bounce, roll, kick, blast shove) and the fixed-timestep
+   simulation it needs to stay deterministic in tests.
+3. **Physics puzzles:** rework the Ember Crypt rooms to use rolling and banking.
+4. **Systemic world and AI:** fire spread, wind and water, enemy reactions.
+5. **PixiJS renderer:** lighting, hand-authored normal maps, bloom, parallax
+   room slides.
+
+### Open risks
+
+- **Scope:** the physics-puzzle redesign and hand-authored hero normal maps are
+  the biggest art and design costs; hand-authoring every normal map later would
+  roughly double the art again.
+- **Physics and tests:** full physics needs a fixed timestep (the simulation
+  currently takes a variable `dt`) so tests stay deterministic.
+- **Readability:** with grid snapping gone, the HD-2D lighting and snappy motion
+  must keep bomb positions and blast reach legible on a small phone screen.
+- **Impact feedback:** hit-stop, screen shake and haptics weren't chosen as
+  priorities; revisit once physics lands, since blasts without them may feel weak.

@@ -9,7 +9,7 @@ import {
   type State,
   campaignWorld,
   currentRoom,
-  equipItem,
+  equipBomb,
   exportSave,
   importSave,
   newState,
@@ -17,14 +17,21 @@ import {
   showBanner,
   tick,
 } from './game/world';
-import { type ObjSpriteName } from './render/gbcArt';
+import { OBJ, type ObjSpriteName } from './render/gbcArt';
 import { hudIconDataUrl, makeGbcView } from './render/gbc';
 import { mountJoystick } from './ui/joystick';
 import { makeSfx } from './ui/sfx';
 
-const SAVE_KEY = 'microbomber.save.v2';
+const SAVE_KEY = 'microbomber.save.v3';
+const LEGACY_SAVE_KEY = 'microbomber.save.v2';
+const ROLL_ICON = 'HUD_ROLL' as ObjSpriteName;
+const INTRO_BANNER =
+  'The Ironblight Spire rusted every blade on Cinderholm! Talk to Bram, press B to Roll, or tap/hold A behind the smithy.';
 
 function pxIcon(name: ObjSpriteName, size: number): string {
+  if (!(name in OBJ)) {
+    return `<span style="display:inline-flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;font-weight:900">↷</span>`;
+  }
   return `<img src="${hudIconDataUrl(name, 3)}" width="${size}" height="${size}" style="image-rendering:pixelated;display:inline-block;vertical-align:middle" alt="" />`;
 }
 
@@ -41,6 +48,14 @@ const canvasEl = canvas;
 const world = campaignWorld();
 const sfx = makeSfx();
 
+function persistState(s: State): void {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(exportSave(s)));
+  } catch {
+    // Ignore storage quota errors.
+  }
+}
+
 function loadInitialState(): State {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -48,24 +63,20 @@ function loadInitialState(): State {
       const restored = importSave(world, JSON.parse(raw));
       if (restored) return restored;
     }
+    const legacyRaw = localStorage.getItem(LEGACY_SAVE_KEY);
+    if (legacyRaw) {
+      const migrated = importSave(world, JSON.parse(legacyRaw));
+      if (migrated) {
+        persistState(migrated);
+        return migrated;
+      }
+    }
   } catch {
     // Ignore malformed or unavailable storage.
   }
   const fresh = newState(world);
-  showBanner(
-    fresh,
-    'The Ironblight Spire rusted every blade on Cinderholm! Walk to Bram or tap B on cracked stone behind the smithy.',
-    5.5,
-  );
+  showBanner(fresh, INTRO_BANNER, 5.5);
   return fresh;
-}
-
-function persistState(s: State): void {
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(exportSave(s)));
-  } catch {
-    // Ignore storage quota errors.
-  }
 }
 
 let state = loadInitialState();
@@ -210,10 +221,13 @@ resetSaveBtn.addEventListener('click', () => {
   resetSaveBtn.textContent = RESET_LABEL;
   try {
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(LEGACY_SAVE_KEY);
   } catch {
     // ignore
   }
   state = newState(world);
+  showBanner(state, INTRO_BANNER, 5.5);
+  if (menuOpen) toggleMenu(false);
   rebuildRoom();
   settingsModal.style.display = 'none';
   syncHud(true);
@@ -314,7 +328,7 @@ Object.assign(fade.style, {
 stage.append(fade);
 
 // =========================================================================
-// Dedicated Control Band (`GAME.md` §2): Joystick, START, and item buttons B and A
+// Dedicated Control Band (`GAME.md` §2): Joystick, START, B = Roll, A = Pull out
 // =========================================================================
 const joystick = mountJoystick(controls);
 
@@ -363,36 +377,60 @@ const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
   ember: { sprite: 'EMBER_1', label: 'Ember' },
 };
 
-/** Item buttons held right now: `[B, A]`. Tap drops, hold lifts, release throws. */
+/** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Pull out)]`. */
 const buttonHeld: [boolean, boolean] = [false, false];
 
 let menuOpen = false;
 let menuCursor: BombKind | null = null;
 
-const makeItemBtn = (slot: 0 | 1, letter: 'B' | 'A'): HTMLButtonElement => {
+const makeVerbBtn = (
+  slot: 0 | 1,
+  badgeLabel: string,
+  borderCol: string,
+  bgCol: string,
+  extraShadow = '',
+): [HTMLButtonElement, HTMLSpanElement] => {
   const b = document.createElement('button');
-  b.innerHTML = `<span style="font-size:24px;line-height:1"></span><span style="font-size:12px;font-weight:800;letter-spacing:0.05em">${letter}</span>`;
+  const iconSpan = document.createElement('span');
+  Object.assign(iconSpan.style, {
+    height: '26px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: '1',
+  });
+  const labelSpan = document.createElement('span');
+  labelSpan.textContent = badgeLabel;
+  Object.assign(labelSpan.style, {
+    fontSize: '9.5px',
+    fontWeight: '800',
+    lineHeight: '1.05',
+    letterSpacing: '0.01em',
+    whiteSpace: 'nowrap',
+  });
+  b.append(iconSpan, labelSpan);
   Object.assign(b.style, {
     width: '74px',
     height: '74px',
+    padding: '0 2px',
     borderRadius: '50%',
-    border: '3px solid #f6e05e',
-    background: 'rgba(45, 38, 24, 0.85)',
+    border: `3px solid ${borderCol}`,
+    background: bgCol,
     color: '#fff9eb',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '2px',
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.45)',
+    boxShadow: `${extraShadow ? `${extraShadow}, ` : ''}0 4px 10px rgba(0, 0, 0, 0.45)`,
     cursor: 'pointer',
     touchAction: 'none',
   });
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (menuOpen) {
-      // In the pause menu, B and A equip the highlighted item, as on the GBC subscreen
-      equipCursor(slot);
+      applyEquip(menuCursor);
+      toggleMenu(false);
       return;
     }
     try {
@@ -408,7 +446,7 @@ const makeItemBtn = (slot: 0 | 1, letter: 'B' | 'A'): HTMLButtonElement => {
   b.addEventListener('pointerup', release);
   b.addEventListener('pointercancel', release);
   b.addEventListener('lostpointercapture', release);
-  return b;
+  return [b, iconSpan];
 };
 
 const actionRow = document.createElement('div');
@@ -417,15 +455,22 @@ Object.assign(actionRow.style, {
   alignItems: 'center',
   gap: '10px',
 });
-// Game Boy order: B on the left, A on the right
-const itemBtns: [HTMLButtonElement, HTMLButtonElement] = [makeItemBtn(0, 'B'), makeItemBtn(1, 'A')];
-actionRow.append(...itemBtns);
+// Game Boy order: B = Roll on the left, A = Pull out on the right
+const [rollBtn, rollBtnIcon] = makeVerbBtn(
+  0,
+  'B · Roll',
+  '#4fd1c5',
+  'rgba(20, 42, 44, 0.88)',
+  'inset 0 0 0 1.5px rgba(246, 224, 94, 0.42)',
+);
+const [pullBtn, pullBtnIcon] = makeVerbBtn(1, 'A · Pull out', '#f6e05e', 'rgba(45, 38, 24, 0.88)');
+actionRow.append(rollBtn, pullBtn);
 
 rightCluster.append(topRow, actionRow);
 controls.append(rightCluster);
 
 // =========================================================================
-// Pause subscreen (START): pick an item, then press B or A to equip it
+// Pause subscreen (START): pick the equipped bomb or None; game pauses
 // =========================================================================
 const menuEl = document.createElement('div');
 Object.assign(menuEl.style, {
@@ -444,14 +489,15 @@ Object.assign(menuEl.style, {
 });
 stage.append(menuEl);
 
-const menuButton = (html: string, active: boolean): HTMLButtonElement => {
+const menuButton = (html: string, active: boolean, equipped = false): HTMLButtonElement => {
   const b = document.createElement('button');
   b.innerHTML = html;
+  const borderCol = active ? '#f6e05e' : equipped ? '#4fd1c5' : '#4a5568';
   Object.assign(b.style, {
     minWidth: '96px',
     padding: '10px 12px',
     borderRadius: '10px',
-    border: `3px solid ${active ? '#f6e05e' : '#4a5568'}`,
+    border: `3px solid ${borderCol}`,
     background: active ? 'rgba(66, 52, 28, 0.92)' : '#1e2620',
     color: '#f4eedc',
     fontSize: '13px',
@@ -461,21 +507,27 @@ const menuButton = (html: string, active: boolean): HTMLButtonElement => {
   return b;
 };
 
+function menuChoices(): Array<BombKind | null> {
+  return [...state.unlockedBombs, null];
+}
+
 function renderMenu(): void {
   menuEl.replaceChildren();
   const title = document.createElement('div');
-  title.textContent = 'ITEMS';
-  Object.assign(title.style, { fontSize: '18px', fontWeight: '900', letterSpacing: '0.2em' });
+  title.textContent = 'EQUIP BOMB';
+  Object.assign(title.style, { fontSize: '18px', fontWeight: '900', letterSpacing: '0.18em' });
 
-  const slotsRow = document.createElement('div');
-  Object.assign(slotsRow.style, { display: 'flex', gap: '12px' });
-  (['B', 'A'] as const).forEach((letter, i) => {
-    const slot = i === 0 ? 0 : 1;
-    const kind = state.slots[slot];
-    const label = kind ? `${pxIcon(BOMB_META[kind].sprite, 20)} ${BOMB_META[kind].label}` : '—';
-    const b = menuButton(`<div style="font-size:11px;opacity:0.7">${letter}</div>${label}`, false);
-    b.addEventListener('click', () => equipCursor(slot));
-    slotsRow.append(b);
+  const currentStatus = document.createElement('div');
+  currentStatus.innerHTML = state.equipped
+    ? `Equipped: ${pxIcon(BOMB_META[state.equipped].sprite, 18)} <strong>${BOMB_META[state.equipped].label}</strong>`
+    : 'Equipped: <strong>None</strong> (Pure Roll)';
+  Object.assign(currentStatus.style, {
+    fontSize: '12.5px',
+    color: '#e2e8f0',
+    padding: '5px 12px',
+    borderRadius: '999px',
+    background: '#1a221c',
+    border: '1px solid #38463a',
   });
 
   const grid = document.createElement('div');
@@ -485,42 +537,49 @@ function renderMenu(): void {
     justifyContent: 'center',
     gap: '10px',
   });
-  for (const kind of state.unlockedBombs) {
-    const b = menuButton(
-      `<div style="line-height:1.1;margin-bottom:3px">${pxIcon(BOMB_META[kind].sprite, 32)}</div>${BOMB_META[kind].label}`,
-      kind === menuCursor,
-    );
+  for (const kind of menuChoices()) {
+    const isCursor = kind === menuCursor;
+    const isEquipped = kind === state.equipped;
+    const tag = isEquipped
+      ? '<div style="font-size:10px;color:#68d391;margin-top:3px;letter-spacing:0.06em">EQUIPPED</div>'
+      : '<div style="font-size:10px;color:#9aa899;margin-top:3px">&nbsp;</div>';
+    const cardHtml = kind
+      ? `<div style="line-height:1.1;margin-bottom:4px">${pxIcon(BOMB_META[kind].sprite, 32)}</div>${BOMB_META[kind].label}${tag}`
+      : `<div style="height:32px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;font-size:22px;font-weight:900;color:#cbd5c0">—</div>None${tag}`;
+    const b = menuButton(cardHtml, isCursor, isEquipped);
     b.addEventListener('click', () => {
-      menuCursor = kind;
-      renderMenu();
+      applyEquip(kind);
     });
     grid.append(b);
   }
 
   const hint = document.createElement('div');
-  hint.textContent = 'Pick an item, then press B or A to equip it.';
+  hint.textContent = 'Tap a bomb (or None for pure dodge rolls) · B = Roll · A = Pull out';
   Object.assign(hint.style, { fontSize: '12px', color: '#cbd5c0' });
 
   const resume = menuButton('▶ Resume', false);
   resume.addEventListener('click', () => toggleMenu(false));
 
-  menuEl.append(title, slotsRow, grid, hint, resume);
+  menuEl.append(title, currentStatus, grid, hint, resume);
 }
 
-function equipCursor(slot: 0 | 1): void {
-  if (!menuCursor) return;
-  equipItem(state, slot, menuCursor);
+function applyEquip(kind: BombKind | null): void {
+  equipBomb(state, kind);
+  menuCursor = state.equipped;
   persistState(state);
   renderMenu();
   syncHud(true);
 }
 
+const held = new Set<string>();
+
 function toggleMenu(open = !menuOpen): void {
   menuOpen = open;
   buttonHeld[0] = false;
   buttonHeld[1] = false;
+  held.clear();
   if (open) {
-    menuCursor = state.slots[0] ?? state.unlockedBombs[0] ?? null;
+    menuCursor = state.equipped;
     renderMenu();
   }
   menuEl.style.display = open ? 'flex' : 'none';
@@ -531,15 +590,14 @@ startBtn.addEventListener('pointerdown', (e) => {
   toggleMenu();
 });
 
-// Long presses on the item buttons must not open the context menu (Android) or start a
+// Long presses on the verb buttons must not open the context menu (Android) or start a
 // text selection (iOS), which would steal the touch and leave a button stuck held
 for (const type of ['contextmenu', 'selectstart'] as const) {
   window.addEventListener(type, (e) => e.preventDefault());
 }
 
-// Keyboard: WASD / Arrows move, J / Space = B, K / E = A (hold to lift, release to throw),
-// Enter / Esc / P = START. In the menu, left/right pick an item and J / K equip it.
-const held = new Set<string>();
+// Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Pull out),
+// Enter / Esc / P = START. In the menu, left/right cycle choices and J / Space / K / E equip.
 const B_KEYS = [' ', 'j'];
 const A_KEYS = ['k', 'e'];
 window.addEventListener('keydown', (e) => {
@@ -551,14 +609,18 @@ window.addEventListener('keydown', (e) => {
   }
   if (menuOpen) {
     if (e.repeat) return;
-    const list = state.unlockedBombs;
-    const idx = menuCursor ? list.indexOf(menuCursor) : -1;
-    if (k === 'arrowleft' || k === 'a') menuCursor = list[Math.max(0, idx - 1)] ?? null;
-    if (k === 'arrowright' || k === 'd')
-      menuCursor = list[Math.min(list.length - 1, idx + 1)] ?? null;
-    if (B_KEYS.includes(k)) equipCursor(0);
-    else if (A_KEYS.includes(k)) equipCursor(1);
-    else renderMenu();
+    const choices = menuChoices();
+    const idx = Math.max(0, choices.indexOf(menuCursor));
+    if (k === 'arrowleft' || k === 'a') {
+      menuCursor = choices[(idx - 1 + choices.length) % choices.length] ?? null;
+      renderMenu();
+    } else if (k === 'arrowright' || k === 'd') {
+      menuCursor = choices[(idx + 1) % choices.length] ?? null;
+      renderMenu();
+    } else if (B_KEYS.includes(k) || A_KEYS.includes(k)) {
+      applyEquip(menuCursor);
+      toggleMenu(false);
+    }
     return;
   }
   held.add(k);
@@ -589,6 +651,16 @@ const readInput = (): Input => {
 // HUD Synchronization (diffed so DOM only updates when values change)
 // =========================================================================
 let prevHudSig = '';
+let prevRollBusy = false;
+
+function syncRollBtnFeedback(): void {
+  const rollBusy = state.rollTimer > 0 || state.rollRecoveryTimer > 0;
+  if (rollBusy !== prevRollBusy) {
+    prevRollBusy = rollBusy;
+    rollBtn.style.opacity = rollBusy ? '0.62' : '1';
+    rollBtn.style.borderColor = rollBusy ? '#2c7a7b' : '#4fd1c5';
+  }
+}
 
 function syncHud(force = false): void {
   const room = currentRoom(world, state);
@@ -603,7 +675,7 @@ function syncHud(force = false): void {
     state.heartShards,
     state.smallKeys,
     state.hasBossKey,
-    state.slots.join(','),
+    state.equipped ?? 'none',
     state.unlockedBombs.join(','),
     readyBombs,
     state.maxBombs,
@@ -667,15 +739,14 @@ function syncHud(force = false): void {
     }
   }
 
-  // Satchel pips & pixel bomb sprites on B and A
+  // Satchel pips & fixed-verb sprites on B = Roll and A = Pull out
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
-  state.slots.forEach((kind, i) => {
-    const icon = itemBtns[i]?.querySelector('span');
-    if (icon) {
-      icon.innerHTML = kind ? pxIcon(BOMB_META[kind].sprite, 28) : '·';
-    }
-  });
+  rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 26);
+  pullBtnIcon.innerHTML = state.equipped
+    ? pxIcon(BOMB_META[state.equipped].sprite, 26)
+    : '<span style="font-size:18px;font-weight:900;opacity:0.75">—</span>';
+  pullBtn.style.borderColor = state.equipped ? '#f6e05e' : '#718096';
 
   // Boss HP bar
   if (boss) {
@@ -749,6 +820,7 @@ const frame = (now: number): void => {
   }
 
   syncHud();
+  syncRollBtnFeedback();
   view.sync(world, state, now / 1000);
 };
 requestAnimationFrame(frame);

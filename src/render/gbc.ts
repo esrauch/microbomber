@@ -8,13 +8,16 @@
  */
 import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, ZoneId } from '../game/types';
 import {
+  LIFT_DELAY,
+  ROLL_DURATION,
   ROOM_H,
   ROOM_W,
   type State,
   type World,
-  computeGhostTargets,
+  computeThrowTarget,
   currentRoom,
   isRoomLit,
+  tileAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
@@ -138,8 +141,36 @@ interface BlastInstance {
   born: number;
 }
 
+interface BlockTween {
+  targetX: number;
+  targetY: number;
+  fromX: number;
+  fromY: number;
+  startTime: number;
+}
+
+interface DoorTween {
+  x: number;
+  y: number;
+  tile: 'D' | 'K' | 'S';
+  startTime: number;
+}
+
+function easeOutCubic(t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  return 1 - (1 - u) ** 3;
+}
+
+function easeOutBack(t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * (u - 1) ** 3 + c1 * (u - 1) ** 2;
+}
+
 const UPSCALE = 4;
 const INK_CSS = cssRgb(INK_RGB);
+const FIRE_WHITE = cssRgb(OBJ_PALETTES.fire[0]);
 const FIRE_LIGHT = cssRgb(OBJ_PALETTES.fire[1]);
 const FIRE_MID = cssRgb(OBJ_PALETTES.fire[2]);
 
@@ -198,17 +229,51 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     chimneys: [],
   };
 
-  // Animation trackers
+  // Animation & snappy motion trackers
+  let activeRoomKey = '';
   let prevX = -1;
   let prevY = -1;
   let prevTime = 0;
   let walkCycle = 0;
   let throwAnimUntil = 0;
   let crouchAnimUntil = 0;
+  let liftPopUntil = 0;
+  let wasRolling = false;
+  let rollLandUntil = 0;
   let fallAnimUntil = 0;
   let holdAnimUntil = 0;
   let heldKind: PickupKind = 'ember-bomb';
   let activeBlasts: BlastInstance[] = [];
+  const flyingBombIds = new Set<number>();
+  const bombLandUntil = new Map<number, number>();
+  const blockTweens = new Map<number, BlockTween>();
+  const pickupSpawnTime = new Map<string, number>();
+  const pickupPrevPos = new Map<string, { x: number; y: number }>();
+  const closedDoors = new Map<string, { x: number; y: number; tile: 'D' | 'K' | 'S' }>();
+  let openingDoors: DoorTween[] = [];
+
+  function syncDoorState(world: World, s: State, reset: boolean): void {
+    if (reset) {
+      closedDoors.clear();
+      openingDoors = [];
+    } else {
+      for (const [key, d] of closedDoors) {
+        const nowTile = tileAt(world, s, s.zone, s.rx, s.ry, d.x, d.y);
+        if (nowTile !== d.tile) {
+          closedDoors.delete(key);
+          openingDoors.push({ x: d.x, y: d.y, tile: d.tile, startTime: -1 });
+        }
+      }
+    }
+    for (let y = 0; y < ROOM_H; y++) {
+      for (let x = 0; x < ROOM_W; x++) {
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
+        if (t === 'D' || t === 'K' || t === 'S') {
+          closedDoors.set(`${x},${y}`, { x, y, tile: t });
+        }
+      }
+    }
+  }
 
   function drawObjSprite(
     ctx: CanvasRenderingContext2D,
@@ -230,6 +295,33 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
   }
 
+  function drawScaledSprite(
+    ctx: CanvasRenderingContext2D,
+    name: ObjSpriteName,
+    dx: number,
+    dy: number,
+    sx: number,
+    sy: number,
+    flipX = false,
+    pal?: ObjPaletteId,
+    tiltRad = 0,
+  ): void {
+    if (Math.abs(sx - 1) < 0.005 && Math.abs(sy - 1) < 0.005 && Math.abs(tiltRad) < 0.005) {
+      drawObjSprite(ctx, name, dx, dy, flipX, pal);
+      return;
+    }
+    const sp = getObj(name, pal);
+    const pivotX = dx + sp.width * 0.5;
+    const pivotY = dy + sp.height;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(pivotX, pivotY);
+    if (tiltRad !== 0) ctx.rotate(tiltRad);
+    ctx.scale(flipX ? -sx : sx, sy);
+    ctx.drawImage(sp, -sp.width * 0.5, -sp.height);
+    ctx.restore();
+  }
+
   function drawRotatedObj(
     ctx: CanvasRenderingContext2D,
     name: ObjSpriteName,
@@ -249,41 +341,120 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     ctx.restore();
   }
 
-  function drawReticle(
+  const LANDING_RING_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+    [-1, -2],
+    [0, -2],
+    [1, -2],
+    [-2, -1],
+    [2, -1],
+    [-3, 0],
+    [3, 0],
+    [-2, 1],
+    [2, 1],
+    [-1, 2],
+    [0, 2],
+    [1, 2],
+  ];
+
+  function drawThrowArcPreview(
     ctx: CanvasRenderingContext2D,
-    tx: number,
-    ty: number,
-    color: string,
-    dropMode: boolean,
-    pulsePhase: number,
+    s: State,
+    targetX: number,
+    targetY: number,
+    isEmber: boolean,
+    time: number,
   ): void {
-    const px = tx * TILE_PX + (pulsePhase ? 1 : 0);
-    const py = ty * TILE_PX + (pulsePhase ? 1 : 0);
-    const size = pulsePhase ? 14 : 16;
-    const corners: Array<[number, number]> = [
-      [px, py],
-      [px + size - 4, py],
-      [px, py + size - 4],
-      [px + size - 4, py + size - 4],
-    ];
+    const dotColor = isEmber ? FIRE_MID : FIRE_LIGHT;
+    const txPx = Math.round(targetX * TILE_PX);
+    const tyPx = Math.round(targetY * TILE_PX);
+
+    // 7x5 crisp pixel landing ring / target shadow with 1px ink outline
     ctx.fillStyle = INK_CSS;
-    for (const [cx, cy] of corners) {
-      ctx.fillRect(cx, cy, 4, 4);
+    for (const [ox, oy] of LANDING_RING_OFFSETS) {
+      ctx.fillRect(txPx + ox - 1, tyPx + oy, 3, 1);
+      ctx.fillRect(txPx + ox, tyPx + oy - 1, 1, 3);
     }
-    ctx.fillStyle = color;
-    ctx.fillRect(px + 1, py + 1, 3, 1);
-    ctx.fillRect(px + 1, py + 1, 1, 3);
-    ctx.fillRect(px + size - 4, py + 1, 3, 1);
-    ctx.fillRect(px + size - 2, py + 1, 1, 3);
-    ctx.fillRect(px + 1, py + size - 2, 3, 1);
-    ctx.fillRect(px + 1, py + size - 4, 1, 3);
-    ctx.fillRect(px + size - 4, py + size - 2, 3, 1);
-    ctx.fillRect(px + size - 2, py + size - 4, 1, 3);
-    if (!dropMode) {
+    ctx.fillStyle = dotColor;
+    for (const [ox, oy] of LANDING_RING_OFFSETS) {
+      ctx.fillRect(txPx + ox, tyPx + oy, 1, 1);
+    }
+    if (Math.floor(time * 6) % 2 === 0) {
       ctx.fillStyle = INK_CSS;
-      ctx.fillRect(tx * TILE_PX + 6, ty * TILE_PX + 6, 4, 4);
-      ctx.fillStyle = color;
-      ctx.fillRect(tx * TILE_PX + 7, ty * TILE_PX + 7, 2, 2);
+      ctx.fillRect(txPx - 1, tyPx, 3, 1);
+      ctx.fillRect(txPx, tyPx - 1, 1, 3);
+      ctx.fillStyle = FIRE_WHITE;
+      ctx.fillRect(txPx, tyPx, 1, 1);
+    }
+
+    // Dotted parabolic arc from Pip's overhead hands to landing target
+    const startX = s.x * TILE_PX;
+    const startY = s.y * TILE_PX - 14;
+    const endX = targetX * TILE_PX;
+    const endY = targetY * TILE_PX;
+    const march = (time * 3.2) % 1;
+    const dotCount = 8;
+
+    for (let i = 0; i < dotCount; i++) {
+      const u = (i + march) / dotCount;
+      const px = Math.round(startX + (endX - startX) * u);
+      const py = Math.round(startY + (endY - startY) * u - 4 * 14 * u * (1 - u));
+      const big = u >= 0.14 && u <= 0.86;
+      if (big) {
+        ctx.fillStyle = INK_CSS;
+        ctx.fillRect(px - 2, py - 1, 4, 2);
+        ctx.fillRect(px - 1, py - 2, 2, 4);
+        ctx.fillStyle = dotColor;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      } else {
+        ctx.fillStyle = INK_CSS;
+        ctx.fillRect(px - 1, py, 3, 1);
+        ctx.fillRect(px, py - 1, 1, 3);
+        ctx.fillStyle = dotColor;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
+
+  function drawOpeningDoor(
+    ctx: CanvasRenderingContext2D,
+    zone: ZoneId,
+    d: DoorTween,
+    age: number,
+  ): void {
+    const t = easeOutCubic(age / 0.18);
+    const split = Math.min(8, Math.round(t * 8));
+    const keep = 8 - split;
+    if (keep <= 0) return;
+
+    const ew = d.tile === 'S' && (d.x === 0 || d.x === ROOM_W - 1);
+    const bgTile: BgTile =
+      d.tile === 'D'
+        ? BG.doorKeyNS
+        : d.tile === 'K'
+          ? BG.doorBossNS
+          : ew
+            ? BG.shutterEW
+            : BG.shutterNS;
+    const sp = getPlacedBg(zone, {
+      x: d.x,
+      y: d.y,
+      tile: bgTile,
+      transparentZero: d.tile === 'S',
+    });
+    const dx = d.x * TILE_PX;
+    const dy = d.y * TILE_PX;
+
+    if (ew) {
+      ctx.drawImage(sp, 0, split, TILE_PX, keep, dx, dy, TILE_PX, keep);
+      ctx.drawImage(sp, 0, 8, TILE_PX, keep, dx, dy + 8 + split, TILE_PX, keep);
+    } else {
+      ctx.drawImage(sp, split, 0, keep, TILE_PX, dx, dy, keep, TILE_PX);
+      ctx.drawImage(sp, 8, 0, keep, TILE_PX, dx + 8 + split, dy, keep, TILE_PX);
+    }
+
+    if ((d.tile === 'D' || d.tile === 'K') && age < 0.06) {
+      ctx.fillStyle = FIRE_LIGHT;
+      ctx.fillRect(dx + 7, dy + 7, 2, 2);
     }
   }
 
@@ -303,17 +474,30 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     dx: number,
     dy: number,
     time: number,
+    sx = 1,
+    sy = 1,
+    tiltRad = 0,
   ): void {
     if (kind === 'ember-bomb' || kind === 'cinder-core') {
       if (Math.floor(time * 6) % 2 === 0) {
-        drawObjSprite(ctx, 'SPARKLE_CELL', dx, dy);
+        drawScaledSprite(ctx, 'SPARKLE_CELL', dx, dy, sx, sy, false, undefined, tiltRad);
       }
     }
     if (kind === 'ember-bomb') {
-      drawObjSprite(ctx, Math.floor(time * 5) % 2 === 0 ? 'EMBER_1' : 'EMBER_2', dx, dy);
+      drawScaledSprite(
+        ctx,
+        Math.floor(time * 5) % 2 === 0 ? 'EMBER_1' : 'EMBER_2',
+        dx,
+        dy,
+        sx,
+        sy,
+        false,
+        undefined,
+        tiltRad,
+      );
       return;
     }
-    drawObjSprite(ctx, pickupMap[kind], dx, dy);
+    drawScaledSprite(ctx, pickupMap[kind], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
   function drawBomb(
@@ -322,6 +506,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     dx: number,
     dy: number,
     time: number,
+    sx = 1,
+    sy = 1,
   ): void {
     const idx =
       b.fuse > 0.55
@@ -342,7 +528,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       'EMBER_4',
     ];
     const list = b.kind === 'ember' ? emberFrames : powderFrames;
-    drawObjSprite(ctx, list[idx] ?? list[0], dx, dy);
+    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy);
   }
 
   function drawNpc(ctx: CanvasRenderingContext2D, npc: NpcSpec, time: number): void {
@@ -429,8 +615,15 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   }
 
   function drawPip(ctx: CanvasRenderingContext2D, s: State, time: number): void {
-    // Getting hit is the i-frame blink only (no hurt frame), as in Oracle
-    if (s.invulnTimer > 0 && time >= fallAnimUntil && Math.floor(time * 18) % 2 === 0) return;
+    // Getting hit is the i-frame blink only (no hurt frame), as in Oracle (roll uses its own shimmer)
+    if (
+      s.rollTimer <= 0 &&
+      s.invulnTimer > 0 &&
+      time >= fallAnimUntil &&
+      Math.floor(time * 18) % 2 === 0
+    ) {
+      return;
+    }
 
     const dx = Math.round(s.x * TILE_PX - 8);
     const dy = Math.round(s.y * TILE_PX - 10);
@@ -451,22 +644,60 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       return;
     }
 
-    // Facing: south / north / east, with west drawn as east flipped
-    const dir = s.aimX !== 0 ? 'EAST' : s.aimY < 0 ? 'NORTH' : 'SOUTH';
-    const flip = s.aimX < 0;
-    const draw = (name: ObjSpriteName): void => drawObjSprite(ctx, name, dx, dy, flip);
+    if (s.rollTimer > 0) {
+      const u = Math.max(0, Math.min(1, 1 - s.rollTimer / ROLL_DURATION));
+      const rDir =
+        Math.abs(s.rollDirX) > Math.abs(s.rollDirY) ? 'EAST' : s.rollDirY < 0 ? 'NORTH' : 'SOUTH';
+      const rFlip = rDir === 'EAST' && s.rollDirX < 0;
+      const phase = Math.min(3, Math.floor(u * 4));
+      const rollSprite: ObjSpriteName =
+        phase % 2 === 0 ? `PIP_${rDir}_ROLL_1` : `PIP_${rDir}_ROLL_2`;
+      const hopPx = Math.round(4 * 2 * u * (1 - u));
+      const shimmerPal: ObjPaletteId | undefined =
+        u >= 0.2 && u <= 0.8 && Math.floor(time * 30) % 3 === 0 ? 'spectral' : undefined;
+      drawObjSprite(ctx, rollSprite, dx, dy - hopPx, rFlip, shimmerPal);
+      return;
+    }
+
+    // Facing from continuous 360° aim vector: dominant axis, west drawn as east flipped
+    const dir = Math.abs(s.aimX) > Math.abs(s.aimY) ? 'EAST' : s.aimY < 0 ? 'NORTH' : 'SOUTH';
+    const flip = dir === 'EAST' && s.aimX < 0;
+
+    let baseSx = 1;
+    let baseSy = 1;
+    if (time < rollLandUntil) {
+      const e = easeOutCubic(1 - (rollLandUntil - time) / 0.12);
+      baseSx = 1.22 + (1 - 1.22) * e;
+      baseSy = 0.8 + (1 - 0.8) * e;
+    }
+
+    const draw = (name: ObjSpriteName, sx = baseSx, sy = baseSy): void =>
+      drawScaledSprite(ctx, name, dx, dy, sx, sy, flip);
     const stepIdx = Math.floor(walkCycle) % 4; // 4-beat: idle, step L, idle, step R
     const moving = walkCycle > 0;
 
-    if (time < crouchAnimUntil) {
-      draw(`PIP_${dir}_LIFT`);
+    const carried = s.bombs.find((b) => Boolean(b.carried));
+    if (carried) {
+      let liftSx = baseSx;
+      let liftSy = baseSy;
+      if (time < liftPopUntil) {
+        const e = easeOutCubic(1 - (liftPopUntil - time) / 0.14);
+        liftSx *= 0.9 + (1 - 0.9) * e;
+        liftSy *= 1.14 + (1 - 1.14) * e;
+      }
+      const second = moving && stepIdx >= 2;
+      draw(second ? `PIP_${dir}_CARRY_2` : `PIP_${dir}_CARRY_1`, liftSx, liftSy);
+      const bombOffsetY = (second ? 10 : 11) + Math.round((liftSy - 1) * 12);
+      drawBomb(ctx, carried, dx, dy - bombOffsetY, time, liftSx, liftSy);
       return;
     }
-    const carried = s.bombs.find((b) => b.carriedBy !== undefined);
-    if (carried) {
-      const second = moving && stepIdx >= 2;
-      draw(second ? `PIP_${dir}_CARRY_2` : `PIP_${dir}_CARRY_1`);
-      drawBomb(ctx, carried, dx, dy - (second ? 10 : 11), time);
+
+    if (s.pullHoldTime > 0 && s.pullHoldTime < LIFT_DELAY) {
+      draw(`PIP_${dir}_LIFT`, 1.12, 0.88);
+      return;
+    }
+    if (time < crouchAnimUntil) {
+      draw(`PIP_${dir}_LIFT`, 1.08, 0.92);
       return;
     }
     if (time < throwAnimUntil) {
@@ -562,7 +793,25 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
 
   return {
     rebuild(world: World, s: State): void {
-      activeBlasts = [];
+      const rk = `${s.zone}:${s.rx},${s.ry}`;
+      const roomChanged = rk !== activeRoomKey || s.events.includes('player-respawn');
+      activeRoomKey = rk;
+
+      if (roomChanged) {
+        activeBlasts = [];
+        flyingBombIds.clear();
+        bombLandUntil.clear();
+        blockTweens.clear();
+        pickupSpawnTime.clear();
+        pickupPrevPos.clear();
+        wasRolling = false;
+        for (const p of s.pickups) {
+          pickupSpawnTime.set(p.id, -1);
+          pickupPrevPos.set(p.id, { x: p.x, y: p.y });
+        }
+      }
+      syncDoorState(world, s, roomChanged);
+
       plan = buildRoomLayout(world, s);
 
       rctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
@@ -583,6 +832,12 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       const dt = prevTime > 0 ? Math.min(0.05, Math.max(0, time - prevTime)) : 0.016;
       prevTime = time;
 
+      const isRolling = s.rollTimer > 0;
+      if (wasRolling && !isRolling && time >= fallAnimUntil) {
+        rollLandUntil = time + 0.12;
+      }
+      wasRolling = isRolling;
+
       const movedDist = prevX >= 0 ? Math.hypot(s.x - prevX, s.y - prevY) : 0;
       prevX = s.x;
       prevY = s.y;
@@ -597,8 +852,12 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       for (const ev of s.events) {
         if (ev === 'bomb-throw') {
           throwAnimUntil = time + 0.16;
-        } else if (ev === 'bomb-drop' || ev === 'bomb-lift') {
-          crouchAnimUntil = time + 0.12;
+        } else if (ev === 'bomb-lift') {
+          liftPopUntil = time + 0.14;
+        } else if (ev === 'bomb-drop') {
+          crouchAnimUntil = time + 0.1;
+        } else if (ev === 'door-unlock' || ev === 'room-solved') {
+          syncDoorState(world, s, false);
         } else if (ev === 'pit-fall') {
           fallAnimUntil = time + 0.36;
         } else if (
@@ -613,6 +872,30 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         }
       }
 
+      // Track bomb flight -> landing transitions for 0.14s landing squash
+      const liveBombIds = new Set<number>();
+      for (const b of s.bombs) {
+        liveBombIds.add(b.id);
+        if (b.flight) {
+          flyingBombIds.add(b.id);
+        } else if (flyingBombIds.has(b.id)) {
+          flyingBombIds.delete(b.id);
+          bombLandUntil.set(b.id, time + 0.14);
+        }
+      }
+      for (const id of flyingBombIds) {
+        if (!liveBombIds.has(id)) flyingBombIds.delete(id);
+      }
+      for (const id of bombLandUntil.keys()) {
+        if (!liveBombIds.has(id)) bombLandUntil.delete(id);
+      }
+
+      // Stamp startTime on newly opened doors/shutters and prune finished 0.18s tweens
+      for (const d of openingDoors) {
+        if (d.startTime < 0) d.startTime = time;
+      }
+      openingDoors = openingDoors.filter((d) => time - d.startTime < 0.18);
+
       for (const b of s.blasts) {
         activeBlasts.push({
           x: b.x,
@@ -624,7 +907,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
       activeBlasts = activeBlasts.filter((b) => time - b.born < 0.28);
 
-      // 1. Pass 1 & 2: Static terrain + animated interior water & warp runes
+      // 1. Pass 1 & 2: Static terrain + animated interior water, warp runes & retracting doors
       mainCtx.imageSmoothingEnabled = false;
       mainCtx.drawImage(roomLayer, 0, 0);
 
@@ -652,25 +935,11 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           wp.y * TILE_PX,
         );
       }
-
-      // 2. Ghost Drop & Throw landing reticles (`GAME.md` §2)
-      const { dropTile, throwTile } = computeGhostTargets(world, s);
-      const carried = s.bombs.find((b) => b.carriedBy !== undefined);
-      const isEmber = carried?.kind === 'ember';
-      const pulse = Math.floor(time * 5) % 2;
-      if (!carried) drawReticle(mainCtx, dropTile[0], dropTile[1], FIRE_LIGHT, true, pulse);
-      if (carried && (throwTile[0] !== dropTile[0] || throwTile[1] !== dropTile[1])) {
-        drawReticle(
-          mainCtx,
-          throwTile[0],
-          throwTile[1],
-          isEmber ? FIRE_MID : FIRE_LIGHT,
-          false,
-          pulse,
-        );
+      for (const d of openingDoors) {
+        drawOpeningDoor(mainCtx, s.zone, d, Math.max(0, time - d.startTime));
       }
 
-      // 3. Burning Ember hearth patches (4-frame fire)
+      // 2. Burning Ember hearth patches (4-frame fire)
       const fireNames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
         'FIRE_1',
         'FIRE_2',
@@ -682,7 +951,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         drawObjSprite(mainCtx, fireNames[fIdx] ?? 'FIRE_1', f.x * TILE_PX, f.y * TILE_PX);
       }
 
-      // 4. Pass 3: Y-sorted ground actors
+      // 3. Pass 3: Y-sorted ground actors
       interface Drawable {
         footY: number;
         draw: () => void;
@@ -704,12 +973,33 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         });
       }
 
-      for (const blk of s.blocks) {
-        const nudge = blk.pushCharge > 0.05 ? 1 : 0;
-        const px = blk.x * TILE_PX + blk.pushDirX * nudge;
-        const py = blk.y * TILE_PX + blk.pushDirY * nudge;
+      for (const [i, blk] of s.blocks.entries()) {
+        let tw = blockTweens.get(i);
+        const curProgress =
+          tw && tw.startTime >= 0 ? easeOutCubic((time - tw.startTime) / 0.14) : 1;
+        const curX = tw ? tw.fromX + (tw.targetX - tw.fromX) * curProgress : blk.x;
+        const curY = tw ? tw.fromY + (tw.targetY - tw.fromY) * curProgress : blk.y;
+
+        if (!tw) {
+          tw = { targetX: blk.x, targetY: blk.y, fromX: blk.x, fromY: blk.y, startTime: -1 };
+          blockTweens.set(i, tw);
+        } else if (tw.targetX !== blk.x || tw.targetY !== blk.y) {
+          if (Math.hypot(blk.x - curX, blk.y - curY) <= 2.1) {
+            tw = { targetX: blk.x, targetY: blk.y, fromX: curX, fromY: curY, startTime: time };
+          } else {
+            tw = { targetX: blk.x, targetY: blk.y, fromX: blk.x, fromY: blk.y, startTime: -1 };
+          }
+          blockTweens.set(i, tw);
+        }
+
+        const u = tw.startTime < 0 ? 1 : easeOutCubic((time - tw.startTime) / 0.14);
+        const visX = tw.fromX + (tw.targetX - tw.fromX) * u;
+        const visY = tw.fromY + (tw.targetY - tw.fromY) * u;
+        const nudge = u >= 1 && blk.pushCharge > 0.05 ? 1 : 0;
+        const px = Math.round(visX * TILE_PX + blk.pushDirX * nudge);
+        const py = Math.round(visY * TILE_PX + blk.pushDirY * nudge);
         actors.push({
-          footY: blk.y + 0.5,
+          footY: visY + 0.5,
           draw: () =>
             mainCtx.drawImage(
               getPlacedBg(s.zone, {
@@ -739,20 +1029,65 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       for (const p of s.pickups) {
-        const bob = Math.round(Math.sin(time * 4.5 + p.x) * 1.5);
+        let born = pickupSpawnTime.get(p.id);
+        if (born === undefined) {
+          born = time;
+          pickupSpawnTime.set(p.id, born);
+        }
+        let popScale = 1;
+        let hopPx = 0;
+        if (born >= 0 && time - born < 0.22) {
+          const u = Math.max(0, Math.min(1, (time - born) / 0.22));
+          popScale = Math.max(0.2, easeOutBack(u));
+          hopPx = Math.round(4 * 6 * u * (1 - u));
+        }
+
+        const prevPos = pickupPrevPos.get(p.id);
+        let sx = popScale;
+        let sy = popScale;
+        let tiltRad = 0;
+        if (prevPos && dt > 0.001) {
+          const vx = (p.x - prevPos.x) / dt;
+          const vy = (p.y - prevPos.y) / dt;
+          const speed = Math.hypot(vx, vy);
+          if (speed > 0.8 && speed < 40) {
+            const zip = Math.min(1, (speed - 0.8) / 5);
+            sx *= 1 - 0.1 * zip;
+            sy *= 1 + 0.16 * zip;
+            tiltRad = Math.max(-0.28, Math.min(0.28, (vx / speed) * 0.24 * zip));
+          }
+        }
+        pickupPrevPos.set(p.id, { x: p.x, y: p.y });
+
+        const bob = hopPx > 0 ? 0 : Math.round(Math.sin(time * 4.5 + p.x) * 1.5);
         const dx = Math.round(p.x * TILE_PX - 8);
-        const dy = Math.round(p.y * TILE_PX - 9) + bob;
+        const dy = Math.round(p.y * TILE_PX - 9) + bob - hopPx;
         actors.push({
           footY: p.y,
           draw: () => {
             drawObjSprite(mainCtx, 'SHADOW_CELL', dx, Math.round(p.y * TILE_PX - 8));
-            drawPickup(mainCtx, p.kind, dx, dy, time);
+            drawPickup(mainCtx, p.kind, dx, dy, time, sx, sy, tiltRad);
           },
         });
       }
 
       for (const b of s.bombs) {
-        if (b.flight || b.carriedBy !== undefined) continue;
+        if (b.flight || b.carried) continue;
+        let sx = 1;
+        let sy = 1;
+        const landEnd = bombLandUntil.get(b.id) ?? 0;
+        if (time < landEnd) {
+          const e = easeOutCubic(1 - (landEnd - time) / 0.14);
+          sx *= 1.25 + (1 - 1.25) * e;
+          sy *= 0.78 + (1 - 0.78) * e;
+        }
+        if (b.fuse < 0.45) {
+          const urgency = Math.max(0, Math.min(1, (0.45 - b.fuse) / 0.45));
+          const swell = 1 + 0.18 * urgency;
+          const pulse = Math.sin(time * (28 + urgency * 26)) * (0.08 + 0.1 * urgency);
+          sx *= swell + pulse;
+          sy *= swell - pulse * 0.85;
+        }
         actors.push({
           footY: b.y,
           draw: () =>
@@ -762,6 +1097,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
               Math.round(b.x * TILE_PX - 8),
               Math.round(b.y * TILE_PX - 9),
               time,
+              sx,
+              sy,
             ),
         });
       }
@@ -781,12 +1118,19 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       actors.sort((a, b) => a.footY - b.footY);
       for (const a of actors) a.draw();
 
-      // 5. Pass 4: Overhead roof eaves, tree crowns, north arch lintels & chimney smoke!
+      // 4. Pass 4: Overhead roof eaves, tree crowns, north arch lintels & chimney smoke!
       mainCtx.drawImage(canopyLayer, 0, 0);
       for (const [cx, cy] of plan.chimneys) {
         const rise = Math.floor((time * 7) % 10);
         const sway = Math.round(Math.sin(time * 4) * 1.5);
         drawObjSprite(mainCtx, 'CHIMNEY_PUFF', cx + sway, Math.max(0, cy - rise));
+      }
+
+      // 5. Dotted 360° throw arc preview while carrying a bomb
+      const carried = s.bombs.find((b) => Boolean(b.carried));
+      if (carried) {
+        const { targetX, targetY } = computeThrowTarget(world, s);
+        drawThrowArcPreview(mainCtx, s, targetX, targetY, carried.kind === 'ember', time);
       }
 
       // 6. Airborne thrown bombs

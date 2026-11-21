@@ -154,7 +154,7 @@ describe('doorways and hazards', () => {
     const s = newState(world, 'ember-crypt', 0, 3, 9.2, 6.5);
     s.enemies = [];
     s.unlockedBombs.push('ember');
-    s.slots[0] = 'ember';
+    s.equipped = 'ember';
 
     // Cross East into Crypt Foyer (1, 3)
     expect(walk(world, s, 1, 0, 1.5)).toBe(true);

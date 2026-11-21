@@ -1,6 +1,6 @@
 /**
- * Lightweight Web Audio synthesized SFX for crisp tactile feedback on bombs,
- * switches, braziers, keys, and boss phases.
+ * Lightweight Web Audio synthesized SFX for crisp tactile feedback on rolls,
+ * bombs, switches, braziers, keys, and boss phases.
  */
 
 export interface SfxPlayer {
@@ -49,7 +49,13 @@ export function makeSfx(): SfxPlayer {
     muted: false,
     play(ev: string) {
       if (this.muted) return;
-      if (ev === 'bomb-drop') {
+      if (ev === 'player-roll') {
+        tone(190, 420, 0.09, 'triangle', 0.13, 0);
+        tone(420, 210, 0.11, 'sine', 0.09, 0.06);
+      } else if (ev === 'bomb-lift') {
+        tone(260, 480, 0.065, 'sine', 0.13, 0);
+        tone(480, 620, 0.05, 'triangle', 0.09, 0.035);
+      } else if (ev === 'bomb-drop') {
         tone(240, 140, 0.07, 'sine', 0.12);
       } else if (ev === 'bomb-throw') {
         tone(280, 520, 0.1, 'triangle', 0.13);

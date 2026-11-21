@@ -175,13 +175,13 @@ export interface Bomb {
   /** Current world position in tiles (tile centres are `k + 0.5`). */
   x: number;
   y: number;
-  /** Remaining fuse in seconds (counts down once landed, or during flight). */
+  /** Remaining fuse in seconds (counts down once landed, while carried, or during flight). */
   fuse: number;
-  /** True while the player is still overlapping a freshly dropped bomb on their tile. */
+  /** True while the player is still overlapping a freshly dropped bomb. */
   graceOverlap: boolean;
-  /** Held overhead by the player (fuse still burning): the button that lifted it, 0 = B, 1 = A. */
-  carriedBy?: 0 | 1;
-  /** Flight state when thrown (`2–3` tiles arc). */
+  /** True while held overhead by the player via A = Pull out (fuse still burning). */
+  carried?: boolean;
+  /** Flight state when thrown along the stick's 360° angle. */
   flight?: {
     startX: number;
     startY: number;
@@ -264,8 +264,9 @@ export interface Input {
   /** Analogue movement vector (-1..1 each). */
   dx: number;
   dy: number;
-  /** Item buttons held this tick (`GAME.md` §2): tap drops the slot's bomb, hold lifts, release throws. */
+  /** B = Roll (`GAME.md` §2 & §10): dodge ~2 tiles in 0.25s + lay equipped bomb at start. */
   holdB?: boolean;
+  /** A = Pull out (`GAME.md` §2 & §10): tap drops at feet, hold lifts & carries, release throws. */
   holdA?: boolean;
 }
 
@@ -279,7 +280,7 @@ export interface State {
   /** Unit facing vector (defaults to `(0, -1)` north). */
   fx: number;
   fy: number;
-  /** Cardinal aim for Drop/Throw: `fx, fy` snapped with hysteresis so it doesn't flicker. */
+  /** Continuous 360° unit aim vector for analog Throw & Roll. */
   aimX: number;
   aimY: number;
   /** Entry doorway snapshot for instant room-doorway respawn on death (`GAME.md` §1). */
@@ -293,16 +294,28 @@ export interface State {
   /** Seconds until another new bomb can be dropped or lobbed (stops spamming the satchel). */
   bombCooldown: number;
 
+  /** Active dodge-roll state (`B = Roll`: 0.25s burst, middle 0.15s i-frames, 0.35s recovery). */
+  rollTimer: number;
+  rollRecoveryTimer: number;
+  rollDirX: number;
+  rollDirY: number;
+
+  /** Button hold & 100-150ms input forgiveness buffers. */
+  pullHoldTime: number;
+  prevHoldB: boolean;
+  prevHoldA: boolean;
+  rollBufferTimer: number;
+  pullBufferTimer: number;
+  pullBufferTap: boolean;
+
   /** Health in half-hearts (`6` = 3 full hearts; `20` = 10 full hearts). */
   hp: number;
   maxHp: number;
   heartShards: number;
 
-  /** Unlocked bombs, and the item equipped on each button: `[B, A]`, set in the pause menu. */
+  /** Unlocked bombs and the single equipped bomb (`null` = None for pure dodge rolls). */
   unlockedBombs: BombKind[];
-  slots: [BombKind | null, BombKind | null];
-  /** Seconds each item button `[B, A]` has been held (0 while up). */
-  buttonTime: [number, number];
+  equipped: BombKind | null;
   maxBombs: number;
   blastRadius: number;
 
@@ -342,7 +355,7 @@ export interface State {
 }
 
 export interface SaveData {
-  version: 2;
+  version: 3;
   zone: ZoneId;
   rx: number;
   ry: number;
@@ -352,7 +365,7 @@ export interface SaveData {
   maxHp: number;
   heartShards: number;
   unlockedBombs: BombKind[];
-  slots: [BombKind | null, BombKind | null];
+  equipped: BombKind | null;
   maxBombs: number;
   blastRadius: number;
   smallKeys: number;

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { idle, tapB, throwB } from './input';
+import { idle, tapA, throwA } from './input';
 import {
   EMBER_FUSE,
   POWDER_FUSE,
   ROOM_W,
   campaignWorld,
   enterRoom,
+  equipBomb,
   exportSave,
   importSave,
   newState,
@@ -48,7 +49,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
 
-    tapB(world, s);
+    tapA(world, s);
     expect(s.bombs).toHaveLength(1);
 
     for (let t = 0; t < POWDER_FUSE + 0.15; t += 0.05) {
@@ -71,7 +72,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
 
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 15; i++) tick(world, s, idle, 0.04);
     expect(s.crystalColor).toBe('blue');
 
@@ -81,8 +82,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimY = -1;
     const initialEnemies = s.enemies.length;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwB(world, s);
-    // Flight takes <= 0.25s — far less than the 1.5s fuse!
+    throwA(world, s);
+    // Flight takes <= 0.26s — far less than the 1.5s fuse!
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(s.enemies.length).toBeLessThan(initialEnemies);
   });
@@ -91,12 +92,12 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     const world = campaignWorld();
     const s = newState(world, 'ember-crypt', 1, 3, 3.5, 6.5);
     s.unlockedBombs.push('ember');
-    s.slots[0] = 'ember';
+    equipBomb(s, 'ember');
 
     // Burn inset west bramble at (2, 6) in Crypt Foyer
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('B');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    tapB(world, s);
+    tapA(world, s);
     for (let t = 0; t < EMBER_FUSE + 0.15; t += 0.05) tick(world, s, idle, 0.05);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('.');
 
@@ -107,7 +108,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimX = -1;
     s.aimY = 0;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     expect(s.orderedStep).toBe(0);
     expect(s.torches.every((t) => !t.lit)).toBe(true);
@@ -124,7 +125,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.aimX = fx;
       s.aimY = fy;
       s.bombCooldown = 0; // staged setup, not a test of the cooldown
-      throwB(world, s);
+      throwA(world, s);
       for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     }
     expect(s.roomSolved).toBe(true);
@@ -139,11 +140,11 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(geist.kind).toBe('wickgeist');
 
     // In the dark, Blackpowder deals 0 damage
-    s.slots[0] = 'powder';
+    equipBomb(s, 'powder');
     s.aimX = 0;
     s.aimY = -1;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(geist.hp).toBe(8);
 
@@ -152,25 +153,25 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.y = 2.5;
     s.aimX = -1;
     s.aimY = 0;
-    s.slots[0] = 'ember';
+    equipBomb(s, 'ember');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(s.torches.some((t) => t.lit)).toBe(true);
 
     // Deal 8 damage with Blackpowder throws (re-lighting if phase 2 snuffs a torch)
-    s.slots[0] = 'powder';
+    equipBomb(s, 'powder');
     for (let volley = 0; volley < 6 && s.enemies.length > 0; volley++) {
       if (!s.torches.some((t) => t.lit)) {
         s.x = 3.5;
         s.y = 2.5;
         s.aimX = -1;
         s.aimY = 0;
-        s.slots[0] = 'ember';
+        equipBomb(s, 'ember');
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
-        throwB(world, s);
+        throwA(world, s);
         for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
-        s.slots[0] = 'powder';
+        equipBomb(s, 'powder');
       }
       const target = s.enemies[0];
       if (!target) break;
@@ -180,7 +181,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.aimX = 0;
       s.aimY = -1;
       s.bombCooldown = 0; // staged setup, not a test of the cooldown
-      throwB(world, s);
+      throwA(world, s);
       for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     }
     expect(s.enemies).toHaveLength(0);
@@ -196,20 +197,20 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(boss.hp).toBe(12);
 
     // Blackpowder clanks off thorn armor
-    s.slots[0] = 'powder';
+    equipBomb(s, 'powder');
     s.x = boss.x;
     s.y = boss.y + 1.8;
     s.aimX = 0;
     s.aimY = -1;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(boss.hp).toBe(12);
     expect(boss.armored).toBe(true);
 
     // Through every phase: burn the wraps with Ember whenever they're up, then blast the
     // exposed core with Blackpowder until the thorns regrow
-    s.slots[0] = 'powder';
+    equipBomb(s, 'powder');
     for (let step = 0; step < 40 && s.enemies.length > 0; step++) {
       const b = s.enemies[0]!;
       b.invulnTimer = 0;
@@ -231,8 +232,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.aimX = 0;
         s.aimY = -1;
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
-        throwB(world, s);
-        for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
+        throwA(world, s);
+        for (let i = 0; i < 10 && s.enemies.length > 0; i++) tick(world, s, idle, 0.03);
       }
     }
 
@@ -241,7 +242,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.pickups.map((p) => p.kind).sort()).toEqual(['cinder-core', 'heart-container']);
   });
 
-  it('respawns at the current room doorway on death and round-trips autosaves cleanly', () => {
+  it('respawns at the current room doorway on death and round-trips v3 autosaves cleanly', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 2, 1, 9.2, 6.5);
     s.hp = 1;
@@ -254,12 +255,15 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     // Autosave export & import
     s.unlockedBombs.push('ember');
+    equipBomb(s, 'ember');
     s.cores.push('cinder');
     s.maxBombs = 3;
     const saved = exportSave(s);
+    expect(saved.version).toBe(3);
     const loaded = importSave(world, saved);
     expect(loaded).not.toBeNull();
     expect(loaded!.unlockedBombs).toEqual(['powder', 'ember']);
+    expect(loaded!.equipped).toBe('ember');
     expect(loaded!.cores).toEqual(['cinder']);
     expect(loaded!.maxBombs).toBe(3);
   });

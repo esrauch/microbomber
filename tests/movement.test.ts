@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idle, tapB, throwB } from './input';
+import { idle, tapA, throwA } from './input';
 import { campaignWorld, cardinalFacing, newState, tick } from '../src/game/world';
 
 describe('movement feel', () => {
@@ -10,17 +10,24 @@ describe('movement feel', () => {
     expect(s.x).toBeCloseTo(2.28, 2);
   });
 
-  it('aim holds its axis near diagonals and ignores a lifting thumb', () => {
+  it('tracks continuous 360° aim above deadzone, ignores a lifting thumb, and keeps cardinalFacing for blocks', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 5.5, 6.5);
-    const aim = (dx: number, dy: number): { dx: number; dy: number } => {
-      tick(world, s, { ...idle, dx, dy }, 0.001);
-      return cardinalFacing(s);
-    };
-    expect(aim(0.7, -0.65)).toEqual({ dx: 0, dy: -1 }); // just past diagonal: still north
-    expect(aim(0.7, -0.5)).toEqual({ dx: 1, dy: 0 }); // clearly east: turns
-    expect(aim(0.6, -0.65)).toEqual({ dx: 1, dy: 0 }); // back near diagonal: holds east
-    expect(aim(-0.2, 0)).toEqual({ dx: 1, dy: 0 }); // small drift as the thumb lifts
+
+    tick(world, s, { ...idle, dx: 0.6, dy: -0.8 }, 0.001);
+    expect(s.aimX).toBeCloseTo(0.6, 4);
+    expect(s.aimY).toBeCloseTo(-0.8, 4);
+    expect(cardinalFacing(s)).toEqual({ dx: 0, dy: -1 });
+
+    tick(world, s, { ...idle, dx: 0.8, dy: -0.6 }, 0.001);
+    expect(s.aimX).toBeCloseTo(0.8, 4);
+    expect(s.aimY).toBeCloseTo(-0.6, 4);
+    expect(cardinalFacing(s)).toEqual({ dx: 1, dy: 0 });
+
+    // Small thumb drift (< 0.22 deadzone) as the thumb lifts leaves aimX/aimY untouched
+    tick(world, s, { ...idle, dx: -0.18, dy: 0 }, 0.001);
+    expect(s.aimX).toBeCloseTo(0.8, 4);
+    expect(s.aimY).toBeCloseTo(-0.6, 4);
   });
 
   it('corner assist settles on the lane centre without overshooting', () => {
@@ -54,15 +61,15 @@ describe('movement feel', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 5.5, 6.5);
     s.enemies = [];
-    tapB(world, s);
+    tapA(world, s);
     expect(s.bombs).toHaveLength(1);
-    throwB(world, s); // lifts the dropped bomb underfoot and throws it
+    throwA(world, s); // lifts the dropped bomb underfoot and throws it
     expect(s.bombs).toHaveLength(1);
     expect(s.bombs[0]?.flight).toBeDefined();
-    tapB(world, s);
+    tapA(world, s);
     expect(s.bombs).toHaveLength(1);
     for (let i = 0; i < 40; i++) tick(world, s, idle, 1 / 60);
-    tapB(world, s);
+    tapA(world, s);
     expect(s.bombs).toHaveLength(2);
   });
 
@@ -72,7 +79,7 @@ describe('movement feel', () => {
     for (let a = 0; a < 16; a++) {
       const s = newState(world, 'overworld', 3, 2, 5.25, 6.25);
       s.enemies = [];
-      tapB(world, s);
+      tapA(world, s);
       const dx = Math.cos((a * Math.PI) / 8);
       const dy = Math.sin((a * Math.PI) / 8);
       const x0 = s.x;
@@ -88,7 +95,7 @@ describe('movement feel', () => {
     s.enemies = [];
     s.aimX = -1;
     s.aimY = 0;
-    throwB(world, s);
+    throwA(world, s);
     for (let i = 0; i < 20; i++) tick(world, s, idle, 1 / 60);
     expect(s.bombs).toHaveLength(1);
     const y0 = s.y;
