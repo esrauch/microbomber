@@ -30,7 +30,12 @@ export const EMISSIVE_PREFIXES = [
 ] as const;
 
 export function auxKind(name: string): AuxKind {
-  if (name.startsWith('PIP_') || name.startsWith('CINDERHULL_') || name.startsWith('WICKGEIST_')) {
+  if (
+    name.startsWith('PIP_') ||
+    name.startsWith('MOUSE_') ||
+    name.startsWith('CINDERHULL_') ||
+    name.startsWith('WICKGEIST_')
+  ) {
     return 'hero';
   }
   if (EMISSIVE_PREFIXES.some((p) => name.startsWith(p))) return 'emissive';
@@ -45,9 +50,14 @@ function isBombWithGlowingCore(name: string): boolean {
  * Hand-tuned height per palette index ('1'..'6') for each hero, so lighting reads their
  * forms: Pip's hood sits proud of the face and tunic, the ink outline sinks to an edge.
  */
-const HERO_HEIGHTS: Record<'pip' | 'cinderArmored' | 'cinderExposed' | 'wickgeist', number[]> = {
+const HERO_HEIGHTS: Record<
+  'pip' | 'mouse' | 'cinderArmored' | 'cinderExposed' | 'wickgeist',
+  number[]
+> = {
   // peach skin, amber hood, cobalt tunic, brown, deep blue, ink
   pip: [0.72, 0.92, 0.62, 0.48, 0.4, 0.12],
+  // spark, pink ears & paws, grey fur, dark grey shade, white belly, ink
+  mouse: [0.95, 0.85, 0.62, 0.45, 0.7, 0.12],
   // specular, lime thorn tips, emerald vine, deep moss, red eye, ink
   cinderArmored: [0.95, 0.88, 0.7, 0.5, 0.78, 0.15],
   // white core, yellow, orange, red, deep ember, ink
@@ -60,6 +70,7 @@ function heightTable(name: string): number[] {
   if (name.startsWith('CINDERHULL_ARMORED')) return HERO_HEIGHTS.cinderArmored;
   if (name.startsWith('CINDERHULL_')) return HERO_HEIGHTS.cinderExposed;
   if (name.startsWith('WICKGEIST_')) return HERO_HEIGHTS.wickgeist;
+  if (name.startsWith('MOUSE_')) return HERO_HEIGHTS.mouse;
   return HERO_HEIGHTS.pip;
 }
 
@@ -123,6 +134,8 @@ export function bakeAuxData(name: ObjSpriteName): AuxImageData {
       if (kind === 'hero') {
         data[i] = Math.round(heroHeight(name, idx, x, y, width, height) * 255);
         data[i + 2] = 255;
+        // The fuse mouse's tail spark glows like a bomb fuse
+        if (idx === 1 && name.startsWith('MOUSE_')) data[i + 1] = 220;
       } else if (kind === 'emissive') {
         // Ink and darkest ember shade stay non-emissive so flames & blasts keep crisp outlines
         data[i + 1] = idx <= 4 ? 255 : 0;

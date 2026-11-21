@@ -591,7 +591,8 @@ export function makeGbcView(): GbcView {
     drawScaledSprite(ctx, pickupMap[kind], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
-  /** Experiment: with half-size actors, Pip and bombs use their hand-drawn tiny sprites. */
+  /** Tiny-actor mode: the fuse mouse stands in for Pip, and bombs use their tiny sprites. */
+  const MOUSE_GALLOP = ['RUN_1', 'RUN_2', 'RUN_3', 'RUN_4'] as const;
   const actorArt = (name: ObjSpriteName): ObjSpriteName =>
     ACTOR_SCALE < 1 ? tinyActorSprite(name) : name;
 
@@ -1173,6 +1174,13 @@ export function makeGbcView(): GbcView {
     }
   }
 
+  /** Pip's contact shadow; the fuse mouse's is small, and long under the side gallop. */
+  function pipShadowRadius(s: State): number {
+    if (ACTOR_SCALE >= 1) return 5.8;
+    const sideGallop = walkCycle > 0 && s.rollTimer <= 0 && Math.abs(s.aimX) > Math.abs(s.aimY);
+    return sideGallop ? 6.2 : 4.1;
+  }
+
   function drawPip(ctx: CanvasRenderingContext2D, s: State, time: number): void {
     // Getting hit is the i-frame blink only (no hurt frame), as in Oracle (roll uses its own shimmer)
     if (
@@ -1243,6 +1251,11 @@ export function makeGbcView(): GbcView {
     }
     if (s.blocks.some((b) => b.pushCharge > 0.04)) {
       draw(stepIdx < 2 ? `PIP_${dir}_PUSH_1` : `PIP_${dir}_PUSH_2`);
+      return;
+    }
+    if (moving && ACTOR_SCALE < 1) {
+      // The fuse mouse gallops on all four legs: one frame per beat
+      draw(`MOUSE_${dir}_${MOUSE_GALLOP[stepIdx] ?? 'RUN_1'}`);
       return;
     }
     if (moving) {
@@ -1674,7 +1687,7 @@ export function makeGbcView(): GbcView {
           s.zone,
           s.x * TILE_PX,
           s.y * TILE_PX + 5,
-          5.8 * (ACTOR_SCALE < 1 ? 0.7 : 1),
+          pipShadowRadius(s),
           pipHopTiles,
         );
       }

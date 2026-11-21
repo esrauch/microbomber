@@ -90,6 +90,13 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 
 ## 3. Sprites, VFX & UI Icons (`OBJ`, up to `6` RGB555 Colours Each)
 
+### 3.0 Fuse Mouse (tiny-actor hero, experiment)
+
+In tiny-actor mode (Settings toggle or `?tiny=1`) Pip is drawn as the **fuse mouse**: ~11 px
+tall upright when idle, a ~15 px four-legged gallop when moving, with a fuse tail whose spark
+glows. `MOUSE_*` sprites use the `mouse` palette and overhang a centred, half-size hitbox.
+Frames, decisions and the remaining checklist: `MOUSE_PLAN.md`.
+
 ### 3.1 Pip (`16 × 16`, Oracle proportions)
 - **Silhouette:** a long **floppy amber hood point** is the hero feature, the way Link's cap is. It always flops to one side (screen-left from the front, screen-right from the back, behind the head in profile) and sways on each step and in a slow idle breath.
 - **Palette (`'pip'`):** peach skin, amber hood, cobalt tunic, brown (hood shade, belt, boots, goggle rims, satchel), deep blue (tunic shade), ink. **Selective outline:** ink only on the silhouette; interior edges use the darker fill.

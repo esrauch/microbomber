@@ -37,12 +37,15 @@ export const OBJ_PALETTE_IDS = [
   'spectral',
   'villager',
   'crimson',
+  'mouse',
 ] as const;
 export type ObjPaletteId = (typeof OBJ_PALETTE_IDS)[number];
 
 export type ObjPalette = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
 
-/** 8 sprite palettes of 6 RGB555 colours each (indices '1'..'6'; '.' is transparent). */
+/**
+ * Sprite palettes of 6 RGB555 colours each. Pip and the fuse mouse are alternate heroes, never
+ * on screen together, so at most 8 are loaded at once (indices '1'..'6'; '.' is transparent). */
 export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
   pip: [
     rgb555(248, 208, 160), // 1: peach skin & lens glint
@@ -106,6 +109,14 @@ export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
     rgb555(248, 136, 144), // 3: rose highlight
     rgb555(232, 40, 48), // 4: ruby heart red
     rgb555(136, 16, 32), // 5: deep garnet shadow
+    INK, // 6: ink outline
+  ],
+  mouse: [
+    rgb555(248, 224, 72), // 1: live fuse spark
+    rgb555(248, 152, 160), // 2: pink ears, paws, nose
+    rgb555(176, 176, 196), // 3: grey fur
+    rgb555(108, 108, 132), // 4: dark grey shade & fuse cord
+    rgb555(232, 232, 240), // 5: white belly / white-hot spark
     INK, // 6: ink outline
   ],
 };
