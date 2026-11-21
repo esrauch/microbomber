@@ -200,13 +200,18 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     for (let cycle = 0; cycle < 3; cycle++) {
       const b = s.enemies[0]!;
       b.invulnTimer = 0;
-      s.selectedBomb = 'ember';
+      // Ember has no impact detonation, so plant one on the boss with its fuse nearly spent
       s.x = b.x;
       s.y = Math.min(9.0, b.y + 1.8);
-      s.fx = 0;
-      s.fy = -1;
-      tick(world, s, { ...idle, throwBomb: true }, 0.02);
-      for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
+      s.bombs.push({
+        id: 999 + cycle,
+        kind: 'ember',
+        x: b.x,
+        y: b.y,
+        fuse: 0.01,
+        graceOverlap: false,
+      });
+      tick(world, s, idle, 0.02);
       expect(b.armored).toBe(false);
 
       s.selectedBomb = 'powder';

@@ -95,6 +95,43 @@ export function isRoomLit(world: World, s: State): boolean {
   return false;
 }
 
+function overlapsTile(world: World, s: State, x: number, y: number, tile: Tile): boolean {
+  for (let cy = Math.floor(y - PLAYER_RADIUS); cy <= Math.floor(y + PLAYER_RADIUS); cy++) {
+    for (let cx = Math.floor(x - PLAYER_RADIUS); cx <= Math.floor(x + PLAYER_RADIUS); cx++) {
+      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (tileAt(world, s, s.zone, s.rx, s.ry, cx, cy) === tile) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Settle the player at the doorway they arrived through. A locked door met from its far
+ * side opens (you came through it), and a closed shutter carries the player one step
+ * inward so it slams shut behind them instead of closing around them.
+ */
+function settleAtDoorway(world: World, s: State): void {
+  for (let cy = Math.floor(s.y - PLAYER_RADIUS); cy <= Math.floor(s.y + PLAYER_RADIUS); cy++) {
+    for (let cx = Math.floor(s.x - PLAYER_RADIUS); cx <= Math.floor(s.x + PLAYER_RADIUS); cx++) {
+      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
+      if (t === 'D' || t === 'K') s.openedDoors.add(cellKey(s.zone, s.rx, s.ry, cx, cy));
+    }
+  }
+  if (!overlapsTile(world, s, s.x, s.y, 'S')) return;
+  const toLeft = s.x;
+  const toRight = ROOM_W - s.x;
+  const toTop = s.y;
+  const toBottom = ROOM_H - s.y;
+  const nearest = Math.min(toLeft, toRight, toTop, toBottom);
+  const dx = nearest === toLeft ? 1 : nearest === toRight ? -1 : 0;
+  const dy = dx !== 0 ? 0 : nearest === toTop ? 1 : -1;
+  for (let i = 0; i < 20 && overlapsTile(world, s, s.x, s.y, 'S'); i++) {
+    s.x += dx * 0.1;
+    s.y += dy * 0.1;
+  }
+}
+
 /** Populate per-room live entities when entering `(zone, rx, ry)` at `(x, y)`. */
 export function enterRoom(
   world: World,
@@ -110,8 +147,6 @@ export function enterRoom(
   s.ry = ry;
   s.x = x;
   s.y = y;
-  s.entryX = x;
-  s.entryY = y;
   s.vx = 0;
   s.vy = 0;
   s.bombs = [];
@@ -128,6 +163,9 @@ export function enterRoom(
   const room = world.rooms.get(rk);
   const alreadySolved = s.solvedRooms.has(rk);
   s.roomSolved = alreadySolved || !room?.condition || room.condition === 'none';
+  settleAtDoorway(world, s);
+  s.entryX = s.x;
+  s.entryY = s.y;
 
   if (!room) return;
 
@@ -345,12 +383,18 @@ function tryUnlockDoor(world: World, s: State, tx: number, ty: number): boolean 
   return false;
 }
 
+/** Tiles that can end up under the player (a barrier rising, a shove over a pit edge). */
+function canStandInside(t: Tile): boolean {
+  return t === 'R' || t === 'U' || t === '^' || t === '~';
+}
+
 function playerBlockedAt(
   world: World,
   s: State,
   x: number,
   y: number,
   unlockDoors: boolean,
+  knockback = false,
 ): boolean {
   const minCx = Math.floor(x - PLAYER_RADIUS);
   const maxCx = Math.floor(x + PLAYER_RADIUS);
@@ -361,7 +405,15 @@ function playerBlockedAt(
       if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
       if (unlockDoors) tryUnlockDoor(world, s, cx, cy);
       const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
-      if (isTileSolidForWalk(t, s.crystalColor)) return true;
+      // Knockback can shove the player over pits and water (`GAME.md` §1 hazards)
+      const hazard = knockback && (t === '^' || t === '~');
+      // Walking may free you from a tile you already overlap, but never steps you into a pit
+      const alreadyInside =
+        canStandInside(t) &&
+        Math.abs(s.x - (cx + 0.5)) < 0.5 + PLAYER_RADIUS &&
+        Math.abs(s.y - (cy + 0.5)) < 0.5 + PLAYER_RADIUS &&
+        !((t === '^' || t === '~') && Math.floor(x) === cx && Math.floor(y) === cy);
+      if (isTileSolidForWalk(t, s.crystalColor) && !hazard && !alreadyInside) return true;
       if (hasBlockAt(s, cx, cy)) return true;
       if (hasSolidBombAt(s, cx, cy)) return true;
     }
@@ -369,8 +421,9 @@ function playerBlockedAt(
   return false;
 }
 
-function damagePlayer(world: World, s: State, halfHearts: number): void {
-  if (s.invulnTimer > 0) return;
+/** Returns true if the hit knocked the player out and respawned them at the doorway. */
+function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln = false): boolean {
+  if (s.invulnTimer > 0 && !ignoreInvuln) return false;
   s.hp = Math.max(0, s.hp - halfHearts);
   s.invulnTimer = 1.05;
   s.events.push('player-hurt');
@@ -381,7 +434,9 @@ function damagePlayer(world: World, s: State, halfHearts: number): void {
     s.events.push('player-respawn');
     enterRoom(world, s, s.zone, s.rx, s.ry, s.entryX, s.entryY);
     showBanner(s, 'knocked out! Back on your feet at the doorway.', 2.8);
+    return true;
   }
+  return false;
 }
 
 function checkSolveCondition(world: World, s: State): void {
@@ -775,8 +830,10 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     s.fy = input.dy / inLen;
   }
 
-  const totalDx = (moveVx + s.vx) * dt;
-  const totalDy = (moveVy + s.vy) * dt;
+  const totalDx = moveVx * dt;
+  const totalDy = moveVy * dt;
+  const knockDx = s.vx * dt;
+  const knockDy = s.vy * dt;
   s.vx *= Math.pow(0.001, dt);
   s.vy *= Math.pow(0.001, dt);
   if (Math.hypot(s.vx, s.vy) < 0.08) {
@@ -820,12 +877,19 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     }
   }
 
+  // Knockback moves separately: it ignores corner sliding and can carry you over a pit
+  if (Math.abs(knockDx) > 1e-5 && !playerBlockedAt(world, s, s.x + knockDx, s.y, false, true)) {
+    s.x += knockDx;
+  }
+  if (Math.abs(knockDy) > 1e-5 && !playerBlockedAt(world, s, s.x, s.y + knockDy, false, true)) {
+    s.y += knockDy;
+  }
+
   // Check if knockback pushed player onto pit/water/spikes
   const underTile = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(s.x), Math.floor(s.y));
   if (underTile === '^' || underTile === '~') {
-    const prevHp = s.hp;
-    damagePlayer(world, s, 1);
-    if (prevHp > 1) {
+    // A fall always costs a half-heart, even mid-invulnerability
+    if (!damagePlayer(world, s, 1, true)) {
       s.x = s.entryX;
       s.y = s.entryY;
       s.vx = 0;
@@ -833,7 +897,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     }
     return false;
   } else if (underTile === '!') {
-    damagePlayer(world, s, 1);
+    if (damagePlayer(world, s, 1)) return false;
   }
 
   // Push-block interaction (`P`)
@@ -947,8 +1011,12 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
       b.x = b.flight.startX + (b.flight.targetX - b.flight.startX) * u;
       b.y = b.flight.startY + (b.flight.targetY - b.flight.startY) * u;
 
-      // Impact detonation on enemy collision (`GAME.md` §4.0)
-      const hitEnemy = s.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < 0.68);
+      // Impact detonation on enemy collision, thrown Blackpowder only (`GAME.md` §4.0)
+      const clearOfThrower = Math.hypot(b.x - b.flight.startX, b.y - b.flight.startY) > 0.6;
+      const hitEnemy =
+        b.kind === 'powder' &&
+        clearOfThrower &&
+        s.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < 0.68);
       if (hitEnemy) {
         delete b.flight;
         toDetonate.push(b);
@@ -1100,9 +1168,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     // Contact damage to player (Wickgeist while ghostly in dark deals 1, Cinderhull deals 2, others 1)
     const hitDist = e.kind === 'cinderhull' ? 0.78 : 0.58;
     if (Math.hypot(s.x - e.x, s.y - e.y) < hitDist) {
-      const prevHp = s.hp;
-      damagePlayer(world, s, e.kind === 'cinderhull' ? 2 : 1);
-      if (s.hp <= 0 || prevHp <= (e.kind === 'cinderhull' ? 2 : 1)) {
+      if (damagePlayer(world, s, e.kind === 'cinderhull' ? 2 : 1)) {
         return false; // respawned
       }
       s.vx = dirX * 5.5;
@@ -1120,7 +1186,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(p.x), Math.floor(p.y));
     if (isTallWall(t, s.crystalColor)) continue;
     if (Math.hypot(p.x - s.x, p.y - s.y) < 0.45) {
-      damagePlayer(world, s, 1);
+      if (damagePlayer(world, s, 1)) return false; // respawned; enterRoom cleared projectiles
       continue;
     }
     keptProjectiles.push(p);
@@ -1168,24 +1234,41 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     [s.y < 0, 0, -1],
     [s.y >= ROOM_H, 0, 1],
   ];
-  for (const [off, dx, dy] of edgeMoves) {
-    if (!off) continue;
+  // Where crossing an edge would land, or null if there is no room or the arrival spot is
+  // blocked (brambles or a raised barrier on the far side). Doors and shutters are settled
+  // by enterRoom instead.
+  const arrival = (
+    dx: number,
+    dy: number,
+  ): { nrx: number; nry: number; nx: number; ny: number } | null => {
     const nrx = s.rx + dx;
     const nry = s.ry + dy;
-    if (!world.rooms.has(roomKey(s.zone, nrx, nry))) continue;
+    if (!world.rooms.has(roomKey(s.zone, nrx, nry))) return null;
     const nx = dx > 0 ? PLAYER_RADIUS + 0.15 : dx < 0 ? ROOM_W - PLAYER_RADIUS - 0.15 : s.x;
     const ny = dy > 0 ? PLAYER_RADIUS + 0.15 : dy < 0 ? ROOM_H - PLAYER_RADIUS - 0.15 : s.y;
-    enterRoom(world, s, s.zone, nrx, nry, nx, ny);
+    for (let cy = Math.floor(ny - PLAYER_RADIUS); cy <= Math.floor(ny + PLAYER_RADIUS); cy++) {
+      for (let cx = Math.floor(nx - PLAYER_RADIUS); cx <= Math.floor(nx + PLAYER_RADIUS); cx++) {
+        if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+        const t = tileAt(world, s, s.zone, nrx, nry, cx, cy);
+        if (t === 'S' || t === 'D' || t === 'K') continue;
+        if (isTileSolidForWalk(t, s.crystalColor)) return null;
+      }
+    }
+    return { nrx, nry, nx, ny };
+  };
+  for (const [off, dx, dy] of edgeMoves) {
+    if (!off) continue;
+    const to = arrival(dx, dy);
+    if (!to) continue;
+    enterRoom(world, s, s.zone, to.nrx, to.nry, to.nx, to.ny);
     return true;
   }
 
-  // Clamp inside room edges that have no adjacent room
-  const hasRoom = (dx: number, dy: number): boolean =>
-    world.rooms.has(roomKey(s.zone, s.rx + dx, s.ry + dy));
-  if (!hasRoom(-1, 0)) s.x = Math.max(s.x, PLAYER_RADIUS);
-  if (!hasRoom(1, 0)) s.x = Math.min(s.x, ROOM_W - PLAYER_RADIUS);
-  if (!hasRoom(0, -1)) s.y = Math.max(s.y, PLAYER_RADIUS);
-  if (!hasRoom(0, 1)) s.y = Math.min(s.y, ROOM_H - PLAYER_RADIUS);
+  // Clamp inside room edges that cannot be crossed here
+  if (!arrival(-1, 0)) s.x = Math.max(s.x, PLAYER_RADIUS);
+  if (!arrival(1, 0)) s.x = Math.min(s.x, ROOM_W - PLAYER_RADIUS);
+  if (!arrival(0, -1)) s.y = Math.max(s.y, PLAYER_RADIUS);
+  if (!arrival(0, 1)) s.y = Math.min(s.y, ROOM_H - PLAYER_RADIUS);
 
   return false;
 }

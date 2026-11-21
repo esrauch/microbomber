@@ -52,6 +52,39 @@ export function makeRoomView(): RoomView {
   dropRingGeo.rotateX(-Math.PI / 2);
   dropRingGeo.rotateY(Math.PI / 4);
 
+  // Geometry and material caches: rebuild() and sync() run often (every room cut and every
+  // frame), so meshes share GPU resources by key instead of allocating fresh ones each time.
+  const geoCache = new Map<string, THREE.BufferGeometry>();
+  const geo = (key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry => {
+    let g = geoCache.get(key);
+    if (!g) {
+      g = make();
+      geoCache.set(key, g);
+    }
+    return g;
+  };
+  const matCache = new Map<string, THREE.Material>();
+  const lambert = (params: THREE.MeshLambertMaterialParameters): THREE.MeshLambertMaterial => {
+    const key = `L${JSON.stringify(params)}`;
+    let m = matCache.get(key);
+    if (!m) {
+      m = new THREE.MeshLambertMaterial(params);
+      matCache.set(key, m);
+    }
+    return m as THREE.MeshLambertMaterial;
+  };
+  const basic = (params: THREE.MeshBasicMaterialParameters): THREE.MeshBasicMaterial => {
+    const key = `B${JSON.stringify(params)}`;
+    let m = matCache.get(key);
+    if (!m) {
+      m = new THREE.MeshBasicMaterial(params);
+      matCache.set(key, m);
+    }
+    return m as THREE.MeshBasicMaterial;
+  };
+  const crypBg = new THREE.Color(0x14111c);
+  const overworldBg = new THREE.Color(0x192418);
+
   const tilesGroup = new THREE.Group();
   const dynamicGroup = new THREE.Group();
   const blastsGroup = new THREE.Group();
@@ -129,7 +162,7 @@ export function makeRoomView(): RoomView {
     rebuild(world: World, s: State): void {
       tilesGroup.clear();
       const isCrypt = s.zone === 'ember-crypt';
-      scene.background = new THREE.Color(isCrypt ? 0x14111c : 0x192418);
+      scene.background = isCrypt ? crypBg : overworldBg;
 
       const floorColor = isCrypt ? 0x52475c : 0x8eb86d;
       const floorAltColor = isCrypt ? 0x4a4054 : 0x85b065;
@@ -150,7 +183,7 @@ export function makeRoomView(): RoomView {
           if (t !== '^' && t !== '~') {
             const slab = new THREE.Mesh(
               unitBox,
-              new THREE.MeshLambertMaterial({ color: checker ? floorColor : floorAltColor }),
+              lambert({ color: checker ? floorColor : floorAltColor }),
             );
             slab.scale.set(0.99, 0.1, 0.99);
             slab.position.set(wx, 0.05, wz);
@@ -158,80 +191,86 @@ export function makeRoomView(): RoomView {
           }
 
           if (t === '#') {
-            const wall = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshLambertMaterial({ color: wallColor }),
-            );
+            const wall = new THREE.Mesh(unitBox, lambert({ color: wallColor }));
             wall.scale.set(0.99, 0.95, 0.99);
             wall.position.set(wx, 0.525, wz);
             tilesGroup.add(wall);
           } else if (t === '%') {
             // Signposted cracked wall (`GAME.md` §7): distinct sandstone hue + dark crack seams
-            const cWall = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshLambertMaterial({ color: crackedColor }),
-            );
+            const cWall = new THREE.Mesh(unitBox, lambert({ color: crackedColor }));
             cWall.scale.set(0.98, 0.94, 0.98);
             cWall.position.set(wx, 0.52, wz);
             tilesGroup.add(cWall);
 
-            const seamMat = new THREE.MeshBasicMaterial({ color: 0x261c14 });
-            const seam1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 1.01), seamMat);
+            const seamMat = basic({ color: 0x261c14 });
+            const seam1 = new THREE.Mesh(
+              geo('BoxGeometry(0.7, 0.08, 1.01)', () => new THREE.BoxGeometry(0.7, 0.08, 1.01)),
+              seamMat,
+            );
             seam1.rotation.z = 0.35;
             seam1.position.set(wx, 0.56, wz);
-            const seam2 = new THREE.Mesh(new THREE.BoxGeometry(1.01, 0.08, 0.7), seamMat);
+            const seam2 = new THREE.Mesh(
+              geo('BoxGeometry(1.01, 0.08, 0.7)', () => new THREE.BoxGeometry(1.01, 0.08, 0.7)),
+              seamMat,
+            );
             seam2.rotation.x = -0.3;
             seam2.position.set(wx, 0.48, wz);
-            const topCrack = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.04, 0.1), seamMat);
+            const topCrack = new THREE.Mesh(
+              geo('BoxGeometry(0.72, 0.04, 0.1)', () => new THREE.BoxGeometry(0.72, 0.04, 0.1)),
+              seamMat,
+            );
             topCrack.rotation.y = 0.6;
             topCrack.position.set(wx, 1.0, wz);
             tilesGroup.add(seam1, seam2, topCrack);
           } else if (t === '~') {
-            const water = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshLambertMaterial({ color: 0x3b82c4 }),
-            );
+            const water = new THREE.Mesh(unitBox, lambert({ color: 0x3b82c4 }));
             water.scale.set(1, 0.05, 1);
             water.position.set(wx, 0.02, wz);
             tilesGroup.add(water);
           } else if (t === '^') {
-            const pitRim = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshBasicMaterial({ color: 0x0b0910 }),
-            );
+            const pitRim = new THREE.Mesh(unitBox, basic({ color: 0x0b0910 }));
             pitRim.scale.set(1, 0.02, 1);
             pitRim.position.set(wx, 0.0, wz);
             tilesGroup.add(pitRim);
           } else if (t === '=') {
-            const postMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+            const postMat = lambert({ color: 0x8b5a2b });
             for (const ox of [-0.34, 0.34]) {
-              const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.16), postMat);
+              const post = new THREE.Mesh(
+                geo('BoxGeometry(0.16, 0.42, 0.16)', () => new THREE.BoxGeometry(0.16, 0.42, 0.16)),
+                postMat,
+              );
               post.position.set(wx + ox, 0.31, wz);
               tilesGroup.add(post);
             }
-            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.12, 0.18), postMat);
+            const rail = new THREE.Mesh(
+              geo('BoxGeometry(0.98, 0.12, 0.18)', () => new THREE.BoxGeometry(0.98, 0.12, 0.18)),
+              postMat,
+            );
             rail.position.set(wx, 0.38, wz);
             tilesGroup.add(rail);
           } else if (t === 'B') {
-            const briarMat = new THREE.MeshLambertMaterial({ color: 0x4a5d23 });
-            const thornMat = new THREE.MeshLambertMaterial({ color: 0x7c4a1e });
-            const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.42, 0), briarMat);
+            const briarMat = lambert({ color: 0x4a5d23 });
+            const thornMat = lambert({ color: 0x7c4a1e });
+            const bush = new THREE.Mesh(
+              geo('DodecahedronGeometry(0.42, 0)', () => new THREE.DodecahedronGeometry(0.42, 0)),
+              briarMat,
+            );
             bush.position.set(wx, 0.42, wz);
             tilesGroup.add(bush);
             for (const [ox, oz, rot] of [
               [-0.2, -0.15, 0.5],
               [0.22, 0.15, -0.5],
             ] as const) {
-              const spike = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.45, 6), thornMat);
+              const spike = new THREE.Mesh(
+                geo('ConeGeometry(0.1, 0.45, 6)', () => new THREE.ConeGeometry(0.1, 0.45, 6)),
+                thornMat,
+              );
               spike.position.set(wx + ox, 0.58, wz + oz);
               spike.rotation.z = rot;
               tilesGroup.add(spike);
             }
           } else if (t === 'W') {
-            const crate = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshLambertMaterial({ color: 0xb7791f }),
-            );
+            const crate = new THREE.Mesh(unitBox, lambert({ color: 0xb7791f }));
             crate.scale.set(0.84, 0.72, 0.84);
             crate.position.set(wx, 0.46, wz);
             tilesGroup.add(crate);
@@ -241,7 +280,7 @@ export function makeRoomView(): RoomView {
             const col = t === 'R' ? 0xe53e3e : 0x3182ce;
             const barrier = new THREE.Mesh(
               unitBox,
-              new THREE.MeshLambertMaterial({
+              lambert({
                 color: col,
                 transparent: !raised,
                 opacity: raised ? 1 : 0.42,
@@ -253,13 +292,16 @@ export function makeRoomView(): RoomView {
             tilesGroup.add(barrier);
           } else if (t === 'C') {
             const base = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.34, 0.4, 0.28, 12),
-              new THREE.MeshLambertMaterial({ color: 0x718096 }),
+              geo(
+                'CylinderGeometry(0.34, 0.4, 0.28, 12)',
+                () => new THREE.CylinderGeometry(0.34, 0.4, 0.28, 12),
+              ),
+              lambert({ color: 0x718096 }),
             );
             base.position.set(wx, 0.24, wz);
             const orb = new THREE.Mesh(
               crystalGeo,
-              new THREE.MeshLambertMaterial({
+              lambert({
                 color: s.crystalColor === 'red' ? 0xf56565 : 0x63b3ed,
                 emissive: s.crystalColor === 'red' ? 0x742a2a : 0x1a365d,
               }),
@@ -268,17 +310,23 @@ export function makeRoomView(): RoomView {
             tilesGroup.add(base, orb);
           } else if (t === 'T') {
             const bowl = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.34, 0.26, 0.46, 12),
-              new THREE.MeshLambertMaterial({ color: 0x5a524c }),
+              geo(
+                'CylinderGeometry(0.34, 0.26, 0.46, 12)',
+                () => new THREE.CylinderGeometry(0.34, 0.26, 0.46, 12),
+              ),
+              lambert({ color: 0x5a524c }),
             );
             bowl.position.set(wx, 0.33, wz);
             tilesGroup.add(bowl);
             // Show gold order pips (1, 2, 3) on ordered braziers so players can read order visually
             const spec = room?.torches?.find((ts) => ts.x === x && ts.y === y);
             if (spec?.order) {
-              const pipMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
+              const pipMat = basic({ color: 0xfbbf24 });
               for (let p = 0; p < spec.order; p++) {
-                const pip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), pipMat);
+                const pip = new THREE.Mesh(
+                  geo('SphereGeometry(0.055, 8, 8)', () => new THREE.SphereGeometry(0.055, 8, 8)),
+                  pipMat,
+                );
                 const offset = (p - (spec.order - 1) / 2) * 0.15;
                 pip.position.set(wx + offset, 0.36, wz + 0.33);
                 tilesGroup.add(pip);
@@ -286,25 +334,25 @@ export function makeRoomView(): RoomView {
             }
           } else if (t === 'D' || t === 'K' || t === 'S') {
             const doorColor = t === 'K' ? 0x9b2c2c : t === 'D' ? 0x975a16 : 0x4a5568;
-            const door = new THREE.Mesh(
-              unitBox,
-              new THREE.MeshLambertMaterial({ color: doorColor }),
-            );
+            const door = new THREE.Mesh(unitBox, lambert({ color: doorColor }));
             door.scale.set(0.96, 0.92, 0.96);
             door.position.set(wx, 0.52, wz);
             tilesGroup.add(door);
             if (t === 'D' || t === 'K') {
               const lockPlate = new THREE.Mesh(
-                new THREE.BoxGeometry(0.3, 0.34, 1.0),
-                new THREE.MeshBasicMaterial({ color: t === 'K' ? 0xfbbf24 : 0xf6e05e }),
+                geo('BoxGeometry(0.3, 0.34, 1.0)', () => new THREE.BoxGeometry(0.3, 0.34, 1.0)),
+                basic({ color: t === 'K' ? 0xfbbf24 : 0xf6e05e }),
               );
               lockPlate.position.set(wx, 0.55, wz);
               tilesGroup.add(lockPlate);
             }
           } else if (t === 'O') {
             const plate = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.36, 0.4, 0.08, 16),
-              new THREE.MeshLambertMaterial({
+              geo(
+                'CylinderGeometry(0.36, 0.4, 0.08, 16)',
+                () => new THREE.CylinderGeometry(0.36, 0.4, 0.08, 16),
+              ),
+              lambert({
                 color: solved ? 0x48bb78 : 0xd69e2e,
               }),
             );
@@ -314,8 +362,11 @@ export function makeRoomView(): RoomView {
             const portalSpec = room?.portals?.find((p) => p.x === x && p.y === y);
             const active = !portalSpec?.requiresWarpUnlock || s.cryptWarpUnlocked;
             const pad = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.42, 0.44, 0.08, 20),
-              new THREE.MeshBasicMaterial({
+              geo(
+                'CylinderGeometry(0.42, 0.44, 0.08, 20)',
+                () => new THREE.CylinderGeometry(0.42, 0.44, 0.08, 20),
+              ),
+              basic({
                 color: portalSpec?.requiresWarpUnlock ? (active ? 0x38bdf8 : 0x334155) : 0xfbbf24,
               }),
             );
@@ -328,11 +379,11 @@ export function makeRoomView(): RoomView {
       // Render static NPCs in this room
       for (const npc of room?.npcs ?? []) {
         const g = new THREE.Group();
-        const body = new THREE.Mesh(cylGeo, new THREE.MeshLambertMaterial({ color: npc.color }));
+        const body = new THREE.Mesh(cylGeo, lambert({ color: npc.color }));
         body.position.y = 0.41;
         const head = new THREE.Mesh(
           headGeo,
-          new THREE.MeshLambertMaterial({
+          lambert({
             color: npc.id === 'spire-plaque' ? 0xa0aec0 : 0xf6dcb8,
           }),
         );
@@ -402,7 +453,13 @@ export function makeRoomView(): RoomView {
 
       // Burning Ember patches (`2.5 s`)
       for (const f of s.fires) {
-        const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.08, 14), fireMat);
+        const pad = new THREE.Mesh(
+          geo(
+            'CylinderGeometry(0.42, 0.45, 0.08, 14)',
+            () => new THREE.CylinderGeometry(0.42, 0.45, 0.08, 14),
+          ),
+          fireMat,
+        );
         pad.position.set(f.x + 0.5, 0.14, f.y + 0.5);
         const tongue = new THREE.Mesh(coneGeo, fireMat);
         const sFlick = 0.8 + 0.25 * Math.sin(time * 22 + f.x);
@@ -423,7 +480,10 @@ export function makeRoomView(): RoomView {
           arcY = 4 * 1.15 * u * (1 - u);
         }
         m.position.set(b.x, 0.36 + arcY, b.y);
-        const spark = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), sparkMat);
+        const spark = new THREE.Mesh(
+          geo('SphereGeometry(0.08, 8, 8)', () => new THREE.SphereGeometry(0.08, 8, 8)),
+          sparkMat,
+        );
         spark.position.set(b.x, 0.66 + arcY, b.y);
         dynamicGroup.add(m, spark);
       }
@@ -442,8 +502,8 @@ export function makeRoomView(): RoomView {
         const gem = new THREE.Mesh(
           p.kind === 'cinder-core' || p.kind === 'ember-bomb'
             ? crystalGeo
-            : new THREE.SphereGeometry(0.24, 12, 10),
-          new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.28 }),
+            : geo('SphereGeometry(0.24, 12, 10)', () => new THREE.SphereGeometry(0.24, 12, 10)),
+          lambert({ color, emissive: color, emissiveIntensity: 0.28 }),
         );
         gem.position.set(p.x, bob, p.y);
         gem.rotation.y = time * 2.2;
@@ -460,11 +520,17 @@ export function makeRoomView(): RoomView {
           body.position.y = 0.28;
           eg.add(body);
         } else if (e.kind === 'bat') {
-          const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), batMat);
+          const body = new THREE.Mesh(
+            geo('SphereGeometry(0.2, 10, 8)', () => new THREE.SphereGeometry(0.2, 10, 8)),
+            batMat,
+          );
           body.position.y = 0.68 + 0.08 * Math.sin(time * 12 + e.id);
           const flap = 0.45 * Math.sin(time * 22 + e.id);
           for (const side of [-1, 1] as const) {
-            const wing = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.05, 0.18), batMat);
+            const wing = new THREE.Mesh(
+              geo('BoxGeometry(0.34, 0.05, 0.18)', () => new THREE.BoxGeometry(0.34, 0.05, 0.18)),
+              batMat,
+            );
             wing.position.set(side * 0.24, body.position.y, 0);
             wing.rotation.z = side * flap;
             eg.add(wing);
@@ -475,27 +541,33 @@ export function makeRoomView(): RoomView {
           body.position.y = 0.38;
           eg.add(body);
           if (e.armored) {
-            const shield = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.56, 0.12), woodShieldMat);
+            const shield = new THREE.Mesh(
+              geo('BoxGeometry(0.68, 0.56, 0.12)', () => new THREE.BoxGeometry(0.68, 0.56, 0.12)),
+              woodShieldMat,
+            );
             shield.position.set(0, 0.38, 0.36);
             eg.add(shield);
           }
           eg.rotation.y = Math.atan2(e.fx, e.fy);
         } else if (e.kind === 'wickgeist') {
           const ghostly = e.armored;
-          const wMat = new THREE.MeshLambertMaterial({
+          const wMat = lambert({
             color: ghostly ? 0x7dd3fc : 0xc084fc,
             emissive: ghostly ? 0x0c4a6e : 0x6b21a8,
             transparent: true,
             opacity: ghostly ? 0.38 : 0.95,
           });
-          const robe = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.95, 14), wMat);
+          const robe = new THREE.Mesh(
+            geo('ConeGeometry(0.42, 0.95, 14)', () => new THREE.ConeGeometry(0.42, 0.95, 14)),
+            wMat,
+          );
           robe.position.y = 0.62 + 0.08 * Math.sin(time * 5);
           eg.add(robe);
         } else if (e.kind === 'cinderhull') {
           const coreColor = e.armored ? 0x4a5568 : 0xf97316;
           const core = new THREE.Mesh(
-            new THREE.DodecahedronGeometry(0.56, 0),
-            new THREE.MeshLambertMaterial({
+            geo('DodecahedronGeometry(0.56, 0)', () => new THREE.DodecahedronGeometry(0.56, 0)),
+            lambert({
               color: coreColor,
               emissive: e.armored ? 0x1a202c : 0x9a3412,
             }),
@@ -503,9 +575,15 @@ export function makeRoomView(): RoomView {
           core.position.y = 0.62;
           eg.add(core);
           if (e.armored) {
-            const vineMat = new THREE.MeshLambertMaterial({ color: 0x3f6212 });
+            const vineMat = lambert({ color: 0x3f6212 });
             for (let k = 0; k < 4; k++) {
-              const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.09, 8, 16), vineMat);
+              const ring = new THREE.Mesh(
+                geo(
+                  'TorusGeometry(0.6, 0.09, 8, 16)',
+                  () => new THREE.TorusGeometry(0.6, 0.09, 8, 16),
+                ),
+                vineMat,
+              );
               ring.position.y = 0.62;
               ring.rotation.x = (k * Math.PI) / 4;
               ring.rotation.y = time * 1.2 + k;
@@ -520,7 +598,10 @@ export function makeRoomView(): RoomView {
 
       // Enemy projectiles
       for (const pr of s.projectiles) {
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), projMat);
+        const orb = new THREE.Mesh(
+          geo('SphereGeometry(0.16, 10, 8)', () => new THREE.SphereGeometry(0.16, 10, 8)),
+          projMat,
+        );
         orb.position.set(pr.x, 0.48, pr.y);
         dynamicGroup.add(orb);
       }
@@ -537,7 +618,10 @@ export function makeRoomView(): RoomView {
       for (const m of [...blastsGroup.children] as THREE.Mesh[]) {
         const age = time - (m.userData.born as number);
         (m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - age / 0.24);
-        if (age >= 0.24) blastsGroup.remove(m);
+        if (age >= 0.24) {
+          blastsGroup.remove(m);
+          (m.material as THREE.Material).dispose();
+        }
       }
     },
   };

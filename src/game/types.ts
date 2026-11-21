@@ -25,7 +25,7 @@ export type BombKind = 'powder' | 'ember';
  * 'R' red crystal barrier (raised when crystal === 'red', flat when 'blue')
  * 'U' blue crystal barrier (raised when crystal === 'blue', flat when 'red')
  * 'C' crystal switch orb (solid pedestal; any bomb blast toggles red <-> blue)
- * 'T' brazier / torch (solid pedestal; lit by Ember blast or burning patch)
+ * 'T' brazier / torch (solid pedestal; lit by an Ember blast)
  * 'D' locked key door (solid until unlocked with 1 Small Key)
  * 'K' boss key door (solid until unlocked with the Shrine's Boss Key)
  * 'S' shutter door (solid while the room's puzzle/combat lock is active)

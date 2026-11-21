@@ -184,8 +184,22 @@ muteBtn.addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   muteBtn.textContent = sfx.muted ? '🔇 Sound: Off' : '🔊 Sound: On';
 });
-resetSaveBtn.textContent = '↺ New Game (Reset Save)';
+const RESET_LABEL = '↺ New Game (Reset Save)';
+resetSaveBtn.textContent = RESET_LABEL;
+// Two-tap confirm: the first tap arms the button, a second tap within 3 s erases the save
+let resetArmedUntil = 0;
 resetSaveBtn.addEventListener('click', () => {
+  const now = performance.now();
+  if (now > resetArmedUntil) {
+    resetArmedUntil = now + 3000;
+    resetSaveBtn.textContent = '⚠ Tap again to erase your save';
+    window.setTimeout(() => {
+      if (performance.now() >= resetArmedUntil) resetSaveBtn.textContent = RESET_LABEL;
+    }, 3050);
+    return;
+  }
+  resetArmedUntil = 0;
+  resetSaveBtn.textContent = RESET_LABEL;
   try {
     localStorage.removeItem(SAVE_KEY);
   } catch {
