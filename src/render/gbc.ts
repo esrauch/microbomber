@@ -8,6 +8,7 @@
  */
 import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, WindGust, ZoneId } from '../game/types';
 import {
+  ACTOR_SCALE,
   ROLL_DURATION,
   ROOM_H,
   ROOM_W,
@@ -19,6 +20,7 @@ import {
   windVectorAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
+import { tinyActorSprite } from './tinyActors';
 import { bakeAux } from './gbcAux';
 import { CROWN_H, CROWN_VARIANTS, CROWN_W } from './thicketCrowns';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
@@ -589,6 +591,10 @@ export function makeGbcView(): GbcView {
     drawScaledSprite(ctx, pickupMap[kind], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
+  /** Experiment: with half-size actors, Pip and bombs use their hand-drawn tiny sprites. */
+  const actorArt = (name: ObjSpriteName): ObjSpriteName =>
+    ACTOR_SCALE < 1 ? tinyActorSprite(name) : name;
+
   function drawBomb(
     ctx: CanvasRenderingContext2D,
     b: Bomb,
@@ -618,7 +624,17 @@ export function makeGbcView(): GbcView {
       'EMBER_4',
     ];
     const list = b.kind === 'ember' ? emberFrames : powderFrames;
-    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy, false, undefined, tiltRad);
+    drawScaledSprite(
+      ctx,
+      actorArt(list[idx] ?? list[0]),
+      dx,
+      dy,
+      sx,
+      sy,
+      false,
+      undefined,
+      tiltRad,
+    );
   }
 
   function computeBombDeform(b: Bomb, time: number): { sx: number; sy: number; tiltRad: number } {
@@ -1175,13 +1191,13 @@ export function makeGbcView(): GbcView {
       const rem = fallAnimUntil - time;
       const fall: ObjSpriteName =
         rem > 0.24 ? 'PIP_FALL_1' : rem > 0.12 ? 'PIP_FALL_2' : 'PIP_FALL_3';
-      drawObjSprite(ctx, fall, dx, dy);
+      drawObjSprite(ctx, actorArt(fall), dx, dy);
       return;
     }
 
     if (time < holdAnimUntil) {
-      drawObjSprite(ctx, 'PIP_GET', dx, dy);
-      drawPickup(ctx, heldKind, dx, dy - 12, time);
+      drawObjSprite(ctx, actorArt('PIP_GET'), dx, dy);
+      drawPickup(ctx, heldKind, dx, dy - (ACTOR_SCALE < 1 ? 7 : 12), time);
       return;
     }
 
@@ -1196,7 +1212,7 @@ export function makeGbcView(): GbcView {
       const hopPx = Math.round(4 * 2 * u * (1 - u));
       const shimmerPal: ObjPaletteId | undefined =
         u >= 0.2 && u <= 0.8 && Math.floor(time * 30) % 3 === 0 ? 'spectral' : undefined;
-      drawObjSprite(ctx, rollSprite, dx, dy - hopPx, rFlip, shimmerPal);
+      drawObjSprite(ctx, actorArt(rollSprite), dx, dy - hopPx, rFlip, shimmerPal);
       return;
     }
 
@@ -1213,7 +1229,7 @@ export function makeGbcView(): GbcView {
     }
 
     const draw = (name: ObjSpriteName, sx = baseSx, sy = baseSy): void =>
-      drawScaledSprite(ctx, name, dx, dy, sx, sy, flip);
+      drawScaledSprite(ctx, actorArt(name), dx, dy, sx, sy, flip);
     const stepIdx = Math.floor(walkCycle) % 4; // 4-beat: idle, step L, idle, step R
     const moving = walkCycle > 0;
 
@@ -1616,7 +1632,14 @@ export function makeGbcView(): GbcView {
           b.z <= 0.05 &&
           isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
         if (!onWater) {
-          drawContactShadow(mainCtx, s.zone, b.x * TILE_PX, b.y * TILE_PX + 5, 5.5, b.z);
+          drawContactShadow(
+            mainCtx,
+            s.zone,
+            b.x * TILE_PX,
+            b.y * TILE_PX + 5,
+            5.5 * (ACTOR_SCALE < 1 ? 0.7 : 1),
+            b.z,
+          );
         }
       }
       for (const e of s.enemies) {
@@ -1646,7 +1669,14 @@ export function makeGbcView(): GbcView {
         const rollU =
           s.rollTimer > 0 ? Math.max(0, Math.min(1, 1 - s.rollTimer / ROLL_DURATION)) : 0;
         const pipHopTiles = s.rollTimer > 0 ? (4 * 2 * rollU * (1 - rollU)) / TILE_PX : 0;
-        drawContactShadow(mainCtx, s.zone, s.x * TILE_PX, s.y * TILE_PX + 5, 5.8, pipHopTiles);
+        drawContactShadow(
+          mainCtx,
+          s.zone,
+          s.x * TILE_PX,
+          s.y * TILE_PX + 5,
+          5.8 * (ACTOR_SCALE < 1 ? 0.7 : 1),
+          pipHopTiles,
+        );
       }
 
       // 3. Pass 3: Unified Foot-Sorted Actors, All Bombs (Grounded & Hopping), 3D Props & Overheads

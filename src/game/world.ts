@@ -53,7 +53,20 @@ export const ROLL_IFRAME_END = 0.2; // seconds into roll where i-frames end (mid
 export const ROLL_RECOVERY = 0.35; // seconds after roll ends before next roll
 export const INPUT_BUFFER_WINDOW = 0.13; // 130ms input forgiveness window
 export const PICKUP_MAGNET_RADIUS = 1.15; // ~1 tile centre-to-centre pickup magnet radius
-export const BOMB_RADIUS = 0.24; // planar bomb collision radius in tiles
+/**
+ * Experiment: scale of Pip and the bombs relative to the world (1 = normal, 0.5 = half size
+ * in both dimensions). Collision radii follow it; the renderer draws them at this scale.
+ */
+export let ACTOR_SCALE = 1;
+// Planar bomb collision radius in tiles (live binding: follows ACTOR_SCALE)
+export let BOMB_RADIUS = 0.24;
+let PLAYER_RADIUS = 0.28;
+
+export function setActorScale(scale: number): void {
+  ACTOR_SCALE = scale;
+  BOMB_RADIUS = 0.24 * scale;
+  PLAYER_RADIUS = 0.28 * scale;
+}
 export const BOMB_FRICTION = 13.5; // tiles/s² ground deceleration
 export const BOMB_WALL_BOUNCE = 0.65; // wall restitution coefficient
 export const BOMB_GRAVITY = 24.0; // tiles/s² vertical gravity
@@ -71,7 +84,6 @@ export const ENEMY_NOTICE_RADIUS = 5.2;
 export const ENEMY_FLEE_RADIUS = 2.1;
 
 const ROLL_SPEED = ROLL_DISTANCE / ROLL_DURATION;
-const PLAYER_RADIUS = 0.28;
 const PLAYER_SLOPE_DRIFT = 0.75;
 const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
