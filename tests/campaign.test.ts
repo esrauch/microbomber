@@ -3,12 +3,17 @@ import { ROOM_H, ROOM_W, campaignWorld, roomKey } from '../src/game/world';
 
 const VALID_TILES = new Set([
   '.',
+  ',',
   ':',
   '_',
   '#',
   'Y',
   '%',
   '~',
+  '1',
+  '2',
+  '3',
+  '4',
   '^',
   '=',
   'B',
@@ -111,5 +116,16 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
     expect(pickupIds.has('crypt-ember-bomb')).toBe(true);
     expect(pickupIds.has('boss-cinder-core')).toBe(true);
     expect(pickupIds.has('boss-heart-container')).toBe(true);
+  });
+
+  it('includes systemic dry grass, directional water current, and breeze flavour in Overworld rooms', () => {
+    const millbrookNorth = world.rooms.get(roomKey('overworld', 3, 1));
+    expect(millbrookNorth?.wind).toEqual({ dx: 0.35, dy: 0 });
+    expect(millbrookNorth?.rows[6]?.[8]).toBe('2');
+
+    const brambleWoods = world.rooms.get(roomKey('overworld', 3, 3));
+    expect(brambleWoods?.rows[5]?.[6]).toBe(',');
+    expect(brambleWoods?.rows[3]?.[6]).toBe(',');
+    expect(brambleWoods?.rows[3]?.[7]).toBe('B');
   });
 });

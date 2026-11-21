@@ -325,6 +325,11 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       invulnTimer: 0,
       aiTimer: 0,
       phase: 1,
+      aiState: 'patrol',
+      stateTimer: 0,
+      stumbleTimer: 0,
+      homeX: 5.5,
+      homeY: 5.65,
     });
 
     // Bomb #1 detonates at (5.5, 6.5); Bomb #2 sits unshoved 1 tile east at (6.5, 6.5)
@@ -466,6 +471,11 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       invulnTimer: 0,
       aiTimer: 0,
       phase: 1,
+      aiState: 'patrol',
+      stateTimer: 0,
+      stumbleTimer: 0,
+      homeX: 5.5,
+      homeY: 5.5,
     });
     throwA(world, pState, 0, -1);
     const impactEvents = stepSeconds(world, pState, 0.4); // << POWDER_FUSE (1.5s)
@@ -492,6 +502,11 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       invulnTimer: 0,
       aiTimer: 0,
       phase: 1,
+      aiState: 'patrol',
+      stateTimer: 0,
+      stumbleTimer: 0,
+      homeX: 5.5,
+      homeY: 5.5,
     });
     throwA(world, eState, 0, -1);
     stepSeconds(world, eState, 0.4); // << EMBER_FUSE (1.3s)

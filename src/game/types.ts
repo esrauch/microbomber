@@ -36,15 +36,22 @@ export type BombKind = 'powder' | 'ember';
  * '!' floor spikes (deal 1 half-heart hazard damage on contact)
  * '>' stair / warp portal (transitions between zones or midpoint warp pad)
  * 'n' | 's' | 'e' | 'w' directional stone slope / chute (rolls grounded bombs downhill N/S/E/W)
+ * ',' dry autumn grass (walkable; ignites and spreads fire tile-by-tile, burning down to '.')
+ * '1' | '2' | '3' | '4' directional water currents (N, S, E, W; block walking, float & drift bombs)
  */
 export type Tile =
   | '.'
+  | ','
   | ':'
   | '_'
   | '#'
   | 'Y'
   | '%'
   | '~'
+  | '1'
+  | '2'
+  | '3'
+  | '4'
   | '^'
   | '='
   | 'B'
@@ -166,6 +173,8 @@ export interface RoomSpec {
   portals?: PortalSpec[];
   /** Multi-tile visual setpiece stamps placed over underlying solid/floor tiles. */
   stamps?: StampSpec[];
+  /** Optional ambient wind vector `(dx, dy)` in tiles/s carrying smoke, fire & light objects. */
+  wind?: { dx: number; dy: number };
   /** Fourfold Spire barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
   spireSeal?: boolean;
 }
@@ -204,7 +213,22 @@ export interface FirePatch {
   y: number; // integer tile y
   remaining: number; // seconds left
   tickCooldown: number;
+  /** Seconds until this patch attempts to ignite adjacent flammable tiles (',', 'B', 'W'). */
+  spreadTimer?: number;
+  /** Bounded spread hop count (`0..MAX_FIRE_GENERATION`) so fire spread always terminates. */
+  generation?: number;
 }
+
+export interface WindGust {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  radius: number;
+  remaining: number;
+}
+
+export type EnemyAiState = 'patrol' | 'notice' | 'chase' | 'windup' | 'flee' | 'recover';
 
 export interface PushBlock {
   x: number; // integer tile x (slides smoothly via anim or discrete push)
@@ -249,6 +273,14 @@ export interface Enemy {
   invulnTimer: number;
   aiTimer: number;
   phase: number;
+  /** Systemic AI state machine (`patrol`, `notice`, `chase`, `windup`, `flee`, `recover`). */
+  aiState: EnemyAiState;
+  stateTimer: number;
+  stumbleTimer: number;
+  homeX: number;
+  homeY: number;
+  /** Generation count for fire-split slimes (`0`/undefined = full slime, `1` = mini-slime). */
+  splitGen?: number;
 }
 
 export interface ActivePickup {
@@ -346,6 +378,7 @@ export interface State {
   nextEntityId: number;
   bombs: Bomb[];
   fires: FirePatch[];
+  gusts: WindGust[];
   blocks: PushBlock[];
   torches: TorchState[];
   orderedStep: number;

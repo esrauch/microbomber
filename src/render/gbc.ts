@@ -6,7 +6,7 @@
  * - Pass 4 (`canopyLayer`): Overhead roof eaves, tree crowns & north doorway arch lintels,
  *   chimney puffs, airborne bombs, connected '+' cross explosions, and Bayer lantern mask.
  */
-import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, ZoneId } from '../game/types';
+import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, WindGust, ZoneId } from '../game/types';
 import {
   LIFT_DELAY,
   ROLL_DURATION,
@@ -17,7 +17,9 @@ import {
   computeThrowTarget,
   currentRoom,
   isRoomLit,
+  isWaterTile,
   tileAt,
+  windVectorAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
@@ -272,6 +274,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   const pickupPrevPos = new Map<string, { x: number; y: number }>();
   const closedDoors = new Map<string, { x: number; y: number; tile: 'D' | 'K' | 'S' }>();
   let openingDoors: DoorTween[] = [];
+  let lastBurnedCount = -1;
+  let lastBrokenCount = -1;
 
   function syncDoorState(world: World, s: State, reset: boolean): void {
     if (reset) {
@@ -727,57 +731,279 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
   }
 
+  function drawAlertBadge(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    headTopY: number,
+    time: number,
+  ): void {
+    const pop = Math.round(Math.abs(Math.sin(time * 14)) * 1.5);
+    const bx = Math.round(cx) - 1;
+    const by = Math.round(headTopY) - 8 - pop;
+    // Crisp 2x6 '!' badge with 1px dark ink outline
+    ctx.fillStyle = INK_CSS;
+    ctx.fillRect(bx - 1, by - 1, 4, 8);
+    ctx.fillStyle = FIRE_WHITE;
+    ctx.fillRect(bx, by, 2, 1);
+    ctx.fillStyle = FIRE_LIGHT;
+    ctx.fillRect(bx, by + 1, 2, 3);
+    ctx.fillStyle = FIRE_WHITE;
+    ctx.fillRect(bx, by + 5, 2, 1);
+  }
+
+  function drawFleeSweatDrop(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    headTopY: number,
+    id: number,
+    time: number,
+  ): void {
+    const dropOff = Math.floor((time * 9 + id) % 4);
+    const sx = Math.round(cx) + 6;
+    const sy = Math.round(headTopY) - 1 + dropOff;
+    ctx.fillStyle = INK_CSS;
+    ctx.fillRect(sx - 1, sy - 1, 3, 4);
+    ctx.fillStyle = cssRgb(OBJ_PALETTES.spectral[0]);
+    ctx.fillRect(sx, sy, 1, 1);
+    ctx.fillStyle = cssRgb(OBJ_PALETTES.spectral[2]);
+    ctx.fillRect(sx, sy + 1, 1, 1);
+  }
+
+  function drawFloatingWaterRing(
+    ctx: CanvasRenderingContext2D,
+    zone: ZoneId,
+    cxPx: number,
+    cyPx: number,
+    id: number,
+    time: number,
+  ): void {
+    const waterPal = BG_PALETTES[zone].water;
+    const foamCss = cssRgb(waterPal[1]);
+    const deepCss = cssRgb(waterPal[3]);
+    const rx = 5 + (Math.floor(time * 4 + id) % 2);
+    const ry = 2;
+    const pts: ReadonlyArray<readonly [number, number]> = [
+      [-rx, 0],
+      [rx, 0],
+      [-rx + 2, -ry],
+      [0, -ry],
+      [rx - 2, -ry],
+      [-rx + 2, ry],
+      [0, ry],
+      [rx - 2, ry],
+    ];
+    for (const [ox, oy] of pts) {
+      ctx.fillStyle = deepCss;
+      ctx.fillRect(cxPx + ox, cyPx + oy + 1, 1, 1);
+      ctx.fillStyle = foamCss;
+      ctx.fillRect(cxPx + ox, cyPx + oy, 1, 1);
+    }
+  }
+
+  function drawWindAndGusts(
+    ctx: CanvasRenderingContext2D,
+    zone: ZoneId,
+    roomWind: { dx: number; dy: number } | undefined,
+    gusts: readonly WindGust[],
+    time: number,
+  ): void {
+    const streakTipCss = cssRgb(OBJ_PALETTES.spectral[0]);
+    const streakBodyCss = cssRgb(OBJ_PALETTES.spectral[2]);
+
+    // 1. Subtle drifting leaf / breeze motes in rooms with ambient room.wind
+    if (roomWind && (Math.abs(roomWind.dx) > 0.01 || Math.abs(roomWind.dy) > 0.01)) {
+      const leafGoldCss =
+        zone === 'overworld'
+          ? cssRgb(BG_PALETTES.overworld.wood[1])
+          : cssRgb(BG_PALETTES['ember-crypt'].floor[0]);
+      const leafShadeCss =
+        zone === 'overworld' ? cssRgb(BG_PALETTES.overworld.wood[2]) : streakBodyCss;
+      const vxPx = roomWind.dx * TILE_PX * 1.9;
+      const vyPx = roomWind.dy * TILE_PX * 1.9;
+      for (let i = 0; i < 6; i++) {
+        const seedX = (i * 37 + 19) % NATIVE_W;
+        const seedY = (i * 53 + 29) % (NATIVE_H - 32);
+        const mx = (((seedX + time * vxPx) % NATIVE_W) + NATIVE_W) % NATIVE_W;
+        const flutter = Math.sin(time * 4.6 + i * 1.9) * 3.5;
+        const my =
+          16 +
+          ((((seedY + time * vyPx + flutter) % (NATIVE_H - 32)) + (NATIVE_H - 32)) %
+            (NATIVE_H - 32));
+        const px = Math.round(mx);
+        const py = Math.round(my);
+        if (i % 3 === 0) {
+          // Crisp 4px breeze hairline streak
+          ctx.fillStyle = INK_CSS;
+          ctx.fillRect(px, py + 1, 4, 1);
+          ctx.fillStyle = streakBodyCss;
+          ctx.fillRect(px, py, 3, 1);
+          ctx.fillStyle = streakTipCss;
+          ctx.fillRect(px + (roomWind.dx >= 0 ? 3 : -1), py, 1, 1);
+        } else {
+          // Tiny fluttering autumn leaf / ash mote
+          const flipLeaf = Math.floor(time * 5 + i) % 2 === 0;
+          ctx.fillStyle = INK_CSS;
+          ctx.fillRect(px, py + 1, 2, 1);
+          ctx.fillStyle = leafGoldCss;
+          ctx.fillRect(px, py, 2, 1);
+          ctx.fillStyle = leafShadeCss;
+          ctx.fillRect(px + (flipLeaf ? 1 : 0), py - 1, 1, 1);
+        }
+      }
+    }
+
+    // 2. Crisp animated pixel wind-streak lines sweeping across active WindGust discs
+    for (let gi = 0; gi < gusts.length; gi++) {
+      const g = gusts[gi];
+      if (!g || g.remaining <= 0) continue;
+      const mag = Math.hypot(g.dx, g.dy);
+      const ux = mag > 1e-4 ? g.dx / mag : 1;
+      const uy = mag > 1e-4 ? g.dy / mag : 0;
+      const rPx = Math.max(12, g.radius * TILE_PX);
+      const gx = g.x * TILE_PX;
+      const gy = g.y * TILE_PX;
+
+      for (let i = 0; i < 5; i++) {
+        const lat = (i - 2) * 0.36 * rPx;
+        const u = (time * 4.2 + i * 0.21 + gi * 0.37) % 1;
+        const along = (u * 1.5 - 0.75) * rPx;
+        const baseLen = 6 + (i % 2) * 3;
+        const taper = u < 0.16 ? u / 0.16 : u > 0.84 ? (1 - u) / 0.16 : 1;
+        const len = Math.max(2, Math.round(baseLen * taper));
+        for (let k = 0; k < len; k++) {
+          const px = Math.round(gx + ux * (along + k) - uy * lat);
+          const py = Math.round(gy + uy * (along + k) + ux * lat);
+          ctx.fillStyle = INK_CSS;
+          ctx.fillRect(px, py + 1, 1, 1);
+          ctx.fillStyle = k >= len - 2 ? streakTipCss : streakBodyCss;
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+    }
+  }
+
   function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, time: number): void {
     const hitFlash = e.invulnTimer > 0 && Math.floor(time * 24) % 2 === 0;
-    const flashPal: ObjPaletteId | undefined = hitFlash ? 'crimson' : undefined;
+    const windup = e.aiState === 'windup';
+    const stumbled = e.stumbleTimer > 0;
+    const fleeing = e.aiState === 'flee';
+    const noticing = e.aiState === 'notice';
+
+    let flashPal: ObjPaletteId | undefined;
+    if (hitFlash) {
+      flashPal = 'crimson';
+    } else if (windup) {
+      const beat = Math.floor(time * 22) % 3;
+      flashPal = beat === 0 ? 'spectral' : beat === 1 ? 'crimson' : undefined;
+    }
+
+    let sx = 1;
+    let sy = 1;
+    let tiltRad = 0;
+    let wobbleX = 0;
+    if (windup) {
+      sx *= 1.22;
+      sy *= 0.78;
+    }
+    if (stumbled) {
+      wobbleX = Math.round(Math.sin(time * 38 + e.id) * 2);
+      sx *= 0.9;
+      sy *= 1.08;
+      tiltRad = Math.sin(time * 28 + e.id) * 0.12;
+    }
+    const rateMul = fleeing ? 2.4 : 1;
+    let headTopY = Math.round(e.y * TILE_PX - 10);
 
     if (e.kind === 'slime') {
-      const f = Math.floor(time * 6 + e.id) % 3;
+      const isMini = Boolean(e.splitGen && e.splitGen >= 1);
+      const scale = isMini ? 0.74 : 1;
+      const f = Math.floor(time * (isMini ? 9 : 6) * rateMul + e.id) % 3;
       const name: ObjSpriteName = f === 0 ? 'SLIME_1' : f === 1 ? 'SLIME_2' : 'SLIME_3';
-      drawObjSprite(
+      drawScaledSprite(
         ctx,
         name,
-        Math.round(e.x * TILE_PX - 8),
+        Math.round(e.x * TILE_PX - 8) + wobbleX,
         Math.round(e.y * TILE_PX - 9),
+        sx * scale,
+        sy * scale,
         false,
         flashPal,
+        tiltRad,
       );
+      headTopY = Math.round(e.y * TILE_PX - (isMini ? 7 : 9));
     } else if (e.kind === 'bat') {
-      const flap = Math.floor(time * 12 + e.id) % 2;
+      const flap = Math.floor(time * 12 * rateMul + e.id) % 2;
       const bob = Math.round(Math.sin(time * 8 + e.id) * 1.5);
       const dx = Math.round(e.x * TILE_PX - 8);
+      const dy = Math.round(e.y * TILE_PX - 11 + bob);
       drawObjSprite(ctx, 'SHADOW_CELL', dx, Math.round(e.y * TILE_PX - 7));
-      drawObjSprite(
+      drawScaledSprite(
         ctx,
         flap === 0 ? 'BAT_1' : 'BAT_2',
-        dx,
-        Math.round(e.y * TILE_PX - 11 + bob),
+        dx + wobbleX,
+        dy,
+        sx,
+        sy,
         false,
         flashPal,
+        tiltRad,
       );
+      headTopY = dy;
     } else if (e.kind === 'shielder') {
-      const step = Math.floor(time * 6 + e.id) % 2;
+      const step = Math.floor(time * 6 * rateMul + e.id) % 2;
       const dx = Math.round(e.x * TILE_PX - 8);
       const dy = Math.round(e.y * TILE_PX - 10);
       drawObjSprite(ctx, 'SHADOW_CELL', dx, dy + 2);
-      drawObjSprite(ctx, step === 0 ? 'SHIELDER_1' : 'SHIELDER_2', dx, dy, false, flashPal);
+      drawScaledSprite(
+        ctx,
+        step === 0 ? 'SHIELDER_1' : 'SHIELDER_2',
+        dx + wobbleX,
+        dy,
+        sx,
+        sy,
+        false,
+        flashPal,
+        tiltRad,
+      );
       if (e.armored) {
         if (Math.abs(e.fx) > Math.abs(e.fy)) {
-          const sx = e.fx > 0 ? dx + 11 : dx - 1;
-          drawObjSprite(ctx, 'WOOD_SHIELD_V', sx, dy + 3);
+          const shX = (e.fx > 0 ? dx + 11 : dx - 1) + wobbleX;
+          drawScaledSprite(ctx, 'WOOD_SHIELD_V', shX, dy + 3, sx, sy, false, undefined, tiltRad);
         } else {
-          const sy = e.fy > 0 ? dy + 9 : dy - 1;
-          drawObjSprite(ctx, 'WOOD_SHIELD_H', dx + 2, sy);
+          const shY = e.fy > 0 ? dy + 9 : dy - 1;
+          drawScaledSprite(
+            ctx,
+            'WOOD_SHIELD_H',
+            dx + 2 + wobbleX,
+            shY,
+            sx,
+            sy,
+            false,
+            undefined,
+            tiltRad,
+          );
         }
       }
+      headTopY = dy;
     } else if (e.kind === 'wickgeist') {
       const bob = Math.round(Math.sin(time * 5) * 2);
       const dx = Math.round(e.x * TILE_PX - 12);
       const dy = Math.round(e.y * TILE_PX - 14) + bob;
-      drawObjSprite(ctx, e.armored ? 'WICKGEIST_DARK' : 'WICKGEIST_LIT', dx, dy, false, flashPal);
+      drawScaledSprite(
+        ctx,
+        e.armored ? 'WICKGEIST_DARK' : 'WICKGEIST_LIT',
+        dx + wobbleX,
+        dy,
+        sx,
+        sy,
+        false,
+        flashPal,
+        tiltRad,
+      );
+      headTopY = dy;
     } else if (e.kind === 'cinderhull') {
       // Full 32x32 (2x2 tile) Oracle Shrine Boss!
-      const beat = Math.floor(time * (e.armored ? 4 : 8)) % 2;
+      const beat = Math.floor(time * (e.armored ? 4 : 8) * rateMul) % 2;
       const dx = Math.round(e.x * TILE_PX - 16);
       const dy = Math.round(e.y * TILE_PX - 15);
       const name: ObjSpriteName = e.armored
@@ -788,7 +1014,25 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           ? 'CINDERHULL_EXPOSED_1'
           : 'CINDERHULL_EXPOSED_2';
       const warnRegrow = !e.armored && e.exposedTimer > 0 && e.exposedTimer < 1.2 && beat === 1;
-      drawObjSprite(ctx, name, dx, dy, false, flashPal ?? (warnRegrow ? 'green' : undefined));
+      drawScaledSprite(
+        ctx,
+        name,
+        dx + wobbleX,
+        dy,
+        sx,
+        sy,
+        false,
+        flashPal ?? (warnRegrow ? 'green' : undefined),
+        tiltRad,
+      );
+      headTopY = dy;
+    }
+
+    if (noticing) {
+      drawAlertBadge(ctx, e.x * TILE_PX + wobbleX, headTopY, time);
+    }
+    if (fleeing) {
+      drawFleeSweatDrop(ctx, e.x * TILE_PX + wobbleX, headTopY, e.id, time);
     }
   }
 
@@ -991,6 +1235,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         }
       }
       syncDoorState(world, s, roomChanged);
+      lastBurnedCount = s.burnedTiles.size;
+      lastBrokenCount = s.brokenTiles.size;
 
       plan = buildRoomLayout(world, s);
 
@@ -1009,6 +1255,9 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     },
 
     sync(world: World, s: State, time: number): void {
+      if (s.burnedTiles.size !== lastBurnedCount || s.brokenTiles.size !== lastBrokenCount) {
+        this.rebuild(world, s);
+      }
       const dt = prevTime > 0 ? Math.min(0.05, Math.max(0, time - prevTime)) : 0.016;
       prevTime = time;
 
@@ -1071,6 +1320,9 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         }
       }
 
+      const matchesHazard = (t: ReturnType<typeof tileAt>, targetTile: '~' | '^'): boolean =>
+        targetTile === '~' ? isWaterTile(t) : t === '^';
+
       const resolveHazardSpot = (
         targetTile: '~' | '^',
       ): { x: number; y: number; bombKind: 'powder' | 'ember' } => {
@@ -1081,7 +1333,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           const py = cand.y + cand.vy * dt;
           const cx = Math.floor(px);
           const cy = Math.floor(py);
-          if (tileAt(world, s, s.zone, s.rx, s.ry, cx, cy) === targetTile) {
+          if (matchesHazard(tileAt(world, s, s.zone, s.rx, s.ry, cx, cy), targetTile)) {
             vanishedBombs.splice(i, 1);
             return { x: px, y: py, bombKind: cand.kind };
           }
@@ -1093,7 +1345,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           ] as const) {
             const nx = cx + ox;
             const ny = cy + oy;
-            if (tileAt(world, s, s.zone, s.rx, s.ry, nx, ny) === targetTile) {
+            if (matchesHazard(tileAt(world, s, s.zone, s.rx, s.ry, nx, ny), targetTile)) {
               vanishedBombs.splice(i, 1);
               return {
                 x: Math.max(nx + 0.25, Math.min(nx + 0.75, px)),
@@ -1117,7 +1369,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           const sy = s.y + s.aimY * dist;
           const tx = Math.floor(sx);
           const ty = Math.floor(sy);
-          if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) === targetTile) {
+          if (matchesHazard(tileAt(world, s, s.zone, s.rx, s.ry, tx, ty), targetTile)) {
             return { x: sx, y: sy, bombKind: fallbackKind };
           }
         }
@@ -1239,7 +1491,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         drawOpeningDoor(mainCtx, s.zone, d, Math.max(0, time - d.startTime));
       }
 
-      // 2. Burning Ember hearth patches (4-frame fire)
+      // 2. Burning Ember hearth patches (4-frame fire leaning with wind)
       const fireNames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
         'FIRE_1',
         'FIRE_2',
@@ -1248,7 +1500,20 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       ];
       for (const f of s.fires) {
         const fIdx = Math.floor(time * 12 + f.x * 3 + f.y * 5) % 4;
-        drawObjSprite(mainCtx, fireNames[fIdx] ?? 'FIRE_1', f.x * TILE_PX, f.y * TILE_PX);
+        const wv = windVectorAt(world, s, f.x + 0.5, f.y + 0.5);
+        const leanPx = Math.round(wv.dx * 2.5);
+        const tilt = Math.max(-0.28, Math.min(0.28, wv.dx * 0.14));
+        drawScaledSprite(
+          mainCtx,
+          fireNames[fIdx] ?? 'FIRE_1',
+          f.x * TILE_PX + leanPx,
+          f.y * TILE_PX,
+          1,
+          1,
+          false,
+          undefined,
+          tilt,
+        );
       }
 
       // 3. Pass 3: Y-sorted ground actors
@@ -1319,11 +1584,24 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         const fast = Boolean(t.timedSeconds && !s.roomSolved && t.timer < 2.0);
         const rate = fast ? 20 : 11;
         const fIdx = Math.floor(time * rate + t.x * 2 + t.y) % 4;
+        const wv = windVectorAt(world, s, t.x + 0.5, t.y + 0.5);
+        const leanPx = Math.round(wv.dx * 2.5);
+        const tilt = Math.max(-0.28, Math.min(0.28, wv.dx * 0.14));
         actors.push({
           footY: t.y + 0.55,
           draw: () => {
             if (fast && Math.floor(time * 16) % 4 === 0) return;
-            drawObjSprite(mainCtx, fireNames[fIdx] ?? 'FIRE_1', t.x * TILE_PX, t.y * TILE_PX - 5);
+            drawScaledSprite(
+              mainCtx,
+              fireNames[fIdx] ?? 'FIRE_1',
+              t.x * TILE_PX + leanPx,
+              t.y * TILE_PX - 5,
+              1,
+              1,
+              false,
+              undefined,
+              tilt,
+            );
           },
         });
       }
@@ -1384,11 +1662,26 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         const gx = Math.round(b.x * TILE_PX - 8);
         const gy = Math.round(b.y * TILE_PX - 8);
         const elevPx = Math.round(b.z * TILE_PX);
+        const floatingOnWater =
+          b.z <= 0.05 &&
+          isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
+        const waterBob = floatingOnWater ? Math.round(Math.sin(time * 6 + b.id) * 1.5) : 0;
         actors.push({
           footY: b.y,
           draw: () => {
-            drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
-            drawBomb(mainCtx, b, gx, gy - 1 - elevPx, time, sx, sy, tiltRad);
+            if (floatingOnWater) {
+              drawFloatingWaterRing(
+                mainCtx,
+                s.zone,
+                Math.round(b.x * TILE_PX),
+                Math.round(b.y * TILE_PX) + 2,
+                b.id,
+                time,
+              );
+            } else {
+              drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
+            }
+            drawBomb(mainCtx, b, gx, gy - 1 - elevPx + waterBob, time, sx, sy, tiltRad);
           },
         });
       }
@@ -1408,13 +1701,16 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       actors.sort((a, b) => a.footY - b.footY);
       for (const a of actors) a.draw();
 
-      // 4. Pass 4: Overhead roof eaves, tree crowns, north arch lintels & chimney smoke!
+      // 4. Pass 4: Overhead roof eaves, tree crowns, north arch lintels, chimney smoke & wind!
       mainCtx.drawImage(canopyLayer, 0, 0);
       for (const [cx, cy] of plan.chimneys) {
         const rise = Math.floor((time * 7) % 10);
         const sway = Math.round(Math.sin(time * 4) * 1.5);
-        drawObjSprite(mainCtx, 'CHIMNEY_PUFF', cx + sway, Math.max(0, cy - rise));
+        const wv = windVectorAt(world, s, cx / TILE_PX, Math.max(0.5, cy / TILE_PX));
+        const windLean = Math.round(wv.dx * 2.5 * (1 + rise * 0.12));
+        drawObjSprite(mainCtx, 'CHIMNEY_PUFF', cx + sway + windLean, Math.max(0, cy - rise));
       }
+      drawWindAndGusts(mainCtx, s.zone, room?.wind, s.gusts, time);
 
       // 5. Dotted 360° throw arc preview while carrying a bomb
       const carried = s.bombs.find((b) => Boolean(b.carried));

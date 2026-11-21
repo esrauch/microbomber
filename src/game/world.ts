@@ -10,6 +10,8 @@ import {
   type Bomb,
   type BombKind,
   type Enemy,
+  type EnemyAiState,
+  type FirePatch,
   type Input,
   ROOM_H,
   ROOM_W,
@@ -17,12 +19,26 @@ import {
   type SaveData,
   type State,
   type Tile,
+  type WindGust,
   type World,
   type ZoneId,
 } from './types';
 
 export { ROOM_H, ROOM_W, campaignWorld, roomKey };
-export type { BombKind, Input, RoomSpec, SaveData, State, Tile, World, ZoneId };
+export type {
+  BombKind,
+  Enemy,
+  EnemyAiState,
+  FirePatch,
+  Input,
+  RoomSpec,
+  SaveData,
+  State,
+  Tile,
+  WindGust,
+  World,
+  ZoneId,
+};
 
 export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
 export const SPEED = 4.2; // tiles / second
@@ -54,6 +70,12 @@ export const SLOPE_MAX_SPEED = 8.2; // terminal downhill roll speed on slopes
 export const BUTTON_CONTACT_RADIUS = 0.58; // centre-to-centre contact radius for 'O' floor buttons
 export const BLAST_CONTACT_PADDING = 0.68; // reach + BLAST_CONTACT_PADDING continuous blast trigger radius
 
+export const MAX_FIRE_GENERATION = 6;
+export const FIRE_SPREAD_INTERVAL = 0.36;
+export const CURRENT_SPEED = 2.8;
+export const ENEMY_NOTICE_RADIUS = 5.2;
+export const ENEMY_FLEE_RADIUS = 2.1;
+
 const ROLL_SPEED = ROLL_DISTANCE / ROLL_DURATION;
 const PLAYER_RADIUS = 0.28;
 const PLAYER_SLOPE_DRIFT = 0.75;
@@ -63,6 +85,16 @@ const AIM_MIN_INPUT = 0.22;
 
 const emberBombTorchContacts = new WeakMap<State, Map<number, Set<string>>>();
 const firePatchTorchContacts = new WeakMap<State, WeakMap<object, Set<string>>>();
+const floatingBombIds = new WeakMap<State, Set<number>>();
+
+function getFloatingBombs(s: State): Set<number> {
+  let set = floatingBombIds.get(s);
+  if (!set) {
+    set = new Set();
+    floatingBombIds.set(s, set);
+  }
+  return set;
+}
 
 function getBombTorchContacts(s: State, bombId: number): Set<string> {
   let byBomb = emberBombTorchContacts.get(s);
@@ -108,6 +140,63 @@ export function slopeVector(t: Tile): { dx: number; dy: number } | null {
   }
 }
 
+/** True for still water (`'~'`) and directional water currents (`'1'..'4'`). */
+export function isWaterTile(t: Tile): boolean {
+  return t === '~' || t === '1' || t === '2' || t === '3' || t === '4';
+}
+
+/** Unit flow vector for `'1'..'4'` water current tiles (N, S, E, W), or `null` otherwise. */
+export function currentVector(t: Tile): { dx: number; dy: number } | null {
+  switch (t) {
+    case '1':
+      return { dx: 0, dy: -1 };
+    case '2':
+      return { dx: 0, dy: 1 };
+    case '3':
+      return { dx: 1, dy: 0 };
+    case '4':
+      return { dx: -1, dy: 0 };
+    default:
+      return null;
+  }
+}
+
+/** Spawn a transient radial/directional wind gust that pushes smoke, fire, bombs & pickups. */
+export function spawnWindGust(
+  s: State,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  radius = 2.8,
+  duration = 0.55,
+): void {
+  s.gusts.push({ x, y, dx, dy, radius, remaining: duration });
+  s.events.push('wind-gust');
+}
+
+/** Net wind vector at `(x, y)` combining ambient room wind with active radial falloff gusts. */
+export function windVectorAt(
+  world: World,
+  s: State,
+  x: number,
+  y: number,
+): { dx: number; dy: number } {
+  const ambient = currentRoom(world, s)?.wind;
+  let dx = ambient?.dx ?? 0;
+  let dy = ambient?.dy ?? 0;
+  for (const g of s.gusts) {
+    if (g.remaining <= 0 || g.radius <= 0) continue;
+    const dist = Math.hypot(x - g.x, y - g.y);
+    if (dist < g.radius) {
+      const weight = 1 - dist / g.radius;
+      dx += g.dx * weight;
+      dy += g.dy * weight;
+    }
+  }
+  return { dx, dy };
+}
+
 export function cellKey(zone: ZoneId, rx: number, ry: number, x: number, y: number): string {
   return `${zone}:${rx},${ry}:${x},${y}`;
 }
@@ -138,7 +227,7 @@ export function tileAt(
   const t = raw as Tile;
   const ck = cellKey(zone, rx, ry, x, y);
   if ((t === '%' || t === 'W') && s.brokenTiles.has(ck)) return '.';
-  if ((t === 'B' || t === 'W') && s.burnedTiles.has(ck)) return '.';
+  if ((t === ',' || t === 'B' || t === 'W') && s.burnedTiles.has(ck)) return '.';
   if ((t === 'D' || t === 'K') && s.openedDoors.has(ck)) return '.';
   if (t === 'S' && (s.roomSolved || s.solvedRooms.has(roomKey(zone, rx, ry)))) return '.';
   return t;
@@ -148,6 +237,7 @@ export function tileAt(
 export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boolean {
   if (
     t === '.' ||
+    t === ',' ||
     t === ':' ||
     t === '_' ||
     t === 'O' ||
@@ -164,7 +254,7 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
 
 /** Whether a push block (`'P'`) may slide onto tile `t`. */
 function isPushBlockFloor(t: Tile): boolean {
-  return t === '.' || t === ':' || t === '_' || t === 'O' || slopeVector(t) !== null;
+  return t === '.' || t === ',' || t === ':' || t === '_' || t === 'O' || slopeVector(t) !== null;
 }
 
 /** Whether tile `t` is a tall wall that stops a thrown bomb's arc. */
@@ -248,8 +338,10 @@ export function enterRoom(
   s.pullBufferTap = false;
   s.bombs = [];
   s.fires = [];
+  s.gusts = [];
   emberBombTorchContacts.delete(s);
   firePatchTorchContacts.delete(s);
+  floatingBombIds.delete(s);
   s.blocks = [];
   s.torches = [];
   s.orderedStep = 0;
@@ -325,6 +417,11 @@ export function enterRoom(
         invulnTimer: 0,
         aiTimer: 0.8,
         phase: 1,
+        aiState: 'patrol',
+        stateTimer: 0,
+        stumbleTimer: 0,
+        homeX: es.x,
+        homeY: es.y,
       });
     }
   }
@@ -411,6 +508,7 @@ export function newState(
     nextEntityId: 1,
     bombs: [],
     fires: [],
+    gusts: [],
     blocks: [],
     torches: [],
     orderedStep: 0,
@@ -568,6 +666,9 @@ function clampBombSpawn(world: World, s: State, x: number, y: number): [number, 
 function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEvents: boolean): void {
   let bouncedThisStep = false;
   const preSpeed = Math.hypot(b.vx, b.vy);
+  const bxCell = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
+  const byCell = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+  const onWater = b.z <= 0.02 && isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, bxCell, byCell));
 
   const dx = b.vx * subDt;
   if (Math.abs(dx) > 1e-9) {
@@ -613,7 +714,9 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
 
     if (hitInteractive || hitWall) {
       b.x = Math.max(BOMB_RADIUS, Math.min(ROOM_W - BOMB_RADIUS, clampX));
-      if (hitInteractive) {
+      if (onWater) {
+        b.vx = 0;
+      } else if (hitInteractive) {
         b.vx = -b.vx * 0.2;
         b.vy *= 0.6;
       } else {
@@ -672,7 +775,9 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
 
     if (hitInteractive || hitWall) {
       b.y = Math.max(BOMB_RADIUS, Math.min(ROOM_H - BOMB_RADIUS, clampY));
-      if (hitInteractive) {
+      if (onWater) {
+        b.vy = 0;
+      } else if (hitInteractive) {
         b.vy = -b.vy * 0.2;
         b.vx *= 0.6;
       } else {
@@ -762,7 +867,7 @@ function tryUnlockDoor(world: World, s: State, tx: number, ty: number): boolean 
 
 /** Tiles that can end up under the player (a barrier rising, a shove over a pit edge). */
 function canStandInside(t: Tile): boolean {
-  return t === 'R' || t === 'U' || t === '^' || t === '~';
+  return t === 'R' || t === 'U' || t === '^' || isWaterTile(t);
 }
 
 function playerBlockedAt(
@@ -783,13 +888,13 @@ function playerBlockedAt(
       if (unlockDoors) tryUnlockDoor(world, s, cx, cy);
       const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
       // Knockback can shove the player over pits and water (`GAME.md` §1 hazards)
-      const hazard = knockback && (t === '^' || t === '~');
+      const hazard = knockback && (t === '^' || isWaterTile(t));
       // Walking may free you from a tile you already overlap, but never steps you into a pit
       const alreadyInside =
         canStandInside(t) &&
         Math.abs(s.x - (cx + 0.5)) < 0.5 + PLAYER_RADIUS &&
         Math.abs(s.y - (cy + 0.5)) < 0.5 + PLAYER_RADIUS &&
-        !((t === '^' || t === '~') && Math.floor(x) === cx && Math.floor(y) === cy);
+        !((t === '^' || isWaterTile(t)) && Math.floor(x) === cx && Math.floor(y) === cy);
       if (isTileSolidForWalk(t, s.crystalColor) && !hazard && !alreadyInside) return true;
       if (hasBlockAt(s, cx, cy)) return true;
     }
@@ -991,9 +1096,69 @@ function isBlastContactOccluded(
   return false;
 }
 
+function upsertFirePatch(s: State, tx: number, ty: number, generation: number): FirePatch {
+  let patch = s.fires.find((f) => f.x === tx && f.y === ty);
+  if (patch) {
+    patch.remaining = FIRE_DURATION;
+    patch.spreadTimer = FIRE_SPREAD_INTERVAL;
+    patch.generation = Math.min(patch.generation ?? generation, generation);
+    getFireTorchContacts(s, patch).clear();
+  } else {
+    patch = {
+      x: tx,
+      y: ty,
+      remaining: FIRE_DURATION,
+      tickCooldown: 0,
+      spreadTimer: FIRE_SPREAD_INTERVAL,
+      generation,
+    };
+    s.fires.push(patch);
+  }
+  return patch;
+}
+
+function igniteTile(
+  world: World,
+  s: State,
+  tx: number,
+  ty: number,
+  generation: number,
+  sourcePatch?: FirePatch,
+): FirePatch | null {
+  if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H || generation > MAX_FIRE_GENERATION) {
+    return null;
+  }
+  const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+  if (isWaterTile(t) || isSolidBlastWall(t) || t === '%' || t === '^') return null;
+
+  if (t === ',' || t === 'B' || t === 'W') {
+    const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+    s.burnedTiles.add(ck);
+    s.events.push('tile-burn');
+    return upsertFirePatch(s, tx, ty, generation);
+  }
+
+  if (t === 'T') {
+    const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+    const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
+    if (torch?.order !== undefined && sourcePatch) {
+      const contacts = getFireTorchContacts(s, sourcePatch);
+      if (!contacts.has(ck)) {
+        contacts.add(ck);
+        lightTorchAt(world, s, tx, ty);
+      }
+    } else {
+      lightTorchAt(world, s, tx, ty);
+    }
+  }
+
+  return null;
+}
+
 function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<number>): Bomb[] {
   const cx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(bomb.x)));
   const cy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(bomb.y)));
+  getFloatingBombs(s).delete(bomb.id);
   s.events.push(bomb.kind === 'ember' ? 'boom-ember' : 'boom-powder');
 
   const hitTiles: Array<[number, number, BlastShape]> = [[cx, cy, 'hub']];
@@ -1058,6 +1223,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
 
   let flippedCrystal = false;
   const blastTouchedTorches: string[] = [];
+  const blastPatches: FirePatch[] = [];
 
   for (const [tx, ty] of triggeredCells.values()) {
     const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
@@ -1069,9 +1235,9 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         s.events.push('tile-break');
       }
     } else if (bomb.kind === 'ember') {
-      if (t === 'B' || t === 'W') {
-        s.burnedTiles.add(ck);
-        s.events.push('tile-burn');
+      if (t === ',' || t === 'B' || t === 'W') {
+        const spawned = igniteTile(world, s, tx, ty, 0);
+        if (spawned) blastPatches.push(spawned);
       }
       if (t === 'T') {
         blastTouchedTorches.push(ck);
@@ -1091,17 +1257,12 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     const centreTile = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
     if (
       !isTileSolidForWalk(centreTile, s.crystalColor) &&
-      centreTile !== '~' &&
+      !isWaterTile(centreTile) &&
       centreTile !== '^'
     ) {
-      let patch = s.fires.find((f) => f.x === cx && f.y === cy);
-      if (patch) {
-        patch.remaining = FIRE_DURATION;
-        getFireTorchContacts(s, patch).clear();
-      } else {
-        patch = { x: cx, y: cy, remaining: FIRE_DURATION, tickCooldown: 0 };
-        s.fires.push(patch);
-      }
+      blastPatches.push(upsertFirePatch(s, cx, cy, 0));
+    }
+    for (const patch of blastPatches) {
       const patchContacts = getFireTorchContacts(s, patch);
       for (const ck of blastTouchedTorches) patchContacts.add(ck);
     }
@@ -1126,7 +1287,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
 
   // 2. Enemies: radial shove velocity scaled by mass + continuous/cross-blast damage & armor strip
   const litNow = isRoomLit(world, s);
-  for (const enemy of s.enemies) {
+  for (const enemy of [...s.enemies]) {
     const eDir = radialDir(bomb.x, bomb.y, enemy.x, enemy.y, enemy.fx || 0, enemy.fy || 1);
     const hasLos = hasBlastLineOfSight(world, s, bomb.x, bomb.y, enemy.x, enemy.y);
     const hit =
@@ -1145,7 +1306,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       enemy.vy = eDir.dirY * 7.2 * proximity * massScale;
     }
     if (hit) {
-      applyBombHitToEnemy(s, enemy, bomb.kind, bomb.x, bomb.y, litNow, false);
+      applyBombHitToEnemy(world, s, enemy, bomb.kind, bomb.x, bomb.y, litNow, false);
     }
   }
   s.enemies = s.enemies.filter((e) => e.hp > 0);
@@ -1216,6 +1377,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       other.graceOverlap = true;
       other.thrown = false;
       other.fuse = Math.max(other.fuse, 0.35);
+      getFloatingBombs(s).delete(other.id);
       s.events.push('bomb-shove');
     }
   }
@@ -1253,7 +1415,15 @@ function detonateBombs(world: World, s: State, initial: Bomb[]): void {
   }
 }
 
+function markEnemyStumble(s: State, enemy: Enemy): void {
+  enemy.stumbleTimer = 0.42;
+  enemy.aiState = 'recover';
+  enemy.stateTimer = 0.42;
+  s.events.push('enemy-stumble');
+}
+
 function applyBombHitToEnemy(
+  world: World,
   s: State,
   enemy: Enemy,
   kind: BombKind,
@@ -1274,15 +1444,18 @@ function applyBombHitToEnemy(
     enemy.hp -= kind === 'powder' ? 2 : 1;
     enemy.invulnTimer = 0.25;
     s.events.push('enemy-hit');
-    if (enemy.hp > 0 && enemy.hp <= 4 && enemy.phase === 1) {
-      enemy.phase = 2;
-      // Snuff one lit torch and blink across the room
-      const litTorch = s.torches.find((t) => t.lit);
-      if (litTorch) litTorch.lit = false;
-      enemy.x = enemy.x < ROOM_W / 2 ? ROOM_W - 3.5 : 3.5;
-      enemy.y = enemy.y < ROOM_H / 2 ? ROOM_H - 4.5 : 4.5;
-      enemy.vx = 0;
-      enemy.vy = 0;
+    if (enemy.hp > 0) {
+      if (enemy.hp <= 4 && enemy.phase === 1) {
+        enemy.phase = 2;
+        // Snuff one lit torch and blink across the room
+        const litTorch = s.torches.find((t) => t.lit);
+        if (litTorch) litTorch.lit = false;
+        enemy.x = enemy.x < ROOM_W / 2 ? ROOM_W - 3.5 : 3.5;
+        enemy.y = enemy.y < ROOM_H / 2 ? ROOM_H - 4.5 : 4.5;
+        enemy.vx = 0;
+        enemy.vy = 0;
+      }
+      markEnemyStumble(s, enemy);
     }
     return;
   }
@@ -1293,6 +1466,7 @@ function applyBombHitToEnemy(
         enemy.armored = false;
         enemy.exposedTimer = 99;
         s.events.push('armor-burn');
+        markEnemyStumble(s, enemy);
         showBanner(s, 'Burned away its wooden shield!', 1.8);
         return;
       }
@@ -1314,6 +1488,7 @@ function applyBombHitToEnemy(
         enemy.armored = false;
         enemy.exposedTimer = 5.2; // generous window (`GAME.md` §2)
         s.events.push('armor-burn');
+        markEnemyStumble(s, enemy);
         showBanner(s, 'Cinderhull’s thorn-vines burned away—blast its exposed core!', 2.6);
       } else {
         s.events.push('armor-clank');
@@ -1327,13 +1502,70 @@ function applyBombHitToEnemy(
     enemy.invulnTimer = 0.2;
     s.events.push('enemy-hit');
     const nextBracket = Math.ceil(enemy.hp / 4);
-    if (enemy.hp > 0 && nextBracket < prevBracket) {
-      // Regrow thorn wraps for the next phase!
-      enemy.armored = true;
-      enemy.exposedTimer = 0;
-      enemy.phase++;
-      showBanner(s, 'Cinderhull regrew its thorn-vines!', 2.0);
+    if (enemy.hp > 0) {
+      enemy.phase = enemy.hp <= 4 ? 3 : enemy.hp <= 8 ? 2 : 1;
+      if (nextBracket < prevBracket) {
+        // Regrow thorn wraps for the next phase!
+        enemy.armored = true;
+        enemy.exposedTimer = 0;
+        showBanner(s, 'Cinderhull regrew its thorn-vines!', 2.0);
+      }
+      markEnemyStumble(s, enemy);
     }
+    return;
+  }
+
+  // Full-size slimes split into two mini-slimes when hit by Ember fire!
+  if (enemy.kind === 'slime' && !enemy.splitGen && enemy.hp > 0 && kind === 'ember') {
+    enemy.hp = 0;
+    let awayX = enemy.x - originX;
+    let awayY = enemy.y - originY;
+    const awayLen = Math.hypot(awayX, awayY);
+    if (awayLen > 1e-4) {
+      awayX /= awayLen;
+      awayY /= awayLen;
+    } else {
+      awayX = 0;
+      awayY = 1;
+    }
+    const perpX = -awayY;
+    const perpY = awayX;
+    for (const sign of [-1, 1] as const) {
+      const candX = Math.max(0.75, Math.min(ROOM_W - 0.75, enemy.x + perpX * 0.32 * sign));
+      const candY = Math.max(0.75, Math.min(ROOM_H - 0.75, enemy.y + perpY * 0.32 * sign));
+      const ct = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(candX), Math.floor(candY));
+      const canStand =
+        !isTileSolidForWalk(ct, s.crystalColor) &&
+        ct !== '^' &&
+        !isWaterTile(ct) &&
+        !hasBlockAt(s, Math.floor(candX), Math.floor(candY));
+      const sx = canStand ? candX : enemy.x;
+      const sy = canStand ? candY : enemy.y;
+      s.enemies.push({
+        id: s.nextEntityId++,
+        kind: 'slime',
+        x: sx,
+        y: sy,
+        vx: (awayX * 0.5 + perpX * sign * 0.85) * 4.2,
+        vy: (awayY * 0.5 + perpY * sign * 0.85) * 4.2,
+        fx: perpX * sign,
+        fy: perpY * sign,
+        hp: 1,
+        maxHp: 1,
+        armored: false,
+        exposedTimer: 0,
+        invulnTimer: 0.28,
+        aiTimer: 0,
+        phase: 1,
+        aiState: 'recover',
+        stateTimer: 0.25,
+        stumbleTimer: 0.25,
+        homeX: enemy.x,
+        homeY: enemy.y,
+        splitGen: 1,
+      });
+    }
+    s.events.push('slime-split');
     return;
   }
 
@@ -1350,6 +1582,9 @@ function applyBombHitToEnemy(
     enemy.vy = ky * 5;
   }
   s.events.push(enemy.hp <= 0 ? 'enemy-defeat' : 'enemy-hit');
+  if (enemy.hp > 0) {
+    markEnemyStumble(s, enemy);
+  }
 }
 
 function collectPickup(s: State, pickup: ActivePickup): void {
@@ -1488,6 +1723,7 @@ function liftBomb(s: State): boolean {
     underfoot.carried = true;
     underfoot.thrown = false;
     underfoot.graceOverlap = false;
+    getFloatingBombs(s).delete(underfoot.id);
   } else if (s.equipped !== null && canPlaceBomb(s)) {
     s.bombs.push({ ...newBomb(s, s.equipped, s.x, s.y), z: THROW_Z0, carried: true });
   } else {
@@ -1854,7 +2090,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
   // Check if knockback pushed player onto pit/water/spikes
   const underTile = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(s.x), Math.floor(s.y));
-  if (underTile === '^' || underTile === '~') {
+  if (underTile === '^' || isWaterTile(underTile)) {
     // A fall always costs a half-heart, even mid-invulnerability
     if (!damagePlayer(world, s, 1, true)) {
       s.x = s.entryX;
@@ -1993,6 +2229,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   // 3. Step-by-step continuous bomb body simulation (carry, lob, bounce, roll, hazards, fuse)
   const toDetonate: Bomb[] = [];
   const swallowedIds = new Set<number>();
+  const floatingSet = getFloatingBombs(s);
   const bombSubSteps = Math.max(1, Math.ceil(dt / (FIXED_DT + 1e-6)));
   const bombSubDt = dt / bombSubSteps;
 
@@ -2019,13 +2256,40 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
     for (let step = 0; step < bombSubSteps; step++) {
       let appliedSlopeThisStep = false;
+      let strongDryWind = false;
       if (b.z <= 0.12) {
         const sx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
         const sy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
-        const sv = slopeVector(tileAt(world, s, s.zone, s.rx, s.ry, sx, sy));
+        const st = tileAt(world, s, s.zone, s.rx, s.ry, sx, sy);
+        const sv = slopeVector(st);
         if (sv !== null) {
           applyBombSlopePhysics(b, sv, bombSubDt);
           appliedSlopeThisStep = true;
+        } else if (b.z <= 0.05 && !isWaterTile(st) && st !== '^') {
+          const wv = windVectorAt(world, s, b.x, b.y);
+          const wMag = Math.hypot(wv.dx, wv.dy);
+          if (wMag > 1.5) {
+            strongDryWind = true;
+            b.vx += wv.dx * 3.8 * bombSubDt;
+            b.vy += wv.dy * 3.8 * bombSubDt;
+            // Wind alone never blows a bomb into a pit: it stops at the edge (a kicked or
+            // thrown bomb still falls in)
+            const intoPit = (px: number, py: number): boolean =>
+              tileAt(
+                world,
+                s,
+                s.zone,
+                s.rx,
+                s.ry,
+                Math.max(0, Math.min(ROOM_W - 1, Math.floor(px))),
+                Math.max(0, Math.min(ROOM_H - 1, Math.floor(py))),
+              ) === '^';
+            if (intoPit(b.x + b.vx * bombSubDt, b.y)) b.vx = 0;
+            if (intoPit(b.x, b.y + b.vy * bombSubDt)) b.vy = 0;
+          } else if (wMag > 0.2 && Math.hypot(b.vx, b.vy) > 0.05) {
+            b.vx += wv.dx * 3.8 * bombSubDt;
+            b.vy += wv.dy * 3.8 * bombSubDt;
+          }
         }
       }
 
@@ -2042,14 +2306,27 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
           if (landedTile === '^') {
             swallowed = true;
             swallowedIds.add(b.id);
+            floatingSet.delete(b.id);
             s.events.push('bomb-swallow');
             break;
-          } else if (landedTile === '~') {
-            b.vx = 0;
-            b.vy = 0;
+          } else if (isWaterTile(landedTile)) {
             b.vz = 0;
             b.thrown = false;
-            s.events.push('bomb-splash');
+            if (!floatingSet.has(b.id)) {
+              floatingSet.add(b.id);
+              s.events.push('bomb-splash');
+            }
+            const cv = currentVector(landedTile);
+            const wv = windVectorAt(world, s, b.x, b.y);
+            const tvx = (cv?.dx ?? 0) * CURRENT_SPEED + wv.dx * 1.4;
+            const tvy = (cv?.dy ?? 0) * CURRENT_SPEED + wv.dy * 1.4;
+            if (Math.hypot(tvx, tvy) < 0.02) {
+              b.vx = 0;
+              b.vy = 0;
+            } else {
+              b.vx *= 0.25;
+              b.vy *= 0.25;
+            }
           } else if (Math.abs(b.vz) > 1.35) {
             b.vz = -b.vz * 0.38;
             b.vx *= 0.8;
@@ -2061,7 +2338,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         }
       }
 
-      if (b.z <= 0.01 && b.vz <= 0) {
+      if (b.z <= 0.02 && b.vz <= 0) {
         const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
         const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
         const groundTile = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
@@ -2069,31 +2346,59 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         if (groundTile === '^') {
           swallowed = true;
           swallowedIds.add(b.id);
+          floatingSet.delete(b.id);
           s.events.push('bomb-swallow');
           break;
-        } else if (groundTile === '~') {
-          if (Math.hypot(b.vx, b.vy) > 0.05) {
+        } else if (isWaterTile(groundTile)) {
+          if (!floatingSet.has(b.id)) {
+            floatingSet.add(b.id);
+            b.thrown = false;
+            b.vx *= 0.25;
+            b.vy *= 0.25;
+            s.events.push('bomb-splash');
+          }
+          const cv = currentVector(groundTile);
+          const wv = windVectorAt(world, s, b.x, b.y);
+          const tvx = (cv?.dx ?? 0) * CURRENT_SPEED + wv.dx * 1.4;
+          const tvy = (cv?.dy ?? 0) * CURRENT_SPEED + wv.dy * 1.4;
+          if (Math.hypot(tvx, tvy) < 0.02) {
             b.vx = 0;
             b.vy = 0;
             b.thrown = false;
-            s.events.push('bomb-splash');
-          }
-        } else if (groundSv !== null) {
-          if (!appliedSlopeThisStep) {
-            applyBombSlopePhysics(b, groundSv, bombSubDt);
+          } else {
+            const dvx = tvx - b.vx;
+            const dvy = tvy - b.vy;
+            const dLen = Math.hypot(dvx, dvy);
+            const maxDelta = 18.0 * bombSubDt;
+            if (dLen <= maxDelta) {
+              b.vx = tvx;
+              b.vy = tvy;
+            } else {
+              b.vx += (dvx / dLen) * maxDelta;
+              b.vy += (dvy / dLen) * maxDelta;
+            }
           }
         } else {
-          const speed = Math.hypot(b.vx, b.vy);
-          if (speed > 0) {
-            const nextSpeed = speed - BOMB_FRICTION * bombSubDt;
-            if (nextSpeed <= 0.08) {
-              b.vx = 0;
-              b.vy = 0;
-              b.thrown = false;
-            } else {
-              const ratio = nextSpeed / speed;
-              b.vx *= ratio;
-              b.vy *= ratio;
+          floatingSet.delete(b.id);
+          if (groundSv !== null) {
+            if (!appliedSlopeThisStep) {
+              applyBombSlopePhysics(b, groundSv, bombSubDt);
+            }
+          } else {
+            const speed = Math.hypot(b.vx, b.vy);
+            if (speed > 0) {
+              const effFriction = strongDryWind ? 2.2 : BOMB_FRICTION;
+              const stopThresh = strongDryWind ? 0.005 : 0.08;
+              const nextSpeed = speed - effFriction * bombSubDt;
+              if (nextSpeed <= stopThresh) {
+                b.vx = 0;
+                b.vy = 0;
+                b.thrown = false;
+              } else {
+                const ratio = nextSpeed / speed;
+                b.vx *= ratio;
+                b.vy *= ratio;
+              }
             }
           }
         }
@@ -2140,18 +2445,31 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (s.bombs.length > 1) {
     const postSwallowed = new Set<number>();
     for (const b of s.bombs) {
-      if (b.carried || b.z > 0.01) continue;
+      if (b.carried || b.z > 0.02) continue;
       const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
       const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
       const gt = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
       if (gt === '^') {
         postSwallowed.add(b.id);
+        floatingSet.delete(b.id);
         s.events.push('bomb-swallow');
-      } else if (gt === '~' && Math.hypot(b.vx, b.vy) > 0.05) {
-        b.vx = 0;
-        b.vy = 0;
-        b.thrown = false;
-        s.events.push('bomb-splash');
+      } else if (isWaterTile(gt)) {
+        if (!floatingSet.has(b.id)) {
+          floatingSet.add(b.id);
+          b.thrown = false;
+          s.events.push('bomb-splash');
+        }
+        const cv = currentVector(gt);
+        const wv = windVectorAt(world, s, b.x, b.y);
+        if (
+          Math.hypot(
+            (cv?.dx ?? 0) * CURRENT_SPEED + wv.dx * 1.4,
+            (cv?.dy ?? 0) * CURRENT_SPEED + wv.dy * 1.4,
+          ) < 0.02
+        ) {
+          b.vx = 0;
+          b.vy = 0;
+        }
       }
     }
     if (postSwallowed.size > 0) {
@@ -2172,49 +2490,95 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     );
   }
 
+  const liveBombIds = new Set(s.bombs.map((b) => b.id));
   const bombTorchMap = emberBombTorchContacts.get(s);
   if (bombTorchMap && bombTorchMap.size > 0) {
-    const liveIds = new Set(s.bombs.map((b) => b.id));
     for (const id of bombTorchMap.keys()) {
-      if (!liveIds.has(id)) bombTorchMap.delete(id);
+      if (!liveBombIds.has(id)) bombTorchMap.delete(id);
+    }
+  }
+  if (floatingSet.size > 0) {
+    for (const id of floatingSet) {
+      if (!liveBombIds.has(id)) floatingSet.delete(id);
     }
   }
 
-  // 4. Update burning Ember patches (`2.5 s`) & adjacent contact ignition
-  for (const f of s.fires) {
+  // 4. Update burning Ember patches (`2.5 s`), bounded tile-by-tile fire spread & brazier ignition
+  for (const f of [...s.fires]) {
+    const fcx = Math.round(f.x);
+    const fcy = Math.round(f.y);
+    if (isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, fcx, fcy))) {
+      f.remaining = 0;
+      continue;
+    }
+
     f.remaining -= dt;
     f.tickCooldown = Math.max(0, f.tickCooldown - dt);
 
-    const fcx = Math.round(f.x);
-    const fcy = Math.round(f.y);
     const patchContacts = getFireTorchContacts(s, f);
     for (let ty = Math.max(0, fcy - 1); ty <= Math.min(ROOM_H - 1, fcy + 1); ty++) {
       for (let tx = Math.max(0, fcx - 1); tx <= Math.min(ROOM_W - 1, fcx + 1); tx++) {
-        if (Math.hypot(tx + 0.5 - (f.x + 0.5), ty + 0.5 - (f.y + 0.5)) > 1.15) continue;
-        const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+        if (Math.hypot(tx + 0.5 - (f.x + 0.5), ty + 0.5 - (f.y + 0.5)) > 1.25) continue;
+        if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) !== 'T') continue;
         const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
-        if (t === 'B' || t === 'W') {
-          s.burnedTiles.add(ck);
-          s.events.push('tile-burn');
-        } else if (t === 'T') {
-          const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
-          if (torch?.order !== undefined) {
-            if (!patchContacts.has(ck)) {
-              patchContacts.add(ck);
-              lightTorchAt(world, s, tx, ty);
-            }
-          } else {
+        const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
+        if (torch?.order !== undefined) {
+          if (!patchContacts.has(ck)) {
+            patchContacts.add(ck);
             lightTorchAt(world, s, tx, ty);
+          }
+        } else {
+          lightTorchAt(world, s, tx, ty);
+        }
+      }
+    }
+
+    f.spreadTimer = (f.spreadTimer ?? FIRE_SPREAD_INTERVAL) - dt;
+    const gen = f.generation ?? 0;
+    if (f.spreadTimer <= 0 && gen < MAX_FIRE_GENERATION && f.remaining > 0) {
+      f.spreadTimer = FIRE_SPREAD_INTERVAL;
+      const nextGen = gen + 1;
+      const w = windVectorAt(world, s, f.x + 0.5, f.y + 0.5);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const nx = fcx + dx;
+        const ny = fcy + dy;
+        igniteTile(world, s, nx, ny, nextGen, f);
+        if (w.dx * dx + w.dy * dy > 0.6 && nx >= 0 && ny >= 0 && nx < ROOM_W && ny < ROOM_H) {
+          const midT = tileAt(world, s, s.zone, s.rx, s.ry, nx, ny);
+          if (!isWaterTile(midT) && !isTallWall(midT, s.crystalColor)) {
+            igniteTile(world, s, fcx + dx * 2, fcy + dy * 2, nextGen, f);
+          }
+        }
+      }
+      for (const [dx, dy] of [
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ] as const) {
+        if ((w.dx * dx + w.dy * dy) * Math.SQRT1_2 > 0.6) {
+          const sideA = tileAt(world, s, s.zone, s.rx, s.ry, fcx + dx, fcy);
+          const sideB = tileAt(world, s, s.zone, s.rx, s.ry, fcx, fcy + dy);
+          const openA = !isWaterTile(sideA) && !isTallWall(sideA, s.crystalColor);
+          const openB = !isWaterTile(sideB) && !isTallWall(sideB, s.crystalColor);
+          if (openA || openB) {
+            igniteTile(world, s, fcx + dx, fcy + dy, nextGen, f);
           }
         }
       }
     }
 
-    if (f.tickCooldown <= 0) {
+    if (f.tickCooldown <= 0 && f.remaining > 0) {
       const litNow = isRoomLit(world, s);
-      for (const e of s.enemies) {
+      for (const e of [...s.enemies]) {
+        if (e.kind === 'bat' && (e.stumbleTimer ?? 0) <= 0) continue;
         if (Math.hypot(e.x - (f.x + 0.5), e.y - (f.y + 0.5)) < 0.72) {
-          applyBombHitToEnemy(s, e, 'ember', f.x + 0.5, f.y + 0.5, litNow);
+          applyBombHitToEnemy(world, s, e, 'ember', f.x + 0.5, f.y + 0.5, litNow);
           f.tickCooldown = 0.55;
         }
       }
@@ -2234,10 +2598,18 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
-  // 6. Update enemies & boss AI
+  // 6. Update systemic enemy FSM, fuse awareness, world reactions & boss AI
   const roomLit = isRoomLit(world, s);
   for (const e of s.enemies) {
+    e.aiState ??= 'patrol';
+    e.stateTimer ??= 0;
+    e.stumbleTimer ??= 0;
+    e.homeX ??= e.x;
+    e.homeY ??= e.y;
+
     if (e.invulnTimer > 0) e.invulnTimer = Math.max(0, e.invulnTimer - dt);
+    if (e.stumbleTimer > 0) e.stumbleTimer = Math.max(0, e.stumbleTimer - dt);
+    if (e.stateTimer > 0) e.stateTimer = Math.max(0, e.stateTimer - dt);
     if (e.exposedTimer > 0) {
       e.exposedTimer = Math.max(0, e.exposedTimer - dt);
       if (e.exposedTimer <= 0 && e.kind === 'cinderhull') {
@@ -2252,46 +2624,306 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     const dirY = toPy / dist;
 
     let speed = 0;
-    if (e.kind === 'slime') {
-      speed = 1.35;
-      e.fx = dirX;
-      e.fy = dirY;
-    } else if (e.kind === 'bat') {
-      e.aiTimer += dt * 3.2;
-      speed = 1.9;
-      e.fx = dirX + Math.cos(e.aiTimer) * 0.45;
-      e.fy = dirY + Math.sin(e.aiTimer) * 0.45;
-    } else if (e.kind === 'shielder') {
-      speed = e.armored ? 1.25 : 1.7;
-      e.fx = dirX;
-      e.fy = dirY;
-    } else if (e.kind === 'wickgeist') {
+    if (e.kind === 'wickgeist') {
       e.armored = !roomLit;
-      speed = roomLit ? 1.1 : 1.65;
-      e.fx = dirX;
-      e.fy = dirY;
-      e.aiTimer -= dt;
-      if (e.aiTimer <= 0) {
-        e.aiTimer = 2.4;
-        s.projectiles.push({ x: e.x, y: e.y, vx: dirX * 3.1, vy: dirY * 3.1, life: 3.2 });
+      if (e.hp <= 4) e.phase = 2;
+      if (e.stumbleTimer > 0) {
+        speed = 0;
+      } else if (e.aiState === 'windup') {
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = 0;
+        if (e.stateTimer <= 0) {
+          s.projectiles.push({ x: e.x, y: e.y, vx: dirX * 3.1, vy: dirY * 3.1, life: 3.2 });
+          if (e.phase >= 2) {
+            spawnWindGust(s, e.x, e.y, dirX * 2.2, dirY * 2.2, 3.2, 0.5);
+          }
+          e.aiState = 'recover';
+          e.stateTimer = 0.22;
+          e.aiTimer = e.phase >= 2 ? 2.0 : 2.4;
+        }
+      } else if (e.aiState === 'recover' && e.stateTimer > 0) {
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = (roomLit ? 1.1 : 1.65) * 0.35;
+      } else {
+        const nearBomb = roomLit
+          ? s.bombs.find(
+              (b) => !b.carried && b.fuse < 1.0 && Math.hypot(b.x - e.x, b.y - e.y) <= 1.9,
+            )
+          : undefined;
+        if (nearBomb) {
+          e.aiState = 'flee';
+          const awayX = e.x - nearBomb.x;
+          const awayY = e.y - nearBomb.y;
+          const awayLen = Math.hypot(awayX, awayY) || 1;
+          const ax = awayX / awayLen;
+          const ay = awayY / awayLen;
+          const toCx = ROOM_W * 0.5 - e.x;
+          const toCy = ROOM_H * 0.5 - e.y;
+          const sign = -ay * toCx + ax * toCy >= 0 ? 1 : -1;
+          const sx = -ay * sign * 0.8 + ax * 0.6;
+          const sy = ax * sign * 0.8 + ay * 0.6;
+          const sLen = Math.hypot(sx, sy) || 1;
+          e.fx = sx / sLen;
+          e.fy = sy / sLen;
+          speed = 1.65;
+        } else {
+          e.aiState = 'chase';
+          e.fx = dirX;
+          e.fy = dirY;
+          speed = roomLit ? 1.1 : 1.65;
+        }
+        e.aiTimer -= dt;
+        if (e.aiTimer <= 0) {
+          e.aiState = 'windup';
+          e.stateTimer = 0.25;
+          speed = 0;
+          s.events.push('enemy-windup');
+        }
       }
     } else if (e.kind === 'cinderhull') {
-      speed = e.armored ? 1.1 + (e.phase - 1) * 0.25 : 0.45;
-      e.fx = dirX;
-      e.fy = dirY;
-      e.aiTimer -= dt;
-      if (e.aiTimer <= 0 && e.armored) {
-        e.aiTimer = Math.max(1.8, 2.7 - (e.phase - 1) * 0.3);
-        const baseAngle = Math.atan2(dirY, dirX);
-        for (const spread of [-0.32, 0, 0.32]) {
-          const a = baseAngle + spread;
-          s.projectiles.push({
-            x: e.x,
-            y: e.y,
-            vx: Math.cos(a) * 3.4,
-            vy: Math.sin(a) * 3.4,
-            life: 3.0,
-          });
+      e.phase = e.hp <= 4 ? 3 : e.hp <= 8 ? 2 : 1;
+      const armoredSpeed = 1.1 + (e.phase - 1) * 0.25;
+      if (e.stumbleTimer > 0) {
+        speed = 0;
+      } else if (!e.armored) {
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = e.aiState === 'recover' && e.stateTimer > 0 ? 0.25 : 0.45;
+        if (e.stateTimer <= 0) e.aiState = 'chase';
+      } else if (e.aiState === 'windup') {
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = 0;
+        if (e.stateTimer <= 0) {
+          const baseAngle = Math.atan2(dirY, dirX);
+          for (const spread of [-0.32, 0, 0.32]) {
+            const a = baseAngle + spread;
+            s.projectiles.push({
+              x: e.x,
+              y: e.y,
+              vx: Math.cos(a) * 3.4,
+              vy: Math.sin(a) * 3.4,
+              life: 3.0,
+            });
+          }
+          spawnWindGust(s, e.x, e.y, dirX * 2.4, dirY * 2.4, 2.8, 0.45);
+          e.aiState = 'recover';
+          e.stateTimer = 0.3;
+          e.aiTimer = Math.max(1.8, 2.7 - (e.phase - 1) * 0.3);
+        }
+      } else if (e.aiState === 'recover' && e.stateTimer > 0) {
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = armoredSpeed * 0.25;
+      } else {
+        e.aiState = 'chase';
+        e.fx = dirX;
+        e.fy = dirY;
+        speed = armoredSpeed;
+        e.aiTimer -= dt;
+        if (e.aiTimer <= 0) {
+          e.aiState = 'windup';
+          e.stateTimer = 0.28;
+          speed = 0;
+          s.events.push('enemy-windup');
+        }
+      }
+    } else {
+      const baseSpeed =
+        e.kind === 'slime'
+          ? e.splitGen === 1
+            ? 1.75
+            : 1.35
+          : e.kind === 'bat'
+            ? 1.9
+            : e.armored
+              ? 1.25
+              : 1.7;
+
+      if (e.stumbleTimer > 0) {
+        speed = 0;
+      } else {
+        // World reaction 1: Bats snuff ground flames within 0.88 tiles
+        if (e.kind === 'bat') {
+          for (const f of s.fires) {
+            if (f.remaining > 0 && Math.hypot(e.x - (f.x + 0.5), e.y - (f.y + 0.5)) <= 0.88) {
+              f.remaining = 0;
+              s.events.push('flame-snuff');
+            }
+          }
+        }
+
+        // World reaction 2: Armored shielders kick grounded front-arc bombs back
+        if (e.kind === 'shielder' && e.armored) {
+          for (const b of s.bombs) {
+            if (b.carried || b.z > 0.16 || b.fuse <= 0.12) continue;
+            const relX = b.x - e.x;
+            const relY = b.y - e.y;
+            const bDist = Math.hypot(relX, relY);
+            if (bDist > 0.88) continue;
+            if (relX * e.fx + relY * e.fy < -0.15) continue;
+            let kdx: number;
+            let kdy: number;
+            if (toPx * e.fx + toPy * e.fy > 0.15 && Math.hypot(toPx, toPy) > 0.2) {
+              kdx = dirX;
+              kdy = dirY;
+            } else if (bDist > 0.05) {
+              kdx = relX / bDist;
+              kdy = relY / bDist;
+            } else {
+              const fLen = Math.hypot(e.fx, e.fy) || 1;
+              kdx = e.fx / fLen;
+              kdy = e.fy / fLen;
+            }
+            if (b.vx * kdx + b.vy * kdy < KICK_SPEED * 0.75) {
+              b.vx = kdx * KICK_SPEED * 1.05;
+              b.vy = kdy * KICK_SPEED * 1.05;
+              b.vz = 0.8;
+              b.z = Math.max(b.z, 0.02);
+              b.graceOverlap = false;
+              b.thrown = false;
+              floatingSet.delete(b.id);
+              e.aiState = 'recover';
+              e.stateTimer = 0.28;
+              s.events.push('shielder-kick');
+              break;
+            }
+          }
+        }
+
+        // Fuse awareness: non-armored-shielder enemies flee live bombs with fuse < 0.95s
+        let threatBomb: Bomb | undefined;
+        if (!(e.kind === 'shielder' && e.armored)) {
+          let bestBombDist = ENEMY_FLEE_RADIUS;
+          for (const b of s.bombs) {
+            if (b.carried || b.fuse >= 0.95) continue;
+            const bd = Math.hypot(b.x - e.x, b.y - e.y);
+            if (bd <= bestBombDist) {
+              bestBombDist = bd;
+              threatBomb = b;
+            }
+          }
+        }
+
+        if (threatBomb) {
+          e.aiState = 'flee';
+          const awayX = e.x - threatBomb.x;
+          const awayY = e.y - threatBomb.y;
+          const awayLen = Math.hypot(awayX, awayY);
+          e.fx = awayLen > 1e-4 ? awayX / awayLen : -dirX;
+          e.fy = awayLen > 1e-4 ? awayY / awayLen : -dirY;
+          if (e.invulnTimer <= 0 && e.vx * e.fx + e.vy * e.fy < 0) {
+            e.vx *= 0.2;
+            e.vy *= 0.2;
+          }
+          speed = baseSpeed * 1.25;
+        } else {
+          if (e.aiState === 'flee') {
+            e.aiState = dist <= ENEMY_NOTICE_RADIUS && roomLit ? 'chase' : 'patrol';
+          }
+
+          // Bats steer toward active FirePatches within 3.5 tiles to snuff them
+          let targetFire: FirePatch | undefined;
+          if (e.kind === 'bat') {
+            let bestFireDist = 3.5;
+            for (const f of s.fires) {
+              if (f.remaining <= 0) continue;
+              const fd = Math.hypot(f.x + 0.5 - e.x, f.y + 0.5 - e.y);
+              if (fd <= bestFireDist) {
+                bestFireDist = fd;
+                targetFire = f;
+              }
+            }
+          }
+
+          if (targetFire) {
+            const tx = targetFire.x + 0.5 - e.x;
+            const ty = targetFire.y + 0.5 - e.y;
+            const tLen = Math.hypot(tx, ty) || 1;
+            e.fx = tx / tLen;
+            e.fy = ty / tLen;
+            speed = baseSpeed;
+          } else if (e.aiState === 'patrol') {
+            if (dist <= ENEMY_NOTICE_RADIUS && roomLit) {
+              e.aiState = 'notice';
+              e.stateTimer = 0.16;
+              e.fx = dirX;
+              e.fy = dirY;
+              speed = 0;
+              s.events.push('enemy-notice');
+            } else {
+              e.aiTimer += dt * 1.6;
+              const orbitX = e.homeX + Math.cos(e.aiTimer + e.id * 1.7) * 0.85;
+              const orbitY = e.homeY + Math.sin(e.aiTimer + e.id * 1.7) * 0.85;
+              const ox = orbitX - e.x;
+              const oy = orbitY - e.y;
+              const oLen = Math.hypot(ox, oy);
+              if (oLen > 0.08) {
+                e.fx = ox / oLen;
+                e.fy = oy / oLen;
+                speed = 0.45 * baseSpeed;
+              } else {
+                speed = 0;
+              }
+            }
+          } else if (e.aiState === 'notice') {
+            e.fx = dirX;
+            e.fy = dirY;
+            speed = 0;
+            if (e.stateTimer <= 0) {
+              e.aiState = 'chase';
+            }
+          } else if (e.aiState === 'chase') {
+            if (dist > 6.4 || !roomLit) {
+              e.aiState = 'patrol';
+              speed = 0;
+            } else if (dist <= 1.45) {
+              e.aiState = 'windup';
+              e.stateTimer = 0.22;
+              e.fx = dirX;
+              e.fy = dirY;
+              speed = 0;
+              s.events.push('enemy-windup');
+            } else {
+              if (e.kind === 'bat') {
+                e.aiTimer += dt * 3.2;
+                const wx = dirX + Math.cos(e.aiTimer) * 0.38;
+                const wy = dirY + Math.sin(e.aiTimer) * 0.38;
+                const wLen = Math.hypot(wx, wy) || 1;
+                e.fx = wx / wLen;
+                e.fy = wy / wLen;
+              } else {
+                e.fx = dirX;
+                e.fy = dirY;
+              }
+              speed = baseSpeed;
+            }
+          } else if (e.aiState === 'windup') {
+            const fLen = Math.hypot(e.fx, e.fy);
+            if (fLen > 1e-4) {
+              e.fx /= fLen;
+              e.fy /= fLen;
+            } else {
+              e.fx = dirX;
+              e.fy = dirY;
+            }
+            speed = 0;
+            if (e.stateTimer <= 0) {
+              e.vx += e.fx * 4.6;
+              e.vy += e.fy * 4.6;
+              e.aiState = 'recover';
+              e.stateTimer = 0.34;
+            }
+          } else if (e.aiState === 'recover') {
+            e.fx = dirX;
+            e.fy = dirY;
+            speed = 0.25 * baseSpeed;
+            if (e.stateTimer <= 0) {
+              e.aiState = dist <= ENEMY_NOTICE_RADIUS && roomLit ? 'chase' : 'patrol';
+            }
+          }
         }
       }
     }
@@ -2326,6 +2958,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       s.vy = dirY * 5.5;
     }
   }
+  if (s.fires.some((f) => f.remaining <= 0)) {
+    s.fires = s.fires.filter((f) => f.remaining > 0);
+  }
 
   // 7. Update enemy projectiles
   const keptProjectiles = [];
@@ -2348,11 +2983,39 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   }
   s.projectiles = keptProjectiles;
 
-  // 8. Check puzzle/combat completion & magnetized pickup collection
+  // 8. Check puzzle/combat completion, wind-drifted light objects & magnetized pickup collection
   checkSolveCondition(world, s);
+
+  const canPickupStand = (nx: number, ny: number): boolean => {
+    if (nx < 1.15 || nx > ROOM_W - 1.15 || ny < 1.15 || ny > ROOM_H - 1.15) return false;
+    const tx = Math.floor(nx);
+    const ty = Math.floor(ny);
+    const pt = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+    return (
+      !isTileSolidForWalk(pt, s.crystalColor) &&
+      pt !== '^' &&
+      pt !== '!' &&
+      !isWaterTile(pt) &&
+      !hasBlockAt(s, tx, ty)
+    );
+  };
 
   const remainingPickups: ActivePickup[] = [];
   for (const p of s.pickups) {
+    const wv = windVectorAt(world, s, p.x, p.y);
+    if (Math.hypot(wv.dx, wv.dy) > 0.05) {
+      const nx = p.x + wv.dx * 1.1 * dt;
+      const ny = p.y + wv.dy * 1.1 * dt;
+      if (canPickupStand(nx, ny)) {
+        p.x = nx;
+        p.y = ny;
+      } else if (canPickupStand(nx, p.y)) {
+        p.x = nx;
+      } else if (canPickupStand(p.x, ny)) {
+        p.y = ny;
+      }
+    }
+
     const dist = Math.hypot(s.x - p.x, s.y - p.y);
     if (dist > 0.001 && dist <= PICKUP_MAGNET_RADIUS) {
       const pull = Math.min(dist, (5.5 + (1 - dist / PICKUP_MAGNET_RADIUS) * 4.5) * dt);
@@ -2366,6 +3029,11 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
   s.pickups = remainingPickups;
+
+  if (s.gusts.length > 0) {
+    for (const g of s.gusts) g.remaining -= dt;
+    s.gusts = s.gusts.filter((g) => g.remaining > 0);
+  }
 
   // 9. Portal transitions (`>` stairs & midpoint warp pad)
   if (s.portalCooldown <= 0 && room?.portals) {

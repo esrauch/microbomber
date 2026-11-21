@@ -172,15 +172,18 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const interiorWater: Array<[number, number]> = [];
   const warpPads: Array<{ x: number; y: number; active: boolean }> = [];
 
+  const isWaterCell = (t: Tile): boolean =>
+    t === '~' || t === '1' || t === '2' || t === '3' || t === '4';
+
   const isWaterLike = (x: number, y: number): boolean => {
     const t = at(x, y);
     return (
-      t === '~' ||
+      isWaterCell(t) ||
       (t === '_' &&
-        (at(x - 1, y) === '~' ||
-          at(x + 1, y) === '~' ||
-          at(x, y - 1) === '~' ||
-          at(x, y + 1) === '~'))
+        (isWaterCell(at(x - 1, y)) ||
+          isWaterCell(at(x + 1, y)) ||
+          isWaterCell(at(x, y - 1)) ||
+          isWaterCell(at(x, y + 1))))
     );
   };
 
@@ -244,7 +247,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
             tile: tunnelTile,
             topShadow: castShadow,
           });
-          if (y === 0 && t === '.') {
+          if (y === 0 && (t === '.' || t === ',')) {
             ceiling.push({ x, y, tile: BG.archLintelN, transparentZero: true });
           }
         } else {
@@ -445,6 +448,12 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         props.push({ x, y, tile: solved ? BG.buttonDown : BG.buttonUp, transparentZero: true });
       } else if (t === '!') {
         props.push({ x, y, tile: BG.spikes, transparentZero: true });
+      } else if (t === ',') {
+        props.push({ x, y, tile: BG.dryGrass, transparentZero: true, topShadow: castShadow });
+      } else if (t === '1' || t === '2' || t === '3' || t === '4') {
+        const currentTile =
+          t === '1' ? BG.currentN : t === '2' ? BG.currentS : t === '3' ? BG.currentE : BG.currentW;
+        props.push({ x, y, tile: currentTile, transparentZero: true });
       } else if (t === 'n' || t === 's' || t === 'e' || t === 'w') {
         const slopeTile =
           t === 'n' ? BG.slopeN : t === 's' ? BG.slopeS : t === 'e' ? BG.slopeE : BG.slopeW;

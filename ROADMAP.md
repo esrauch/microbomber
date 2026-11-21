@@ -76,17 +76,17 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 
 ## Phase 4: Systemic world and AI
 
-- [ ] **Spreading fire:** dry grass and brambles burn tile by tile; crates burn;
+- [x] **Spreading fire:** dry grass and brambles burn tile by tile; crates burn;
       braziers in range light; water and stone stop it.
-- [ ] **Water currents:** bombs float and drift; current tiles.
-- [ ] **Wind:** gusts carry smoke, fire and light objects (groundwork for Gale).
-- [ ] **Enemy state machines:** patrol, notice, chase, recover, with clear
+- [x] **Water currents:** bombs float and drift; current tiles.
+- [x] **Wind:** gusts carry smoke, fire and light objects (groundwork for Gale).
+- [x] **Enemy state machines:** patrol, notice, chase, recover, with clear
       wind-up telegraphs.
-- [ ] **Fuse awareness:** enemies flee lit fuses and stumble when hit.
-- [ ] **World reactions:** bats put out flames, slimes split in fire, shielders
+- [x] **Fuse awareness:** enemies flee lit fuses and stumble when hit.
+- [x] **World reactions:** bats put out flames, slimes split in fire, shielders
       kick bombs back.
-- [ ] **Bosses:** Wickgeist and Cinderhull updated for physics bombs and the new AI.
-- [ ] **Tests:** fire-spread bounds, current drift, AI state transitions.
+- [x] **Bosses:** Wickgeist and Cinderhull updated for physics bombs and the new AI.
+- [x] **Tests:** fire-spread bounds, current drift, AI state transitions.
 - [ ] **Playtest checkpoint:** emergent chaos stays fair and readable.
 
 ## Phase 5: PixiJS renderer (HD-2D lite)

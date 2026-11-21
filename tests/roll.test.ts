@@ -139,6 +139,11 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
       invulnTimer: 0,
       aiTimer: 0,
       phase: 1,
+      aiState: 'patrol',
+      stateTimer: 0,
+      stumbleTimer: 0,
+      homeX: 4.5,
+      homeY: 4.5,
     });
     rollB(world, eState, 1, 0);
     expect(eState.hp).toBe(eState.maxHp);

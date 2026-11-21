@@ -101,6 +101,27 @@ export function makeSfx(): SfxPlayer {
         tone(880, 1175, 0.2, 'sine', 0.16, 0.09);
       } else if (ev === 'enemy-hit' || ev === 'enemy-defeat') {
         tone(360, 180, 0.1, 'square', 0.12);
+      } else if (ev === 'enemy-notice') {
+        tone(520, 780, 0.055, 'square', 0.1, 0);
+        tone(780, 1040, 0.075, 'triangle', 0.12, 0.05);
+      } else if (ev === 'enemy-windup') {
+        tone(220, 460, 0.13, 'sawtooth', 0.11, 0);
+        tone(330, 660, 0.11, 'triangle', 0.1, 0.03);
+      } else if (ev === 'enemy-stumble') {
+        tone(340, 170, 0.08, 'triangle', 0.12, 0);
+        tone(240, 115, 0.1, 'sine', 0.11, 0.065);
+      } else if (ev === 'flame-snuff') {
+        tone(480, 120, 0.12, 'sawtooth', 0.1, 0);
+        tone(260, 80, 0.14, 'triangle', 0.11, 0.02);
+      } else if (ev === 'slime-split') {
+        tone(280, 560, 0.065, 'sine', 0.13, 0);
+        tone(380, 740, 0.075, 'sine', 0.12, 0.055);
+      } else if (ev === 'shielder-kick') {
+        tone(180, 85, 0.06, 'square', 0.13, 0);
+        tone(310, 490, 0.075, 'triangle', 0.12, 0.02);
+      } else if (ev === 'wind-gust') {
+        tone(210, 430, 0.14, 'sine', 0.09, 0);
+        tone(430, 190, 0.18, 'triangle', 0.08, 0.1);
       } else if (ev === 'player-hurt') {
         tone(240, 110, 0.2, 'sawtooth', 0.18);
       }
