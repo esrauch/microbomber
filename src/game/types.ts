@@ -1,6 +1,6 @@
 /**
  * Pure data types for microbomber's simulation (`src/game/`).
- * Free of three.js and DOM APIs so the entire campaign and boss logic
+ * Free of rendering and DOM APIs so the entire campaign and boss logic
  * can be simulated and verified headlessly in Vitest.
  */
 

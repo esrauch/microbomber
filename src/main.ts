@@ -1,14 +1,11 @@
 /**
  * microbomber: Vertical Slice entry point (`GAME.md`).
- * Portrait layout: Top Status + Minimap -> 2.5D Room Stage -> Dedicated Control Band.
+ * Portrait layout: Top Status + Minimap -> 2D GBC Sprite Stage -> Dedicated Control Band.
  */
-import * as THREE from 'three';
 import buildInfo from 'virtual:build-info';
 import type { BombKind } from './game/types';
 import {
   type Input,
-  ROOM_H,
-  ROOM_W,
   type State,
   campaignWorld,
   currentRoom,
@@ -19,8 +16,7 @@ import {
   showBanner,
   tick,
 } from './game/world';
-import { makeCameraRig } from './render/camera';
-import { makeRoomView } from './render/scene';
+import { makeGbcView } from './render/gbc';
 import { mountJoystick } from './ui/joystick';
 import { makeSfx } from './ui/sfx';
 
@@ -33,6 +29,8 @@ const controls = document.querySelector<HTMLElement>('#controls');
 if (!topbar || !stage || !canvas || !controls) {
   throw new Error('index.html is missing required shell elements');
 }
+const stageEl = stage;
+const canvasEl = canvas;
 
 const world = campaignWorld();
 const sfx = makeSfx();
@@ -66,17 +64,18 @@ function persistState(s: State): void {
 
 let state = loadInitialState();
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-const view = makeRoomView();
-view.rebuild(world, state);
-const rig = makeCameraRig({ width: ROOM_W, depth: ROOM_H });
+const view = makeGbcView(canvasEl);
+
+function rebuildRoom(): void {
+  stageEl.style.background = state.zone === 'ember-crypt' ? '#110d18' : '#101611';
+  canvasEl.style.borderColor = state.zone === 'ember-crypt' ? '#443658' : '#2d3d30';
+  view.rebuild(world, state);
+}
 
 const resize = (): void => {
-  const w = stage.clientWidth || 360;
-  const h = stage.clientHeight || 480;
-  renderer.setSize(w, h, false);
-  rig.resize(w, h);
+  const w = stageEl.clientWidth || 360;
+  const h = stageEl.clientHeight || 480;
+  view.resize(w, h);
 };
 window.addEventListener('resize', resize);
 
@@ -179,6 +178,7 @@ for (const btn of [muteBtn, resetSaveBtn]) {
     textAlign: 'left',
   });
 }
+
 muteBtn.textContent = '🔊 Sound: On';
 muteBtn.addEventListener('click', () => {
   sfx.muted = !sfx.muted;
@@ -206,7 +206,7 @@ resetSaveBtn.addEventListener('click', () => {
     // ignore
   }
   state = newState(world);
-  view.rebuild(world, state);
+  rebuildRoom();
   settingsModal.style.display = 'none';
   syncHud(true);
 });
@@ -219,7 +219,7 @@ Object.assign(buildStamp.style, {
 });
 buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
 settingsModal.append(muteBtn, resetSaveBtn, buildStamp);
-stage.append(settingsModal);
+stageEl.append(settingsModal);
 
 gearBtn.addEventListener('click', () => {
   settingsModal.style.display = settingsModal.style.display === 'none' ? 'flex' : 'none';
@@ -587,7 +587,8 @@ function syncHud(force = false): void {
   }
 }
 
-// Initial layout & HUD render
+// Initial room build, layout & HUD render
+rebuildRoom();
 resize();
 syncHud(true);
 
@@ -604,7 +605,8 @@ const REBUILD_EVENTS = new Set([
 let last = performance.now();
 let cutting = false;
 
-renderer.setAnimationLoop((now) => {
+const frame = (now: number): void => {
+  requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
@@ -621,18 +623,18 @@ renderer.setAnimationLoop((now) => {
       cutting = true;
       fade.style.opacity = '1';
       window.setTimeout(() => {
-        view.rebuild(world, state);
+        rebuildRoom();
         syncHud(true);
         fade.style.opacity = '0';
         cutting = false;
       }, 85);
     } else {
-      if (needsRebuild) view.rebuild(world, state);
+      if (needsRebuild) rebuildRoom();
       if (gotPickup) persistState(state);
     }
   }
 
   syncHud();
   view.sync(world, state, now / 1000);
-  renderer.render(view.scene, rig.camera);
-});
+};
+requestAnimationFrame(frame);

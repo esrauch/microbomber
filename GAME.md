@@ -21,7 +21,7 @@ minute campaign.
 | **Health and retry** | Start with **3 hearts**, up to **10** (4 boss Heart Containers, plus 6 Heart Shards at 2 per heart). On death, respawn at the **doorway of the room** where you fell. |
 | **Saving** | **Autosave on every room change**; reopening the game puts you exactly where you were. |
 | **Phone first** | Portrait, touch, a thumb on each side. Designed for five-minute sessions. |
-| **Look** | Top-down 2.5D in three.js, the same stack as the other projects. |
+| **Look** | Pure-2D Game Boy Color pixel art in the Oracle of Ages style, held to GBC colour rules: `16 × 16` tiles, `1px` ink outlines, RGB555 colours; each sprite uses one of 8 sprite palettes (3 colours plus transparent), each `8 × 8` quarter of a background tile uses one of its zone's 8 background palettes (4 colours). Recolours are palette swaps (`src/render/gbcPalette.ts`, `gbcArt.ts`). |
 
 ## 2. Controls (portrait, two thumbs)
 

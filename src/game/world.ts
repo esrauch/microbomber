@@ -1,6 +1,6 @@
 /**
  * Core headless simulation for microbomber (`GAME.md`).
- * Pure TypeScript data & rules (no three.js or DOM) so movement, bombs,
+ * Pure TypeScript data & rules (no rendering or DOM) so movement, bombs,
  * puzzles, enemies, bosses, and autosave are 100% testable in Vitest.
  */
 import { campaignWorld, roomKey } from './campaign';
