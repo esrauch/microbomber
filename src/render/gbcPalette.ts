@@ -45,12 +45,12 @@ export type ObjPalette = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
 /** 8 sprite palettes of 6 RGB555 colours each (indices '1'..'6'; '.' is transparent). */
 export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
   pip: [
-    rgb555(240, 248, 248), // 1: goggle cyan-white glint
-    rgb555(248, 216, 72), // 2: brass goggles & buckle
-    rgb555(248, 208, 160), // 3: peach skin
-    rgb555(224, 120, 24), // 4: alchemist amber hood
-    rgb555(48, 128, 232), // 5: cobalt sapper tunic
-    INK, // 6: ink outline
+    rgb555(248, 208, 160), // 1: peach skin & lens glint
+    rgb555(224, 120, 24), // 2: amber hood
+    rgb555(48, 128, 232), // 3: cobalt tunic & goggle lenses
+    rgb555(144, 80, 32), // 4: brown hood shade, belt, boots, straps
+    rgb555(24, 56, 136), // 5: deep blue tunic shade
+    INK, // 6: ink silhouette
   ],
   powder: [
     rgb555(248, 248, 240), // 1: white-hot spark & specular

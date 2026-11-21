@@ -192,6 +192,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     ground: [],
     props: [],
     overhead: [],
+    ceiling: [],
     interiorWater: [],
     warpPads: [],
     chimneys: [],
@@ -203,7 +204,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   let prevTime = 0;
   let walkCycle = 0;
   let throwAnimUntil = 0;
-  let hurtAnimUntil = 0;
+  let crouchAnimUntil = 0;
   let fallAnimUntil = 0;
   let holdAnimUntil = 0;
   let heldKind: PickupKind = 'ember-bomb';
@@ -428,76 +429,66 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   }
 
   function drawPip(ctx: CanvasRenderingContext2D, s: State, time: number): void {
+    // Getting hit is the i-frame blink only (no hurt frame), as in Oracle
     if (s.invulnTimer > 0 && time >= fallAnimUntil && Math.floor(time * 18) % 2 === 0) return;
 
     const dx = Math.round(s.x * TILE_PX - 8);
-    const dy = Math.round(s.y * TILE_PX - 12);
+    const dy = Math.round(s.y * TILE_PX - 10);
 
     if (time < fallAnimUntil) {
       const rem = fallAnimUntil - time;
-      drawObjSprite(ctx, rem > 0.14 ? 'PIP_FALL_1' : 'PIP_FALL_2', dx, dy + 2);
+      const fall: ObjSpriteName =
+        rem > 0.24 ? 'PIP_FALL_1' : rem > 0.12 ? 'PIP_FALL_2' : 'PIP_FALL_3';
+      drawObjSprite(ctx, fall, dx, dy);
       return;
     }
 
     drawObjSprite(ctx, 'SHADOW_CELL', dx, Math.round(s.y * TILE_PX - 8));
 
     if (time < holdAnimUntil) {
-      drawObjSprite(ctx, 'PIP_HOLD', dx, dy);
-      drawPickup(ctx, heldKind, dx, dy - 13, time);
-      return;
-    }
-    if (time < hurtAnimUntil) {
-      drawObjSprite(ctx, 'PIP_HURT', dx, dy, false, 'crimson');
+      drawObjSprite(ctx, 'PIP_GET', dx, dy);
+      drawPickup(ctx, heldKind, dx, dy - 12, time);
       return;
     }
 
+    // Facing: south / north / east, with west drawn as east flipped
+    const dir = s.aimX !== 0 ? 'EAST' : s.aimY < 0 ? 'NORTH' : 'SOUTH';
+    const flip = s.aimX < 0;
+    const draw = (name: ObjSpriteName): void => drawObjSprite(ctx, name, dx, dy, flip);
+    const stepIdx = Math.floor(walkCycle) % 4; // 4-beat: idle, step L, idle, step R
+    const moving = walkCycle > 0;
+
+    if (time < crouchAnimUntil) {
+      draw(`PIP_${dir}_LIFT`);
+      return;
+    }
     const carried = s.bombs.find((b) => b.carriedBy !== undefined);
     if (carried) {
-      drawObjSprite(ctx, 'PIP_HOLD', dx, dy);
-      drawBomb(ctx, carried, dx, dy - 12, time);
+      const second = moving && stepIdx >= 2;
+      draw(second ? `PIP_${dir}_CARRY_2` : `PIP_${dir}_CARRY_1`);
+      drawBomb(ctx, carried, dx, dy - (second ? 10 : 11), time);
       return;
     }
-
-    const pushing = s.blocks.some((b) => b.pushCharge > 0.04);
-    const throwing = time < throwAnimUntil;
-    const stepIdx = Math.floor(walkCycle) % 4;
-    const walkFrame = stepIdx === 1 ? 1 : stepIdx === 3 ? 2 : 0;
-
-    if (s.aimX !== 0) {
-      const flipWest = s.aimX < 0;
-      if (pushing && !throwing) {
-        drawObjSprite(ctx, 'PIP_EAST_PUSH', dx, dy, flipWest);
-      } else if (throwing) {
-        drawObjSprite(ctx, 'PIP_EAST_THROW', dx, dy, flipWest);
-      } else {
-        const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-          'PIP_EAST_IDLE',
-          'PIP_EAST_WALK1',
-          'PIP_EAST_WALK2',
-        ];
-        drawObjSprite(ctx, frames[walkFrame] ?? 'PIP_EAST_IDLE', dx, dy, flipWest);
-      }
-    } else if (s.aimY < 0) {
-      if (throwing) {
-        drawObjSprite(ctx, 'PIP_NORTH_THROW', dx, dy);
-      } else {
-        const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-          'PIP_NORTH_IDLE',
-          'PIP_NORTH_WALK1',
-          'PIP_NORTH_WALK2',
-        ];
-        drawObjSprite(ctx, frames[walkFrame] ?? 'PIP_NORTH_IDLE', dx, dy);
-      }
-    } else if (throwing) {
-      drawObjSprite(ctx, 'PIP_SOUTH_THROW', dx, dy);
-    } else {
-      const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-        'PIP_SOUTH_IDLE',
-        'PIP_SOUTH_WALK1',
-        'PIP_SOUTH_WALK2',
-      ];
-      drawObjSprite(ctx, frames[walkFrame] ?? 'PIP_SOUTH_IDLE', dx, dy);
+    if (time < throwAnimUntil) {
+      draw(`PIP_${dir}_THROW`);
+      return;
     }
+    if (s.blocks.some((b) => b.pushCharge > 0.04)) {
+      draw(stepIdx < 2 ? `PIP_${dir}_PUSH_1` : `PIP_${dir}_PUSH_2`);
+      return;
+    }
+    if (moving) {
+      draw(
+        stepIdx === 1
+          ? `PIP_${dir}_WALK_L`
+          : stepIdx === 3
+            ? `PIP_${dir}_WALK_R`
+            : `PIP_${dir}_IDLE`,
+      );
+      return;
+    }
+    // Standing still: the hood point sways every second or so
+    draw(time % 1.3 > 1.0 ? `PIP_${dir}_IDLE_B` : `PIP_${dir}_IDLE`);
   }
 
   function drawBlastSegment(ctx: CanvasRenderingContext2D, bl: BlastInstance, age: number): void {
@@ -583,8 +574,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       for (const p of plan.props) {
         rctx.drawImage(getPlacedBg(s.zone, p), p.x * TILE_PX, p.y * TILE_PX);
       }
-      for (const o of plan.overhead) {
-        cctx.drawImage(getPlacedBg(s.zone, o), o.x * TILE_PX, o.y * TILE_PX);
+      for (const c of plan.ceiling) {
+        cctx.drawImage(getPlacedBg(s.zone, c), c.x * TILE_PX, c.y * TILE_PX);
       }
     },
 
@@ -604,12 +595,12 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       for (const ev of s.events) {
-        if (ev === 'bomb-drop' || ev === 'bomb-throw') {
+        if (ev === 'bomb-throw') {
           throwAnimUntil = time + 0.16;
+        } else if (ev === 'bomb-drop' || ev === 'bomb-lift') {
+          crouchAnimUntil = time + 0.12;
         } else if (ev === 'pit-fall') {
-          fallAnimUntil = time + 0.28;
-        } else if (ev === 'player-hurt' || ev === 'player-hit') {
-          hurtAnimUntil = time + 0.28;
+          fallAnimUntil = time + 0.36;
         } else if (
           ev === 'pickup-ember-bomb' ||
           ev === 'pickup-boss-key' ||
@@ -698,6 +689,13 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
       const actors: Drawable[] = [];
       const room = currentRoom(world, s);
+
+      for (const o of plan.overhead) {
+        actors.push({
+          footY: o.y + 0.99,
+          draw: () => mainCtx.drawImage(getPlacedBg(s.zone, o), o.x * TILE_PX, o.y * TILE_PX),
+        });
+      }
 
       for (const npc of room?.npcs ?? []) {
         actors.push({

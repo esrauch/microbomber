@@ -90,10 +90,12 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 
 ## 3. Sprites, VFX & UI Icons (`OBJ`, up to `6` RGB555 Colours Each)
 
-### 3.1 Pip (`16 × 18`, `'pip'` 6-colour palette: Ink, Cobalt, Deep Blue, Peach, Amber Hood, Brass/Gold)
-- **`South / North / East (flipX = West)`:**
-  - **4-beat walk cycle** (`Idle, WalkL, Idle, WalkR`) with hood bob & swinging satchel.
-  - **Action frames:** `Drop/Throw` toss release, `Push` (`2`-frame leaning drive against blocks), `Hurt` recoil, `Pit-Fall` (`3` shrinking spin frames), and **`Relic Overhead Hold`** fanfare!
+### 3.1 Pip (`16 × 16`, Oracle proportions)
+- **Silhouette:** a long **floppy amber hood point** is the hero feature, the way Link's cap is. It always flops to one side (screen-left from the front, screen-right from the back, behind the head in profile) and sways on each step and in a slow idle breath.
+- **Palette (`'pip'`):** peach skin, amber hood, cobalt tunic, brown (hood shade, belt, boots, goggle rims, satchel), deep blue (tunic shade), ink. **Selective outline:** ink only on the silhouette; interior edges use the darker fill.
+- **Face:** brass-rimmed goggles pushed up on the hood brow (cobalt lenses with a peach glint), eyes shown below.
+- **Facings:** south, north, east; **west is east flipped**.
+- **Frames:** 4-beat walk with a `1px` head bob (`Idle, WalkL, Idle, WalkR`) plus `IdleB` hood sway; **full carry**: `Lift` crouch (also used for drop), 2-frame carry-walk per facing, `Throw` release; 2-frame `Push` lean per facing; `Get` item fanfare; 3-frame shrinking `Fall` spin. **No hurt frame:** a hit is the i-frame blink only.
 
 ### 3.2 Bombs & Connected Blast VFX
 - **Blackpowder Bomb (`16 × 16`):** Riveted dark-slate iron body, specular steel rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).

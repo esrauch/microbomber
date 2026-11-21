@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { campaignWorld, newState } from '../src/game/world';
 import {
   BG,
   CRYPT_FLOOR_BLOB,
@@ -9,6 +10,7 @@ import {
   WATER_BLOB,
   resolveBlobTile,
 } from '../src/render/gbcArt';
+import { buildRoomLayout } from '../src/render/gbcAutotile';
 import {
   BG_PALETTES,
   BG_PALETTE_IDS,
@@ -79,5 +81,29 @@ describe('GBC colour and multi-tile rules', () => {
         expect(BG[c.tile], `${id} -> ${c.tile}`).toBeDefined();
       }
     }
+  });
+
+  it('Y-sorts 3/4 overhead tiles behind southern braziers while keeping north doorway lintels on ceiling', () => {
+    const world = campaignWorld();
+
+    // Ember Crypt Arch: crypt-mausoleum at y=4 sorts behind lit braziers at y=5
+    const archState = newState(world, 'overworld', 3, 5, 5.5, 8.0);
+    const archPlan = buildRoomLayout(world, archState);
+    expect(archPlan.ceiling).toHaveLength(0);
+    const mausoleum = archPlan.overhead.filter((o) => o.y === 4 && o.x >= 4 && o.x <= 6);
+    expect(mausoleum).toHaveLength(3);
+    for (const m of mausoleum) {
+      expect(m.transparentZero).toBe(false);
+      for (const t of archState.torches) {
+        expect(m.y + 0.99).toBeLessThan(t.y + 0.55);
+      }
+    }
+
+    // Crystal Crossroads: open north tunnel (5,0) puts archLintelN on the walk-under ceiling layer
+    const cryptState = newState(world, 'ember-crypt', 1, 2, 5.5, 6.5);
+    const cryptPlan = buildRoomLayout(world, cryptState);
+    expect(cryptPlan.ceiling).toEqual([
+      { x: 5, y: 0, tile: BG.archLintelN, transparentZero: true },
+    ]);
   });
 });

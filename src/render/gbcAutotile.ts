@@ -7,8 +7,10 @@
  * - `props`:    optional overlay BgTiles drawn with index 0 transparent so ground shows
  *               cleanly underneath (crates, fences, balustrades, brambles, braziers,
  *               crystal switches/barriers, buttons, spikes, stairs, landmark walls)
- * - `overhead`: Pass-4 tiles drawn AFTER Y-sorted actors (workshop/smithy roof eaves,
- *               mausoleum arch pediment, north doorway lintels, upper tree crowns)
+ * - `overhead`: 3/4 vertical overlap tiles Y-sorted with actors at `footY = y + 0.99`
+ *               (workshop/smithy roof eaves, mausoleum arch pediment, upper tree crowns) so
+ *               actors north of the tile tuck behind it while actors/flames south draw in front
+ * - `ceiling`:  Pass-4 walk-under ceiling tiles drawn AFTER all actors (north doorway lintels)
  */
 import {
   ROOM_H,
@@ -46,7 +48,10 @@ export interface PlacedTile {
 export interface RoomRenderPlan {
   ground: PlacedTile[];
   props: PlacedTile[];
+  /** 3/4 overlap tiles Y-sorted with actors at `footY = y + 0.99`. */
   overhead: PlacedTile[];
+  /** True walk-under ceiling lintels drawn above all ground actors. */
+  ceiling: PlacedTile[];
   /** Pure interior water cells that cycle 3-frame ripple tiles each sync. */
   interiorWater: Array<[number, number]>;
   /** Midpoint warp cells that pulse when unlocked. */
@@ -110,88 +115,51 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     }
   }
 
-  // Greedy 2x2 interlocking tree pairing for Overworld 'Y' tiles + edge half-trees
+  // Authentic LADX / Oracle 2-wide vertical column-run tree tiling (`Top -> Ovl* -> Bot`):
+  // Any contiguous vertical run of 2-wide 'YY' rows (height 2, 3, 4, 5...) renders one unbroken
+  // canopy stack with a rounded top crown, 0+ overlapping middle crowns, and a rooted trunk base—
+  // never leaving a truncated 1-row orphan tree top!
   const treeMap = new Map<string, { tile: BgTile; overhead: boolean }>();
   if (!isCrypt) {
-    const claimed = new Set<string>();
-    const bottomRows = new Set<string>();
+    const claimedCol = new Set<string>();
+    const isFreeTree = (x: number, y: number): boolean =>
+      x >= 0 &&
+      x < ROOM_W &&
+      y >= 0 &&
+      y < ROOM_H &&
+      !claimedCol.has(`${x},${y}`) &&
+      !stampedSolid.has(`${x},${y}`) &&
+      at(x, y) === 'Y';
 
-    for (let y = 0; y < ROOM_H - 1; y++) {
-      for (let x = 0; x < ROOM_W - 1; x++) {
-        const keys = [`${x},${y}`, `${x + 1},${y}`, `${x},${y + 1}`, `${x + 1},${y + 1}`];
-        const ok = keys.every((k) => {
-          const [kx, ky] = k.split(',').map(Number);
-          return !claimed.has(k) && !stampedSolid.has(k) && grid[ky ?? 0]?.[kx ?? 0] === 'Y';
-        });
-        if (!ok) continue;
-        for (const k of keys) claimed.add(k);
-
-        // If directly below a previous 2x2 tree's bottom half, interlock canopies seamlessly!
-        const hasTreeAbove = bottomRows.has(`${x},${y - 1}`) && bottomRows.has(`${x + 1},${y - 1}`);
-        if (hasTreeAbove) {
-          treeMap.set(`${x},${y - 1}`, { tile: BG.treeOvlW, overhead: false });
-          treeMap.set(`${x + 1},${y - 1}`, { tile: BG.treeOvlE, overhead: false });
+    for (let x = 0; x < ROOM_W - 1; x++) {
+      let y = 0;
+      while (y < ROOM_H) {
+        if (!isFreeTree(x, y) || !isFreeTree(x + 1, y)) {
+          y++;
+          continue;
         }
-        const northWalkable = y > 0 && at(x, y - 1) !== 'Y' && at(x, y - 1) !== '#';
-        treeMap.set(`${x},${y}`, { tile: BG.treeNW, overhead: northWalkable && !hasTreeAbove });
-        treeMap.set(`${x + 1},${y}`, { tile: BG.treeNE, overhead: northWalkable && !hasTreeAbove });
-        treeMap.set(`${x},${y + 1}`, { tile: BG.treeSW, overhead: false });
-        treeMap.set(`${x + 1},${y + 1}`, { tile: BG.treeSE, overhead: false });
-        bottomRows.add(`${x},${y + 1}`);
-        bottomRows.add(`${x + 1},${y + 1}`);
-      }
-    }
-
-    // Pair remaining 1x2 vertical edge trees (e.g. odd rightmost column x=10 continuing off-screen!)
-    for (let y = 0; y < ROOM_H - 1; y++) {
-      for (let x = 0; x < ROOM_W; x++) {
-        const k0 = `${x},${y}`;
-        const k1 = `${x},${y + 1}`;
-        if (
-          !claimed.has(k0) &&
-          !claimed.has(k1) &&
-          !stampedSolid.has(k0) &&
-          !stampedSolid.has(k1) &&
-          at(x, y) === 'Y' &&
-          at(x, y + 1) === 'Y' &&
-          (x === 0 ||
-            x === ROOM_W - 1 ||
-            claimed.has(`${x - 1},${y}`) ||
-            claimed.has(`${x + 1},${y}`))
-        ) {
-          claimed.add(k0);
-          claimed.add(k1);
-          const leftSide = x > 0;
-          if (bottomRows.has(`${x},${y - 1}`)) {
-            treeMap.set(`${x},${y - 1}`, {
-              tile: leftSide ? BG.treeOvlW : BG.treeOvlE,
-              overhead: false,
-            });
+        const yStart = y;
+        while (y < ROOM_H && isFreeTree(x, y) && isFreeTree(x + 1, y)) {
+          y++;
+        }
+        const yEnd = y - 1;
+        if (yEnd - yStart + 1 < 2) {
+          continue; // 1-row孤立 cells fall back to sculpted mossy boulders
+        }
+        for (let ry = yStart; ry <= yEnd; ry++) {
+          claimedCol.add(`${x},${ry}`);
+          claimedCol.add(`${x + 1},${ry}`);
+          if (ry === yStart) {
+            const northWalkable = ry > 0 && at(x, ry - 1) !== 'Y' && at(x, ry - 1) !== '#';
+            treeMap.set(`${x},${ry}`, { tile: BG.treeNW, overhead: northWalkable });
+            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeNE, overhead: northWalkable });
+          } else if (ry < yEnd) {
+            treeMap.set(`${x},${ry}`, { tile: BG.treeOvlW, overhead: false });
+            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeOvlE, overhead: false });
+          } else {
+            treeMap.set(`${x},${ry}`, { tile: BG.treeSW, overhead: false });
+            treeMap.set(`${x + 1},${ry}`, { tile: BG.treeSE, overhead: false });
           }
-          treeMap.set(k0, { tile: leftSide ? BG.treeNW : BG.treeNE, overhead: false });
-          treeMap.set(k1, { tile: leftSide ? BG.treeSW : BG.treeSE, overhead: false });
-          bottomRows.add(k1);
-        }
-      }
-    }
-
-    // Pair remaining 2x1 horizontal top/bottom screen-edge half-trees
-    for (const y of [0, ROOM_H - 1]) {
-      for (let x = 0; x < ROOM_W - 1; x++) {
-        const k0 = `${x},${y}`;
-        const k1 = `${x + 1},${y}`;
-        if (
-          !claimed.has(k0) &&
-          !claimed.has(k1) &&
-          !stampedSolid.has(k0) &&
-          !stampedSolid.has(k1) &&
-          at(x, y) === 'Y' &&
-          at(x + 1, y) === 'Y'
-        ) {
-          claimed.add(k0);
-          claimed.add(k1);
-          treeMap.set(k0, { tile: y === 0 ? BG.treeSW : BG.treeNW, overhead: false });
-          treeMap.set(k1, { tile: y === 0 ? BG.treeSE : BG.treeNE, overhead: false });
         }
       }
     }
@@ -200,6 +168,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const ground: PlacedTile[] = [];
   const props: PlacedTile[] = [];
   const overhead: PlacedTile[] = [];
+  const ceiling: PlacedTile[] = [];
   const interiorWater: Array<[number, number]> = [];
   const warpPads: Array<{ x: number; y: number; active: boolean }> = [];
 
@@ -276,7 +245,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
             topShadow: castShadow,
           });
           if (y === 0 && t === '.') {
-            overhead.push({ x, y, tile: BG.archLintelN, transparentZero: true });
+            ceiling.push({ x, y, tile: BG.archLintelN, transparentZero: true });
           }
         } else {
           const nb = makeMask((dx, dy) => isCryptChamber(x + dx, y + dy));
@@ -508,12 +477,17 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
           : cell.tile;
       const tile = BG[tileName];
       if (cell.overhead) {
-        overhead.push({ x: tx, y: ty, tile, transparentZero: true });
+        overhead.push({
+          x: tx,
+          y: ty,
+          tile,
+          transparentZero: st.id !== 'crypt-mausoleum',
+        });
       } else {
         props.push({ x: tx, y: ty, tile, transparentZero: st.id !== 'spire-gate' });
       }
     }
   }
 
-  return { ground, props, overhead, interiorWater, warpPads, chimneys };
+  return { ground, props, overhead, ceiling, interiorWater, warpPads, chimneys };
 }

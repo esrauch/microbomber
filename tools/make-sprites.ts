@@ -243,23 +243,66 @@ SAMPLE_ROOMS.forEach((spec, idx) => {
       Boolean(p.topShadow),
     );
   }
+  interface ProofDrawable {
+    footY: number;
+    draw: () => void;
+  }
+  const actors: ProofDrawable[] = [];
+  for (const o of plan.overhead) {
+    actors.push({
+      footY: o.y + 0.99,
+      draw: () =>
+        drawProofBgTile(
+          rx0 + o.x * 16,
+          ry0 + o.y * 16,
+          spec.zone,
+          o.tile,
+          Boolean(o.transparentZero),
+          false,
+        ),
+    });
+  }
   for (const t of s.torches) {
     if (t.lit || spec.cinder) {
-      drawProofObj(rx0 + t.x * 16, ry0 + t.y * 16 - 5, 'FIRE_1');
+      actors.push({
+        footY: t.y + 0.55,
+        draw: () => drawProofObj(rx0 + t.x * 16, ry0 + t.y * 16 - 5, 'FIRE_1'),
+      });
     }
   }
   for (const e of s.enemies) {
     if (e.kind === 'cinderhull') {
-      drawProofObj(
-        rx0 + Math.round(e.x * 16 - 16),
-        ry0 + Math.round(e.y * 16 - 15),
-        'CINDERHULL_ARMORED_1',
-      );
+      actors.push({
+        footY: e.y,
+        draw: () =>
+          drawProofObj(
+            rx0 + Math.round(e.x * 16 - 16),
+            ry0 + Math.round(e.y * 16 - 15),
+            'CINDERHULL_ARMORED_1',
+          ),
+      });
     }
   }
-  drawProofObj(rx0 + Math.round(s.x * 16 - 8), ry0 + Math.round(s.y * 16 - 12), 'PIP_SOUTH_IDLE');
-  for (const o of plan.overhead) {
-    drawProofBgTile(rx0 + o.x * 16, ry0 + o.y * 16, spec.zone, o.tile, true, false);
+  actors.push({
+    footY: s.y,
+    draw: () =>
+      drawProofObj(
+        rx0 + Math.round(s.x * 16 - 8),
+        ry0 + Math.round(s.y * 16 - 10),
+        'PIP_SOUTH_IDLE',
+      ),
+  });
+  actors.sort((a, b) => a.footY - b.footY);
+  for (const a of actors) a.draw();
+  for (const c of plan.ceiling) {
+    drawProofBgTile(
+      rx0 + c.x * 16,
+      ry0 + c.y * 16,
+      spec.zone,
+      c.tile,
+      Boolean(c.transparentZero),
+      false,
+    );
   }
 });
 
