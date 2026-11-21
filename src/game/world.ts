@@ -29,6 +29,7 @@ export const EMBER_FUSE = 1.3; // seconds
 export const FIRE_DURATION = 2.5; // seconds an Ember hearth patch burns
 export const THROW_RANGE = 3; // tiles lobbed ahead
 export const THROW_DURATION = 0.24; // seconds in flight
+export const BOMB_COOLDOWN = 0.7; // seconds between placing new bombs
 const PLAYER_RADIUS = 0.28;
 const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
@@ -283,6 +284,7 @@ export function newState(
     vy: 0,
     invulnTimer: 0,
     portalCooldown: 0,
+    bombCooldown: 0,
     hp: 6,
     maxHp: 6,
     heartShards: 0,
@@ -872,6 +874,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
   }
   if (s.invulnTimer > 0) s.invulnTimer = Math.max(0, s.invulnTimer - dt);
   if (s.portalCooldown > 0) s.portalCooldown = Math.max(0, s.portalCooldown - dt);
+  if (s.bombCooldown > 0) s.bombCooldown = Math.max(0, s.bombCooldown - dt);
 
   if (input.selectBomb && s.unlockedBombs.includes(input.selectBomb)) {
     s.selectedBomb = input.selectBomb;
@@ -990,7 +993,9 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
   // 2. Bomb Drop & Throw (`GAME.md` §2 — one gesture per button)
   const { dropTile, throwTile } = computeGhostTargets(world, s);
 
-  if (input.drop && s.bombs.length < s.maxBombs) {
+  // New bombs share a cooldown; re-throwing a bomb already on the ground does not
+  const canPlace = s.bombs.length < s.maxBombs && s.bombCooldown <= 0;
+  if (input.drop && canPlace) {
     const [bx, by] = dropTile;
     const occupied = s.bombs.some(
       (b) => !b.flight && Math.floor(b.x) === bx && Math.floor(b.y) === by,
@@ -1004,6 +1009,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
         fuse: s.selectedBomb === 'ember' ? EMBER_FUSE : POWDER_FUSE,
         graceOverlap: true,
       });
+      s.bombCooldown = BOMB_COOLDOWN;
       s.events.push('bomb-drop');
     }
   }
@@ -1023,7 +1029,8 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
         duration: THROW_DURATION,
       };
       s.events.push('bomb-throw');
-    } else if (s.bombs.length < s.maxBombs) {
+    } else if (canPlace) {
+      s.bombCooldown = BOMB_COOLDOWN;
       s.bombs.push({
         id: s.nextEntityId++,
         kind: s.selectedBomb,

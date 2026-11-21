@@ -50,4 +50,19 @@ describe('movement feel', () => {
     for (let i = 0; i < 30 && !cut; i++) cut = tick(world, s, { ...idle, dy: 1 }, 1 / 60);
     expect([s.rx, s.ry]).toEqual([1, 3]);
   });
+
+  it('new bombs need a cooldown between them, but a grounded bomb can be thrown at once', () => {
+    const world = campaignWorld();
+    const s = newState(world, 'overworld', 3, 2, 4.5, 5.5);
+    s.enemies = [];
+    tick(world, s, { ...idle, drop: true }, 1 / 60);
+    expect(s.bombs).toHaveLength(1);
+    tick(world, s, { ...idle, throwBomb: true }, 1 / 60); // picks up the dropped bomb
+    expect(s.bombs[0]?.flight).toBeDefined();
+    for (let i = 0; i < 10; i++) tick(world, s, { ...idle, drop: true }, 1 / 60);
+    expect(s.bombs).toHaveLength(1);
+    for (let i = 0; i < 40; i++) tick(world, s, idle, 1 / 60);
+    tick(world, s, { ...idle, drop: true }, 1 / 60);
+    expect(s.bombs).toHaveLength(2);
+  });
 });

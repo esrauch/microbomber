@@ -48,6 +48,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     const startHp = s.hp;
     expect(tileAt(world, s, 'overworld', 3, 2, 6, 1)).toBe('%');
 
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
+
     tick(world, s, { ...idle, drop: true }, 0.02);
     expect(s.bombs).toHaveLength(1);
 
@@ -69,6 +71,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimY = -1;
     expect(s.crystalColor).toBe('red');
 
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
+
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 15; i++) tick(world, s, idle, 0.04);
     expect(s.crystalColor).toBe('blue');
@@ -78,6 +82,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimX = 0;
     s.aimY = -1;
     const initialEnemies = s.enemies.length;
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     // Flight takes <= 0.25s — far less than the 1.5s fuse!
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
@@ -92,6 +97,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     // Burn west bramble at (0, 5) in Crypt Foyer
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 0, 5)).toBe('B');
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, drop: true }, 0.02);
     for (let t = 0; t < EMBER_FUSE + 0.15; t += 0.05) tick(world, s, idle, 0.05);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 0, 5)).toBe('.');
@@ -102,6 +108,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     // Lighting torch #2 first fizzles back to 0!
     s.aimX = -1;
     s.aimY = 0;
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     expect(s.orderedStep).toBe(0);
@@ -118,6 +125,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.y = py;
       s.aimX = fx;
       s.aimY = fy;
+      s.bombCooldown = 0; // staged setup, not a test of the cooldown
       tick(world, s, { ...idle, throwBomb: true }, 0.02);
       for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     }
@@ -136,6 +144,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.selectedBomb = 'powder';
     s.aimX = 0;
     s.aimY = -1;
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(geist.hp).toBe(8);
@@ -146,6 +155,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimX = -1;
     s.aimY = 0;
     s.selectedBomb = 'ember';
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(s.torches.some((t) => t.lit)).toBe(true);
@@ -159,6 +169,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.aimX = -1;
         s.aimY = 0;
         s.selectedBomb = 'ember';
+        s.bombCooldown = 0; // staged setup, not a test of the cooldown
         tick(world, s, { ...idle, throwBomb: true }, 0.02);
         for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
         s.selectedBomb = 'powder';
@@ -170,6 +181,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.y = Math.min(9.2, target.y + 1.8);
       s.aimX = 0;
       s.aimY = -1;
+      s.bombCooldown = 0; // staged setup, not a test of the cooldown
       tick(world, s, { ...idle, throwBomb: true }, 0.02);
       for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     }
@@ -191,6 +203,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.y = boss.y + 1.8;
     s.aimX = 0;
     s.aimY = -1;
+    s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(boss.hp).toBe(12);
@@ -221,6 +234,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.y = Math.min(9.0, b.y + 1.8);
         s.aimX = 0;
         s.aimY = -1;
+        s.bombCooldown = 0; // staged setup, not a test of the cooldown
         tick(world, s, { ...idle, throwBomb: true }, 0.02);
         for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
       }

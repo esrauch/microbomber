@@ -271,6 +271,8 @@ export interface State {
   vy: number;
   invulnTimer: number;
   portalCooldown: number;
+  /** Seconds until another new bomb can be dropped or lobbed (stops spamming the satchel). */
+  bombCooldown: number;
 
   /** Health in half-hearts (`6` = 3 full hearts; `20` = 10 full hearts). */
   hp: number;
