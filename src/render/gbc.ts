@@ -321,14 +321,31 @@ export function makeGbcView(): GbcView {
     return c;
   };
 
+  // Tiles are looked up by object first (props and overheads are drawn every frame), and only
+  // on a miss by content, so freshly composed blob tiles with the same pixels share one bake
   const bgCache = new Map<string, HTMLCanvasElement>();
+  const bgByTile = new WeakMap<BgTile, Map<ZoneId, HTMLCanvasElement[]>>();
   const getPlacedBg = (zone: ZoneId, p: PlacedTile): HTMLCanvasElement => {
-    const sig = `${zone}|${p.tile.quads.join(',')}|${p.transparentZero ? 1 : 0}|${p.topShadow ? 1 : 0}|${p.tile.rows.join('')}`;
+    const variant = (p.transparentZero ? 1 : 0) + (p.topShadow ? 2 : 0);
+    let byZone = bgByTile.get(p.tile);
+    if (!byZone) {
+      byZone = new Map();
+      bgByTile.set(p.tile, byZone);
+    }
+    let variants = byZone.get(zone);
+    if (!variants) {
+      variants = [];
+      byZone.set(zone, variants);
+    }
+    const hit = variants[variant];
+    if (hit) return hit;
+    const sig = `${zone}|${p.tile.quads.join(',')}|${variant}|${p.tile.rows.join('')}`;
     let c = bgCache.get(sig);
     if (!c) {
       c = bakeBg(p.tile, zone, Boolean(p.transparentZero), Boolean(p.topShadow));
       bgCache.set(sig, c);
     }
+    variants[variant] = c;
     return c;
   };
 
@@ -406,6 +423,16 @@ export function makeGbcView(): GbcView {
   const closedDoors = new Map<string, { x: number; y: number; tile: 'D' | 'K' | 'S' }>();
   let openingDoors: DoorTween[] = [];
   let lastBurnedCount = -1;
+  // Room facts the frame loop needs, gathered on rebuild (tiles only change through a rebuild)
+  // Water cells with their G-buffer tag rect: flush against water neighbours so reflections
+  // see one continuous surface, inset 2 px on shore sides to spare the bank's rim
+  let waterCells: {
+    x: number;
+    y: number;
+    shallow: boolean;
+    rect: [number, number, number, number];
+  }[] = [];
+  let groundedProps: PlacedTile[] = [];
   let lastBrokenCount = -1;
 
   function syncDoorState(world: World, s: State, reset: boolean): void {
@@ -1377,6 +1404,32 @@ export function makeGbcView(): GbcView {
       lastBrokenCount = s.brokenTiles.size;
 
       plan = buildRoomLayout(world, s);
+      const isWet = (x: number, y: number): boolean => {
+        if (x < 0 || y < 0 || x >= ROOM_W || y >= ROOM_H) return false;
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
+        return isWaterTile(t) || isShallowWaterTile(t);
+      };
+      waterCells = [];
+      for (let y = 0; y < ROOM_H; y++) {
+        for (let x = 0; x < ROOM_W; x++) {
+          if (!isWet(x, y)) continue;
+          const l = isWet(x - 1, y) ? 0 : 2;
+          const r = isWet(x + 1, y) ? 0 : 2;
+          const u = isWet(x, y - 1) ? 0 : 2;
+          const d = isWet(x, y + 1) ? 0 : 2;
+          waterCells.push({
+            x,
+            y,
+            shallow: isShallowWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, x, y)),
+            rect: [x * TILE_PX + l, y * TILE_PX + u, TILE_PX - l - r, TILE_PX - u - d],
+          });
+        }
+      }
+      groundedProps = plan.props.filter((p) => {
+        if (isFlatFloorDecal(p.tile)) return false;
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, p.x, p.y);
+        return t === 'W' || t === 'T' || t === 'C';
+      });
 
       rctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
       cctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
@@ -1626,25 +1679,19 @@ export function makeGbcView(): GbcView {
       const waterPal = BG_PALETTES[s.zone].water;
       const shallowFoamCss = cssRgb(waterPal[0]);
       const shallowMidCss = cssRgb(waterPal[1]);
-      for (let wy = 0; wy < ROOM_H; wy++) {
-        for (let wx = 0; wx < ROOM_W; wx++) {
-          const wt = tileAt(world, s, s.zone, s.rx, s.ry, wx, wy);
-          if (isWaterTile(wt) || isShallowWaterTile(wt)) {
-            auxCtx.fillStyle = 'rgba(0, 0, 64, 1)';
-            auxCtx.fillRect(wx * TILE_PX + 2, wy * TILE_PX + 2, TILE_PX - 4, TILE_PX - 4);
-            if (isShallowWaterTile(wt)) {
-              const bx = wx * TILE_PX;
-              const by = wy * TILE_PX;
-              const shift = Math.floor(time * 3 + wx + wy) % 3;
-              mainCtx.fillStyle = shallowMidCss;
-              mainCtx.fillRect(bx + 4 + shift, by + 5, 3, 2);
-              mainCtx.fillRect(bx + 9 - shift, by + 10, 3, 2);
-              mainCtx.fillStyle = shallowFoamCss;
-              mainCtx.fillRect(bx + 5 + shift, by + 5, 2, 1);
-              mainCtx.fillRect(bx + 10 - shift, by + 10, 2, 1);
-            }
-          }
-        }
+      auxCtx.fillStyle = 'rgba(0, 0, 64, 1)';
+      for (const { rect } of waterCells) auxCtx.fillRect(...rect);
+      for (const { x: wx, y: wy, shallow } of waterCells) {
+        if (!shallow) continue;
+        const bx = wx * TILE_PX;
+        const by = wy * TILE_PX;
+        const shift = Math.floor(time * 3 + wx + wy) % 3;
+        mainCtx.fillStyle = shallowMidCss;
+        mainCtx.fillRect(bx + 4 + shift, by + 5, 3, 2);
+        mainCtx.fillRect(bx + 9 - shift, by + 10, 3, 2);
+        mainCtx.fillStyle = shallowFoamCss;
+        mainCtx.fillRect(bx + 5 + shift, by + 5, 2, 1);
+        mainCtx.fillRect(bx + 10 - shift, by + 10, 2, 1);
       }
 
       // Fading floor scorch craters from bomb detonations (drawn on ground below actors)
@@ -1705,12 +1752,8 @@ export function makeGbcView(): GbcView {
 
       // 2.5. Ground Contact Shadows Pass (above ground & decals, strictly below all actors!)
       const room = currentRoom(world, s);
-      for (const p of plan.props) {
-        if (isFlatFloorDecal(p.tile)) continue;
-        const cellT = tileAt(world, s, s.zone, s.rx, s.ry, p.x, p.y);
-        if (cellT === 'W' || cellT === 'T' || cellT === 'C') {
-          drawContactShadow(mainCtx, s.zone, (p.x + 0.5) * TILE_PX, (p.y + 0.92) * TILE_PX, 6.5, 0);
-        }
+      for (const p of groundedProps) {
+        drawContactShadow(mainCtx, s.zone, (p.x + 0.5) * TILE_PX, (p.y + 0.92) * TILE_PX, 6.5, 0);
       }
       for (const npc of room?.npcs ?? []) {
         if (npc.id === 'spire-plaque') {

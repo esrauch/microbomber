@@ -22,7 +22,6 @@ import {
   Container,
   Filter,
   GlProgram,
-  Graphics,
   RenderTexture,
   Sprite,
   Texture,
@@ -69,6 +68,25 @@ void main(void)
 }
 `;
 
+const WATER_MIRROR = `
+// Water reflections mirror across the real waterline: march up from a water pixel to the first
+// non-water pixel above (a shore, or an actor standing in the water) and reflect across it.
+// Returns the mirrored pixel and, in z, the depth below the line (-1: no waterline in reach).
+vec3 waterMirror(vec2 px) {
+    for (int k = 1; k <= 40; k++) {
+        float y = px.y - float(k);
+        if (y < 0.5) break;
+        if (!isWaterAux(texture(uAux, vec2(px.x, y) / uFrameSize))) {
+            float edge = y + 0.5;
+            float d = px.y - edge;
+            float ripple = sin(px.y * 1.15 + uTime * 5.5 + px.x * 0.25) * min(1.2, d / 5.0);
+            return vec3(clamp(vec2(px.x + ripple, edge - d), vec2(0.5), uFrameSize - 0.5), d);
+        }
+    }
+    return vec3(px, -1.0);
+}
+`;
+
 const LIGHT_FRAGMENT = `in vec2 vTextureCoord;
 out vec4 finalColor;
 
@@ -107,7 +125,7 @@ vec4 auxAt(vec2 px) {
 bool isWaterAux(vec4 a) {
     return a.a > 0.5 && abs(a.b - 0.25) < 0.08;
 }
-
+${WATER_MIRROR}
 // Height at native pixel px: hand-tuned when B >= 128, else albedo luminance (ink = low edge)
 float heightAt(vec2 px) {
     vec2 p = clamp(px, vec2(0.5), uFrameSize - 0.5);
@@ -145,21 +163,15 @@ void main(void)
     bool isWater = isWaterAux(aux);
     float waterEmissive = 0.0;
     if (isWater) {
-        float ripple = sin(px.y * 1.15 + uTime * 5.5 + px.x * 0.25) * 1.35;
-        float localY = mod(px.y, 16.0);
-        vec2 mPx1 = clamp(vec2(px.x + ripple, px.y - (localY * 2.0 + 6.0)), vec2(0.5), uFrameSize - 0.5);
-        vec2 mPx2 = clamp(vec2(px.x - ripple * 0.8, px.y - (localY * 2.0 + 18.0)), vec2(0.5), uFrameSize - 0.5);
-        vec4 mAux1 = auxAt(mPx1);
-        vec4 mAux2 = auxAt(mPx2);
-        vec3 reflRgb = albedo.rgb;
-        if (!isWaterAux(mAux1)) {
-            reflRgb = texture(uTexture, mPx1 * uInputSize.zw).rgb;
-            if (mAux1.a > 0.5) waterEmissive = max(waterEmissive, mAux1.g * 0.62);
-        } else if (!isWaterAux(mAux2)) {
-            reflRgb = texture(uTexture, mPx2 * uInputSize.zw).rgb;
-            if (mAux2.a > 0.5) waterEmissive = max(waterEmissive, mAux2.g * 0.5);
+        vec3 m = waterMirror(px);
+        vec4 mAux = auxAt(m.xy);
+        if (m.z >= 0.0 && !isWaterAux(mAux)) {
+            vec3 reflRgb = texture(uTexture, m.xy * uInputSize.zw).rgb;
+            // A clear mirror at the waterline, fading with depth below it
+            float k = mix(0.72, 0.38, clamp(m.z / 32.0, 0.0, 1.0));
+            albedo.rgb = mix(albedo.rgb, reflRgb * vec3(0.82, 0.94, 1.06), k);
+            if (mAux.a > 0.5) waterEmissive = mAux.g * 0.62;
         }
-        albedo.rgb = mix(albedo.rgb, reflRgb * vec3(0.7, 0.9, 1.08), 0.35);
     }
 
     // Normals only where hand-tuned (heroes): tiles and props keep their own pixel shading,
@@ -299,7 +311,7 @@ float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 bool isWaterAux(vec4 a) {
     return a.a > 0.5 && abs(a.b - 0.25) < 0.08;
 }
-
+${WATER_MIRROR}
 void main(void)
 {
     vec3 lit = texture(uTexture, vTextureCoord).rgb;
@@ -310,14 +322,9 @@ void main(void)
     bool isWater = isWaterAux(aux);
     float em = (!isWater && aux.a > 0.5 && aux.g > 0.05) ? aux.g : 0.0;
     if (isWater) {
-        float ripple = sin(px.y * 1.15 + uTime * 5.5 + px.x * 0.25) * 1.35;
-        float localY = mod(px.y, 16.0);
-        vec2 mPx1 = clamp(vec2(px.x + ripple, px.y - (localY * 2.0 + 6.0)), vec2(0.5), uFrameSize - 0.5);
-        vec2 mPx2 = clamp(vec2(px.x - ripple * 0.8, px.y - (localY * 2.0 + 18.0)), vec2(0.5), uFrameSize - 0.5);
-        vec4 mAux1 = texture(uAux, mPx1 / uFrameSize);
-        vec4 mAux2 = texture(uAux, mPx2 / uFrameSize);
-        if (!isWaterAux(mAux1) && mAux1.a > 0.5) em = max(em, mAux1.g * 0.6);
-        if (!isWaterAux(mAux2) && mAux2.a > 0.5) em = max(em, mAux2.g * 0.45);
+        vec3 m = waterMirror(px);
+        vec4 mAux = texture(uAux, m.xy / uFrameSize);
+        if (m.z >= 0.0 && !isWaterAux(mAux) && mAux.a > 0.5) em = max(em, mAux.g * 0.6);
     }
     if (aux.a < 0.5) {
         for (int i = 0; i < ${MAX_EMISSIVE_PADS}; i++) {
@@ -426,6 +433,22 @@ function makeCloudCanvas(): HTMLCanvasElement {
       ctx.fillStyle = g;
       ctx.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
     }
+  }
+  return c;
+}
+
+/** Particle dots are one baked white disc, tinted and scaled per particle. */
+const DOT_PX = 64;
+function makeDotCanvas(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = DOT_PX;
+  c.height = DOT_PX;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(DOT_PX / 2, DOT_PX / 2, DOT_PX / 2, 0, Math.PI * 2);
+    ctx.fill();
   }
   return c;
 }
@@ -583,17 +606,41 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   });
   clouds.alpha = 0.1;
 
-  const solidParticles = new Graphics();
-  const glowParticles = new Graphics();
-  glowParticles.blendMode = 'add';
+  // Particles reuse pooled sprites of one dot texture: only position, size, tint and alpha
+  // change per frame, so bursts never rebuild geometry
+  const dotTex = canvasTexture(makeDotCanvas(), 'linear');
+  const solidParticles = new Container();
+  const glowParticles = new Container();
+  const solidPool: Sprite[] = [];
+  const glowPool: Sprite[] = [];
   app.stage.addChild(worldLayer, clouds, solidParticles, glowParticles);
+
+  function pooledDot(pool: Sprite[], layer: Container, i: number, glow: boolean): Sprite {
+    let sp = pool[i];
+    if (!sp) {
+      sp = new Sprite(dotTex);
+      sp.anchor.set(0.5);
+      if (glow) sp.blendMode = 'add';
+      pool.push(sp);
+      layer.addChild(sp);
+    }
+    sp.visible = true;
+    return sp;
+  }
 
   const particles = new ParticleSystem(1234);
   const flashes: Flash[] = [];
   let slide: { dx: number; dy: number; start: number } | null = null;
 
+  // The mask only changes with the room, its tiles, the crystal colour or a push block, so it
+  // is rebuilt and uploaded when that signature changes rather than every frame
+  let wallSig = '';
   function syncWallMask(world: World, s: State): void {
     if (!wallCtx || !wallImg) return;
+    let sig = `${s.zone}${s.rx},${s.ry}|${s.crystalColor}|${s.brokenTiles.size}|${s.burnedTiles.size}|${s.openedDoors.size}|${s.roomSolved ? 1 : 0}`;
+    for (const blk of s.blocks) sig += `|${Math.round(blk.x)},${Math.round(blk.y)}`;
+    if (sig === wallSig) return;
+    wallSig = sig;
     const data = wallImg.data;
     for (let y = 0; y < ROOM_H; y++) {
       for (let x = 0; x < ROOM_W; x++) {
@@ -770,15 +817,21 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         if (tx < 0 || tx >= ROOM_W || ty < 0 || ty >= ROOM_H) return true;
         return (wallImg?.data[(ty * ROOM_W + tx) * 4] ?? 0) > 128;
       });
-      solidParticles.clear();
-      glowParticles.clear();
+      let solidN = 0;
+      let glowN = 0;
       for (const p of particles.particles) {
         const k = Math.max(0, p.life / p.maxLife);
-        const g = p.glow ? glowParticles : solidParticles;
+        const sp = p.glow
+          ? pooledDot(glowPool, glowParticles, glowN++, true)
+          : pooledDot(solidPool, solidParticles, solidN++, false);
         const size = p.size * upScale * (p.kind === 'smoke' ? 1.6 - k * 0.6 : 1);
-        const alpha = p.kind === 'smoke' ? 0.35 * k : p.glow ? k : Math.min(1, k * 2);
-        g.circle(p.x * upScale, p.y * upScale, size / 2).fill({ color: p.color, alpha });
+        sp.position.set(p.x * upScale, p.y * upScale);
+        sp.scale.set(size / DOT_PX);
+        sp.tint = p.color;
+        sp.alpha = p.kind === 'smoke' ? 0.35 * k : p.glow ? k : Math.min(1, k * 2);
       }
+      solidPool.forEach((sp, i) => (sp.visible = i < solidN));
+      glowPool.forEach((sp, i) => (sp.visible = i < glowN));
 
       // 5. Room slide and parallax clouds
       const dw = NATIVE_W * upScale;

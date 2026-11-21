@@ -3,7 +3,6 @@ import {
   BOMB_FRICTION,
   BOMB_RADIUS,
   BOMB_WALL_BOUNCE,
-  EMBER_FUSE,
   FIXED_DT,
   KICK_SPEED,
   POWDER_FUSE,
@@ -448,7 +447,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(boomCount).toBe(2); // both bomb 303 and shoved bomb 302 detonated >1.2s early!
     expect(s.bombs).toHaveLength(0);
 
-    // Thrown Blackpowder impact-detonates on enemy mid-lob, whereas thrown Ember does not
+    // Every kicked bomb impact-detonates on an enemy, Blackpowder and Ember alike
     const pState = newState(world, 'overworld', 0, 0, 5.5, 7.5);
     pState.enemies.push({
       id: 401,
@@ -504,9 +503,9 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       homeY: 5.5,
     });
     kickA(world, eState, 0, -1);
-    stepSeconds(world, eState, 0.4); // << EMBER_FUSE (1.3s)
-    expect(eState.bombs).toHaveLength(1); // Ember did NOT impact-detonate
-    expect(eState.bombs[0]!.fuse).toBeLessThan(EMBER_FUSE);
+    const emberEvents = stepSeconds(world, eState, 0.4); // << EMBER_FUSE (1.3s)
+    expect(emberEvents).toContain('boom-ember');
+    expect(eState.bombs).toHaveLength(0);
   });
 
   it('keeps thrown, kicked, and shoved bombs inside room bounds at open doorways and never wedges Pip in corners', () => {

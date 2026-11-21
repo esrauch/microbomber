@@ -101,7 +101,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     tapA(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(0);
-    expect(s.torches.every((t) => !t.lit)).toBe(true);
+    expect(s.torches.filter((t) => !t.decor).every((t) => !t.lit)).toBe(true);
 
     // Now bowl 1 -> 2 -> 3 in order down the three slope chutes to spawn the Boss Key!
     const chuteDrops: [number, number][] = [
@@ -223,7 +223,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.vx = 0;
       s.vy = 0;
       if (b.armored) {
-        // Ember has no impact detonation, so plant one on the boss with its fuse nearly spent
+        // Plant an Ember on the boss with its fuse nearly spent (no kick needed)
         s.bombs.push({
           id: 999 + step,
           kind: 'ember',

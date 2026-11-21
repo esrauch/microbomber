@@ -118,6 +118,8 @@ export interface TorchSpec {
   timedSeconds?: number;
   /** Starts already lit on room entry. */
   initiallyLit?: boolean;
+  /** Always-lit room light, never part of a brazier puzzle (so no crypt room is pitch dark). */
+  decor?: boolean;
 }
 
 export interface EnemySpawn {
@@ -243,6 +245,8 @@ export interface TorchState {
   y: number;
   order?: number;
   timedSeconds?: number;
+  /** Always-lit room light that brazier puzzles ignore. */
+  decor?: boolean;
   lit: boolean;
   timer: number; // remaining seconds if timed and not yet locked
 }

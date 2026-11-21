@@ -145,7 +145,7 @@ puzzles and fights, and opens new overworld routes.
   been shoved once **detonates** when a second blast hits it, so chains take
   setting up.
 - **Combat:** `2` damage and knockback. **Impact detonation:** a *kicked*
-  Blackpowder bomb goes off the moment it hits an enemy, so fights stay snappy;
+  bomb of any kind goes off the moment it hits an enemy, so fights stay snappy;
   a bomb left where it was placed keeps its fuse for puzzles and traps.
 
 ### 1. Ember (Fire): it sets things alight

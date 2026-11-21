@@ -152,3 +152,15 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
     expect(s.x).toBeGreaterThan(7.4);
   });
 });
+
+describe('crypt lighting', () => {
+  it('starts every crypt room with a lit torch, except the dark mini-boss hall', () => {
+    const world = campaignWorld();
+    for (const room of world.rooms.values()) {
+      if (room.zone !== 'ember-crypt') continue;
+      const s = newState(world, room.zone, room.rx, room.ry);
+      const lit = s.torches.some((t) => t.lit);
+      expect(lit, room.name).toBe(room.condition !== 'miniboss');
+    }
+  });
+});

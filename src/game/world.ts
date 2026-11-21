@@ -353,12 +353,14 @@ export function enterRoom(
 
   // Spawn torches
   for (const ts of room.torches ?? []) {
-    const lit = Boolean(ts.initiallyLit) || (alreadySolved && Boolean(room.condition));
+    const lit =
+      Boolean(ts.initiallyLit) || Boolean(ts.decor) || (alreadySolved && Boolean(room.condition));
     s.torches.push({
       x: ts.x,
       y: ts.y,
       ...(ts.order !== undefined ? { order: ts.order } : {}),
       ...(ts.timedSeconds !== undefined ? { timedSeconds: ts.timedSeconds } : {}),
+      ...(ts.decor ? { decor: true } : {}),
       lit,
       timer: ts.timedSeconds ?? 0,
     });
@@ -902,7 +904,8 @@ function checkSolveCondition(world: World, s: State): void {
   ) {
     solved = s.enemies.length === 0;
   } else if (room.condition === 'all-torches' || room.condition === 'ordered-torches') {
-    solved = s.torches.length > 0 && s.torches.every((t) => t.lit);
+    const puzzle = s.torches.filter((t) => !t.decor);
+    solved = puzzle.length > 0 && puzzle.every((t) => t.lit);
   } else if (room.condition === 'hold-buttons') {
     const buttons: [number, number][] = [];
     for (let y = 0; y < ROOM_H; y++) {
@@ -953,7 +956,8 @@ function lightTorchAt(world: World, s: State, tx: number, ty: number): void {
       torch.lit = true;
       s.orderedStep++;
       s.events.push('torch-lit');
-      showBanner(s, `Flame ${torch.order} of ${s.torches.length} lit!`, 1.8);
+      const flames = s.torches.filter((t) => t.order !== undefined).length;
+      showBanner(s, `Flame ${torch.order} of ${flames} lit!`, 1.8);
     } else {
       // Wrong order: fizzle all ordered torches so the player clearly sees the reset
       for (const other of s.torches) {
@@ -2190,10 +2194,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         b.graceOverlap = false;
       }
 
-      // Impact detonation for kicked Blackpowder hitting an enemy (`GAME.md` §4.0)
+      // Impact detonation: any kicked bomb goes off when it hits an enemy (`GAME.md` §4)
       const clearOfPip = !b.graceOverlap || Math.hypot(b.x - s.x, b.y - s.y) > 0.35;
       if (
-        b.kind === 'powder' &&
         b.kicked &&
         Math.hypot(b.vx, b.vy) > 2.0 &&
         clearOfPip &&
