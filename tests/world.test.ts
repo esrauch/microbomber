@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idle, stepSeconds, tapA, throwA } from './input';
+import { idle, kickA, stepSeconds, tapA } from './input';
 import {
   EMBER_FUSE,
   FIXED_DT,
@@ -41,7 +41,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.x).toBeGreaterThan(ROOM_W - 1);
   });
 
-  it('dropped Blackpowder breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
+  it('placed Blackpowder breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
     const world = campaignWorld();
     // Millbrook Square has a cracked smithy wall at (7, 1)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
@@ -49,6 +49,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('%');
 
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
+    s.aimX = 1; // face the cracked wall: the bomb is placed against it
+    s.aimY = 0;
 
     tapA(world, s);
     expect(s.bombs).toHaveLength(1);
@@ -56,24 +58,14 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(s.bombs).toHaveLength(0);
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('.');
-    // Self-blast dealt 0 heart damage, and knocked Pip ~1 tile South (opposite North facing)
+    // Self-blast dealt 0 heart damage, and knocked Pip back west, away from the bomb
     expect(s.hp).toBe(startHp);
-    expect(s.y).toBeGreaterThan(2.1);
+    expect(s.x).toBeLessThan(6.0);
   });
 
-  it('thrown bombs arc over low fences to flip Crystal Switches and detonate on enemy impact', () => {
+  it('a kicked Blackpowder bomb detonates on enemy impact', () => {
     const world = campaignWorld();
-    // Crystal Crossroads (1, 2): Crystal Switch 'C' sits at (5, 5) behind '=' balustrade at (5, 6)
     const s = newState(world, 'ember-crypt', 1, 2, 5.5, 7.5);
-    s.aimX = 0;
-    s.aimY = -1;
-    expect(s.crystalColor).toBe('red');
-
-    s.bombCooldown = 0; // staged setup, not a test of the cooldown
-
-    throwA(world, s);
-    stepSeconds(world, s, 1.55);
-    expect(s.crystalColor).toBe('blue');
 
     // Impact detonation on enemy: Spire Causeway (2, 1) has a slime at (5.5, 4.5)
     enterRoom(world, s, 'overworld', 2, 1, 5.5, 6.5);
@@ -81,8 +73,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimY = -1;
     const initialEnemies = s.enemies.length;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwA(world, s);
-    // Mid-lob enemy impact happens far earlier than the 1.5s fuse!
+    kickA(world, s, s.aimX, s.aimY);
+    // Impact happens far earlier than the 1.5 s fuse
     stepSeconds(world, s, 0.45);
     expect(s.enemies.length).toBeLessThan(initialEnemies);
   });
@@ -141,7 +133,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimX = 0;
     s.aimY = -1;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwA(world, s);
+    kickA(world, s, s.aimX, s.aimY);
     stepSeconds(world, s, 0.45);
     expect(geist.hp).toBe(8);
 
@@ -154,7 +146,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimY = 0;
     equipBomb(s, 'ember');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwA(world, s);
+    kickA(world, s, s.aimX, s.aimY);
     stepSeconds(world, s, 1.45);
     expect(s.torches.some((t) => t.lit)).toBe(true);
 
@@ -171,7 +163,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.aimY = 0;
         equipBomb(s, 'ember');
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
-        throwA(world, s);
+        kickA(world, s, s.aimX, s.aimY);
         stepSeconds(world, s, 1.45);
         equipBomb(s, 'powder');
       }
@@ -186,7 +178,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.aimX = 0;
       s.aimY = -1;
       s.bombCooldown = 0; // staged setup, not a test of the cooldown
-      throwA(world, s);
+      kickA(world, s, s.aimX, s.aimY);
       stepSeconds(world, s, 0.45);
     }
     expect(s.enemies).toHaveLength(0);
@@ -208,7 +200,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.aimX = 0;
     s.aimY = -1;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    throwA(world, s);
+    kickA(world, s, s.aimX, s.aimY);
     stepSeconds(world, s, 0.45);
     expect(boss.hp).toBe(12);
     expect(boss.armored).toBe(true);
@@ -245,7 +237,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.aimX = 0;
         s.aimY = -1;
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
-        throwA(world, s);
+        kickA(world, s, s.aimX, s.aimY);
         for (let i = 0; i < 28 && s.enemies.length > 0; i++) {
           tick(world, s, idle, FIXED_DT);
         }

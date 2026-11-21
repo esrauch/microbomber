@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOMB_COOLDOWN,
   FIXED_DT,
   INPUT_BUFFER_WINDOW,
-  LIFT_DELAY,
   PICKUP_MAGNET_RADIUS,
   ROLL_DISTANCE,
   ROLL_DURATION,
@@ -23,7 +21,7 @@ import {
   tick,
   tileAt,
 } from '../src/game/world';
-import { idle, rollB, stepSeconds, tapA, throwA } from './input';
+import { idle, kickA, rollB, stepSeconds, tapA } from './input';
 
 /** Build a clean 11x13 sandbox room so geometry, hazards, and walls are 100% deterministic. */
 function sandboxWorld(rows: string[]): World {
@@ -184,37 +182,21 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(s.x).toBeCloseTo(6.5, 2);
   });
 
-  it('throws bombs along exact 360° diagonal stick angles and bounces/rolls beside pedestals to flip switches', () => {
+  it('kicks only orthogonally, and a kicked bomb rolling into a crystal switch flips it', () => {
     const rows = OPEN_ROOM.map((r) => r.split(''));
-    rows[3]![7] = 'C'; // crystal switch diagonally NE
+    rows[3]![7] = 'C'; // crystal switch east of Pip
     const world = sandboxWorld(rows.map((r) => r.join('')));
-    const s = newState(world, 'overworld', 0, 0, 3.5, 4.5);
 
-    // 1. Open diagonal SE throw launches airborne along exact 36.87° (0.8, 0.6) angle and rolls out ~2.3-3.4 tiles
-    throwA(world, s, 0.8, 0.6);
+    // A diagonal stick aims along its dominant axis: the bomb rolls due east
+    const s = newState(world, 'overworld', 0, 0, 4.5, 3.5);
+    kickA(world, s, 0.8, 0.6);
     const b = s.bombs[0]!;
-    expect(b.thrown).toBe(true);
-    expect(b.z).toBeGreaterThan(0);
-    const launchSpeed = Math.hypot(b.vx, b.vy);
-    expect(launchSpeed).toBeGreaterThan(0);
-    expect(b.vx / launchSpeed).toBeCloseTo(0.8, 2);
-    expect(b.vy / launchSpeed).toBeCloseTo(0.6, 2);
+    expect(b.kicked).toBe(true);
+    expect(b.vx).toBeGreaterThan(0);
+    expect(b.vy).toBe(0);
 
-    // Step until grounded and stopped via friction (well before 1.5s fuse)
-    stepSeconds(world, s, 1.15);
-    expect(b.z).toBe(0);
-    expect(Math.hypot(b.vx, b.vy)).toBe(0);
-    const dist = Math.hypot(b.x - 3.5, b.y - 4.5);
-    expect(dist).toBeGreaterThanOrEqual(2.3);
-    expect(dist).toBeLessThanOrEqual(3.4);
-
-    // 2. Analog NE throw toward Crystal Switch at (7, 3) bounces/settles beside it and flips crystal on detonation
-    const cState = newState(world, 'overworld', 0, 0, 4.3, 4.95);
-    throwA(world, cState, 2.7, -1.35);
-    expect(cState.bombs[0]?.thrown).toBe(true);
-    expect(cState.bombs[0]!.z).toBeGreaterThan(0);
-    stepSeconds(world, cState, 1.55);
-    expect(cState.crystalColor).toBe('blue');
+    stepSeconds(world, s, 1.55);
+    expect(s.crystalColor).toBe('blue');
   });
 
   it('buffers roll presses during the last 130ms of recovery and drop/lift presses during bombCooldown', () => {
@@ -255,16 +237,6 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(d.bombs).toHaveLength(1); // still on cooldown right now
     stepSeconds(world, d, 0.12);
     expect(d.bombs).toHaveLength(2); // auto-dropped as soon as cooldown hit 0!
-
-    // 3. Pull-out buffer (hold lift): pressing & holding A ~90ms before bombCooldown ends lifts when ready!
-    const l = newState(world, 'overworld', 0, 0, 3.5, 6.5);
-    tapA(world, l);
-    for (let i = 0; i < 60 && l.bombCooldown > BOMB_COOLDOWN - (BOMB_COOLDOWN - 0.09); i++) {
-      tick(world, l, { dx: 1, dy: 0 }, FIXED_DT);
-    }
-    stepSeconds(world, l, LIFT_DELAY + 0.05, { ...idle, holdA: true });
-    expect(l.bombs).toHaveLength(2);
-    expect(l.bombs[1]?.carried).toBe(true);
   });
 
   it('magnetizes pickups within ~1 tile into a stationary Pip while leaving distant pickups untouched', () => {

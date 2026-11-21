@@ -8,13 +8,11 @@
  */
 import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, WindGust, ZoneId } from '../game/types';
 import {
-  LIFT_DELAY,
   ROLL_DURATION,
   ROOM_H,
   ROOM_W,
   type State,
   type World,
-  computeThrowTarget,
   currentRoom,
   isRoomLit,
   isWaterTile,
@@ -193,7 +191,6 @@ const UPSCALE = 4;
 const INK_CSS = cssRgb(INK_RGB);
 const FIRE_WHITE = cssRgb(OBJ_PALETTES.fire[0]);
 const FIRE_LIGHT = cssRgb(OBJ_PALETTES.fire[1]);
-const FIRE_MID = cssRgb(OBJ_PALETTES.fire[2]);
 
 export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   canvas.width = NATIVE_W * UPSCALE;
@@ -258,7 +255,6 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   let walkCycle = 0;
   let throwAnimUntil = 0;
   let crouchAnimUntil = 0;
-  let liftPopUntil = 0;
   let wasRolling = false;
   let rollLandUntil = 0;
   let fallAnimUntil = 0;
@@ -364,80 +360,6 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     ctx.rotate((quarterTurns * Math.PI) / 2);
     ctx.drawImage(sp, -8, -8);
     ctx.restore();
-  }
-
-  const LANDING_RING_OFFSETS: ReadonlyArray<readonly [number, number]> = [
-    [-1, -2],
-    [0, -2],
-    [1, -2],
-    [-2, -1],
-    [2, -1],
-    [-3, 0],
-    [3, 0],
-    [-2, 1],
-    [2, 1],
-    [-1, 2],
-    [0, 2],
-    [1, 2],
-  ];
-
-  function drawThrowArcPreview(
-    ctx: CanvasRenderingContext2D,
-    s: State,
-    targetX: number,
-    targetY: number,
-    isEmber: boolean,
-    time: number,
-  ): void {
-    const dotColor = isEmber ? FIRE_MID : FIRE_LIGHT;
-    const txPx = Math.round(targetX * TILE_PX);
-    const tyPx = Math.round(targetY * TILE_PX);
-
-    // 7x5 crisp pixel landing ring / target shadow with 1px ink outline
-    ctx.fillStyle = INK_CSS;
-    for (const [ox, oy] of LANDING_RING_OFFSETS) {
-      ctx.fillRect(txPx + ox - 1, tyPx + oy, 3, 1);
-      ctx.fillRect(txPx + ox, tyPx + oy - 1, 1, 3);
-    }
-    ctx.fillStyle = dotColor;
-    for (const [ox, oy] of LANDING_RING_OFFSETS) {
-      ctx.fillRect(txPx + ox, tyPx + oy, 1, 1);
-    }
-    if (Math.floor(time * 6) % 2 === 0) {
-      ctx.fillStyle = INK_CSS;
-      ctx.fillRect(txPx - 1, tyPx, 3, 1);
-      ctx.fillRect(txPx, tyPx - 1, 1, 3);
-      ctx.fillStyle = FIRE_WHITE;
-      ctx.fillRect(txPx, tyPx, 1, 1);
-    }
-
-    // Dotted parabolic arc from Pip's overhead hands to landing target
-    const startX = s.x * TILE_PX;
-    const startY = s.y * TILE_PX - 14;
-    const endX = targetX * TILE_PX;
-    const endY = targetY * TILE_PX;
-    const march = (time * 3.2) % 1;
-    const dotCount = 8;
-
-    for (let i = 0; i < dotCount; i++) {
-      const u = (i + march) / dotCount;
-      const px = Math.round(startX + (endX - startX) * u);
-      const py = Math.round(startY + (endY - startY) * u - 4 * 14 * u * (1 - u));
-      const big = u >= 0.14 && u <= 0.86;
-      if (big) {
-        ctx.fillStyle = INK_CSS;
-        ctx.fillRect(px - 2, py - 1, 4, 2);
-        ctx.fillRect(px - 1, py - 2, 2, 4);
-        ctx.fillStyle = dotColor;
-        ctx.fillRect(px - 1, py - 1, 2, 2);
-      } else {
-        ctx.fillStyle = INK_CSS;
-        ctx.fillRect(px - 1, py, 3, 1);
-        ctx.fillRect(px, py - 1, 1, 3);
-        ctx.fillStyle = dotColor;
-        ctx.fillRect(px, py, 1, 1);
-      }
-    }
   }
 
   function drawOpeningDoor(
@@ -1098,26 +1020,6 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     const stepIdx = Math.floor(walkCycle) % 4; // 4-beat: idle, step L, idle, step R
     const moving = walkCycle > 0;
 
-    const carried = s.bombs.find((b) => Boolean(b.carried));
-    if (carried) {
-      let liftSx = baseSx;
-      let liftSy = baseSy;
-      if (time < liftPopUntil) {
-        const e = easeOutCubic(1 - (liftPopUntil - time) / 0.14);
-        liftSx *= 0.9 + (1 - 0.9) * e;
-        liftSy *= 1.14 + (1 - 1.14) * e;
-      }
-      const second = moving && stepIdx >= 2;
-      draw(second ? `PIP_${dir}_CARRY_2` : `PIP_${dir}_CARRY_1`, liftSx, liftSy);
-      const bombOffsetY = (second ? 10 : 11) + Math.round((liftSy - 1) * 12);
-      drawBomb(ctx, carried, dx, dy - bombOffsetY, time, liftSx, liftSy);
-      return;
-    }
-
-    if (s.pullHoldTime > 0 && s.pullHoldTime < LIFT_DELAY) {
-      draw(`PIP_${dir}_LIFT`, 1.12, 0.88);
-      return;
-    }
     if (time < crouchAnimUntil) {
       draw(`PIP_${dir}_LIFT`, 1.08, 0.92);
       return;
@@ -1279,10 +1181,9 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       for (const ev of s.events) {
-        if (ev === 'bomb-throw') {
+        if (ev === 'bomb-kick') {
+          // The kick reuses the arms-forward throw frame
           throwAnimUntil = time + 0.16;
-        } else if (ev === 'bomb-lift') {
-          liftPopUntil = time + 0.14;
         } else if (ev === 'bomb-drop') {
           crouchAnimUntil = time + 0.1;
         } else if (ev === 'door-unlock' || ev === 'room-solved') {
@@ -1407,7 +1308,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       let triggeredAnySquash = false;
       for (const b of s.bombs) {
         const prev = bombPrevKin.get(b.id);
-        if (!b.carried && prev) {
+        if (prev) {
           const landedZ = prev.z > 0.01 && b.z <= 0.01;
           const bouncedFloor = prev.vz < -0.05 && b.vz > 0;
           const shoved = b.shoveCount > prev.shoveCount;
@@ -1419,7 +1320,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
           }
         }
         const planarSpeed = Math.hypot(b.vx, b.vy);
-        if (!b.carried && planarSpeed > 0.35) {
+        if (planarSpeed > 0.35) {
           const phase = (bombRollPhase.get(b.id) ?? b.id * 1.7) + planarSpeed * dt * 11;
           bombRollPhase.set(b.id, phase);
         }
@@ -1436,9 +1337,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
       if (hasBounceLikeEvent && !triggeredAnySquash) {
         for (const b of s.bombs) {
-          if (!b.carried) {
-            bombLandUntil.set(b.id, time + 0.14);
-          }
+          bombLandUntil.set(b.id, time + 0.14);
         }
       }
 
@@ -1657,7 +1556,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
 
       for (const b of s.bombs) {
-        if (b.carried || b.z > 0.08) continue;
+        if (b.z > 0.08) continue;
         const { sx, sy, tiltRad } = computeBombDeform(b, time);
         const gx = Math.round(b.x * TILE_PX - 8);
         const gy = Math.round(b.y * TILE_PX - 8);
@@ -1712,15 +1611,8 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       }
       drawWindAndGusts(mainCtx, s.zone, room?.wind, s.gusts, time);
 
-      // 5. Dotted 360° throw arc preview while carrying a bomb
-      const carried = s.bombs.find((b) => Boolean(b.carried));
-      if (carried) {
-        const { targetX, targetY } = computeThrowTarget(world, s);
-        drawThrowArcPreview(mainCtx, s, targetX, targetY, carried.kind === 'ember', time);
-      }
-
-      // 6. Airborne bombs (`!b.carried && b.z > 0.08`)
-      const airborneBombs = s.bombs.filter((b) => !b.carried && b.z > 0.08);
+      // 5. Airborne bombs (shoved or kicked back into the air)
+      const airborneBombs = s.bombs.filter((b) => b.z > 0.08);
       airborneBombs.sort((a, b) => a.y - b.y);
       for (const b of airborneBombs) {
         const { sx, sy, tiltRad } = computeBombDeform(b, time);

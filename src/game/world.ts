@@ -53,16 +53,10 @@ export const ROLL_IFRAME_END = 0.2; // seconds into roll where i-frames end (mid
 export const ROLL_RECOVERY = 0.35; // seconds after roll ends before next roll
 export const INPUT_BUFFER_WINDOW = 0.13; // 130ms input forgiveness window
 export const PICKUP_MAGNET_RADIUS = 1.15; // ~1 tile centre-to-centre pickup magnet radius
-export const LIFT_DELAY = 0.18; // hold Pull out (A) this long to lift instead of drop
-export const THROW_RANGE = 2.8; // legacy nominal lob distance reference
-export const THROW_DURATION = 0.26; // legacy nominal lob duration reference
 export const BOMB_RADIUS = 0.24; // planar bomb collision radius in tiles
 export const BOMB_FRICTION = 13.5; // tiles/s² ground deceleration
 export const BOMB_WALL_BOUNCE = 0.65; // wall restitution coefficient
 export const BOMB_GRAVITY = 24.0; // tiles/s² vertical gravity
-export const THROW_SPEED = 6.0; // initial horizontal speed on lob (~2.8-3.1 tiles total with bounce & roll)
-export const THROW_Z0 = 0.55; // initial carry release height in tiles
-export const THROW_VZ0 = 1.9; // initial upward lob velocity
 export const KICK_SPEED = 6.8; // planar speed imparted when walking into a grounded bomb
 export const SHOVE_BOMB_SPEED = 8.4; // planar impulse speed imparted to a blast-shoved bomb
 export const SLOPE_ACCEL = 22.0; // tiles/s² downhill acceleration on 'n' | 's' | 'e' | 'w' slope tiles
@@ -257,7 +251,7 @@ function isPushBlockFloor(t: Tile): boolean {
   return t === '.' || t === ',' || t === ':' || t === '_' || t === 'O' || slopeVector(t) !== null;
 }
 
-/** Whether tile `t` is a tall wall that stops a thrown bomb's arc. */
+/** Whether tile `t` is a tall wall that stops an airborne bomb. */
 function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
   if (t === '#' || t === 'Y' || t === '%' || t === 'D' || t === 'K' || t === 'S') return true;
   if (t === 'R') return crystalColor === 'red';
@@ -332,10 +326,8 @@ export function enterRoom(
   s.vy = 0;
   s.rollTimer = 0;
   s.rollRecoveryTimer = 0;
-  s.pullHoldTime = 0;
   s.rollBufferTimer = 0;
-  s.pullBufferTimer = 0;
-  s.pullBufferTap = false;
+  s.placeBufferTimer = 0;
   s.bombs = [];
   s.fires = [];
   s.gusts = [];
@@ -480,12 +472,10 @@ export function newState(
     rollRecoveryTimer: 0,
     rollDirX: 0,
     rollDirY: -1,
-    pullHoldTime: 0,
     prevHoldB: false,
     prevHoldA: false,
     rollBufferTimer: 0,
-    pullBufferTimer: 0,
-    pullBufferTap: false,
+    placeBufferTimer: 0,
     hp: 6,
     maxHp: 6,
     heartShards: 0,
@@ -661,7 +651,6 @@ function clampBombSpawn(world: World, s: State, x: number, y: number): [number, 
 
 /**
  * Axis-separated planar step for a bomb body (`x, y, vx, vy`) at current `b.z`.
- * Shared between live `tick` simulation and `computeThrowTarget` arc preview.
  */
 function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEvents: boolean): void {
   let bouncedThisStep = false;
@@ -792,57 +781,28 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
   }
 }
 
-/**
- * Deterministically simulate the airborne lob until first ground contact (`z <= 0`, max 45 `FIXED_DT` steps)
- * using the exact wall rebound & obstacle collision rules so the dotted Arc preview shows exact touchdown.
- */
-export function computeThrowTarget(world: World, s: State): { targetX: number; targetY: number } {
-  const aimLen = Math.hypot(s.aimX, s.aimY);
-  const dirX = aimLen > 1e-5 ? s.aimX / aimLen : 0;
-  const dirY = aimLen > 1e-5 ? s.aimY / aimLen : -1;
-  const [startX, startY] = clampBombSpawn(world, s, s.x, s.y);
-
-  const sim: Bomb = {
-    id: -1,
-    kind: s.equipped ?? 'powder',
-    x: startX,
-    y: startY,
-    vx: dirX * THROW_SPEED,
-    vy: dirY * THROW_SPEED,
-    z: THROW_Z0,
-    vz: THROW_VZ0,
-    fuse: POWDER_FUSE,
-    graceOverlap: true,
-    shoveCount: 0,
-    thrown: true,
-  };
-
-  for (let step = 0; step < 45; step++) {
-    stepBombPlanar(world, s, sim, FIXED_DT, false);
-    sim.vz -= BOMB_GRAVITY * FIXED_DT;
-    sim.z += sim.vz * FIXED_DT;
-    if (sim.z <= 0) {
-      sim.z = 0;
-      break;
-    }
-  }
-
-  return { targetX: sim.x, targetY: sim.y };
+/** Cardinal direction of Pip's aim: the dominant axis of the 360° stick aim. */
+export function cardinalAim(s: Pick<State, 'aimX' | 'aimY'>): { dx: number; dy: number } {
+  if (Math.abs(s.aimX) >= Math.abs(s.aimY)) return { dx: s.aimX >= 0 ? 1 : -1, dy: 0 };
+  return { dx: 0, dy: s.aimY >= 0 ? 1 : -1 };
 }
 
 /**
- * Compute the snapped tile indices where Drop and Throw will land (`GAME.md` §2).
+ * Where A places a bomb (`GAME.md` §2): just ahead of Pip along the cardinal aim, centred in
+ * Pip's lane so an orthogonal kick sends it straight down a corridor.
  */
-export function computeGhostTargets(
-  world: World,
-  s: State,
-): { dropTile: [number, number]; throwTile: [number, number] } {
-  const dropX = Math.max(0, Math.min(ROOM_W - 1, Math.floor(s.x)));
-  const dropY = Math.max(0, Math.min(ROOM_H - 1, Math.floor(s.y)));
-  const { targetX, targetY } = computeThrowTarget(world, s);
-  const throwX = Math.max(0, Math.min(ROOM_W - 1, Math.floor(targetX)));
-  const throwY = Math.max(0, Math.min(ROOM_H - 1, Math.floor(targetY)));
-  return { dropTile: [dropX, dropY], throwTile: [throwX, throwY] };
+export function computePlaceTarget(world: World, s: State): { x: number; y: number } {
+  const { dx, dy } = cardinalAim(s);
+  const ahead = PLAYER_RADIUS + BOMB_RADIUS + 0.1;
+  const x = dx !== 0 ? s.x + dx * ahead : Math.floor(s.x) + 0.5;
+  const y = dy !== 0 ? s.y + dy * ahead : Math.floor(s.y) + 0.5;
+  // Facing a wall or prop up close: pull the bomb back toward Pip until it fits
+  for (let back = 0; back <= ahead + 1e-9; back += 0.05) {
+    const [px, py] = clampBombSpawn(world, s, x - dx * back, y - dy * back);
+    if (isBombSpotFree(world, s, px, py, 0)) return { x: px, y: py };
+  }
+  const [px, py] = clampBombSpawn(world, s, s.x, s.y);
+  return { x: px, y: py };
 }
 
 /** Try unlocking a `D` or `K` door when the player walks into it. */
@@ -931,11 +891,7 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
   ) {
     return true;
   }
-  if (
-    s.bombs.some(
-      (b) => !b.carried && b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS,
-    )
-  ) {
+  if (s.bombs.some((b) => b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS)) {
     return true;
   }
   return false;
@@ -1355,7 +1311,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   // 4. Other live bombs (s.bombs): 1st hit blast-shoves, 2nd hit chain-detonates!
   const cascaded: Bomb[] = [];
   for (const other of s.bombs) {
-    if (other.id === bomb.id || other.carried || blownIds.has(other.id)) continue;
+    if (other.id === bomb.id || blownIds.has(other.id)) continue;
     const oDir = radialDir(bomb.x, bomb.y, other.x, other.y, s.aimX || 0, s.aimY || 1);
     const onHit = hitTiles.some(
       ([tx, ty]) => Math.floor(other.x) === tx && Math.floor(other.y) === ty,
@@ -1375,7 +1331,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       other.vz = 1.5;
       other.z = Math.max(other.z, 0.04);
       other.graceOverlap = true;
-      other.thrown = false;
+      other.kicked = false;
       other.fuse = Math.max(other.fuse, 0.35);
       getFloatingBombs(s).delete(other.id);
       s.events.push('bomb-shove');
@@ -1401,7 +1357,6 @@ function detonateBombs(world: World, s: State, initial: Bomb[]): void {
   for (let qi = 0; qi < queue.length && qi < 64; qi++) {
     const bomb = queue[qi];
     if (!bomb) continue;
-    if (bomb.carried) s.pullHoldTime = 0;
     const cascaded = detonateSingleBomb(world, s, bomb, blownIds);
     if (cascaded.length > 0) {
       for (const next of cascaded) {
@@ -1681,75 +1636,20 @@ function canPlaceBomb(s: State): boolean {
 
 function hasStoppedGroundedBombNear(s: State, x: number, y: number): boolean {
   return s.bombs.some(
-    (b) =>
-      !b.carried &&
-      b.z <= 0.05 &&
-      Math.hypot(b.vx, b.vy) <= 0.1 &&
-      Math.hypot(b.x - x, b.y - y) < 0.45,
+    (b) => b.z <= 0.05 && Math.hypot(b.vx, b.vy) <= 0.1 && Math.hypot(b.x - x, b.y - y) < 0.45,
   );
 }
 
-function dropBomb(world: World, s: State, kind: BombKind | null): void {
+/** A = Place: put the equipped bomb on the ground just ahead of Pip. */
+function placeBomb(world: World, s: State, kind: BombKind | null): void {
   if (!kind || !canPlaceBomb(s)) return;
-  const [spawnX, spawnY] = clampBombSpawn(world, s, s.x, s.y);
-  if (hasStoppedGroundedBombNear(s, spawnX, spawnY)) return;
-  s.bombs.push({ ...newBomb(s, kind, spawnX, spawnY), graceOverlap: true });
+  const { x, y } = computePlaceTarget(world, s);
+  if (hasStoppedGroundedBombNear(s, x, y)) return;
+  // Walk-through grace only when it lands overlapping Pip (against a wall); otherwise
+  // walking forward kicks it straight away
+  const overlapsPip = Math.hypot(x - s.x, y - s.y) < PLAYER_RADIUS + BOMB_RADIUS + 0.06;
+  s.bombs.push({ ...newBomb(s, kind, x, y), graceOverlap: overlapsPip });
   s.events.push('bomb-drop');
-}
-
-function hasUnderfootBomb(s: State): boolean {
-  return s.bombs.some((b) => !b.carried && b.z < 0.35 && Math.hypot(b.x - s.x, b.y - s.y) < 0.78);
-}
-
-/** Lift a live grounded/low bomb underfoot (whatever its kind), else spawn & carry `s.equipped`. */
-function liftBomb(s: State): boolean {
-  let underfoot: Bomb | undefined;
-  let bestDist = 0.78;
-  for (const b of s.bombs) {
-    if (b.carried || b.z >= 0.35) continue;
-    const d = Math.hypot(b.x - s.x, b.y - s.y);
-    if (d < bestDist) {
-      bestDist = d;
-      underfoot = b;
-    }
-  }
-  if (underfoot) {
-    underfoot.x = s.x;
-    underfoot.y = s.y;
-    underfoot.vx = 0;
-    underfoot.vy = 0;
-    underfoot.z = THROW_Z0;
-    underfoot.vz = 0;
-    underfoot.carried = true;
-    underfoot.thrown = false;
-    underfoot.graceOverlap = false;
-    getFloatingBombs(s).delete(underfoot.id);
-  } else if (s.equipped !== null && canPlaceBomb(s)) {
-    s.bombs.push({ ...newBomb(s, s.equipped, s.x, s.y), z: THROW_Z0, carried: true });
-  } else {
-    return false;
-  }
-  s.events.push('bomb-lift');
-  return true;
-}
-
-function throwCarried(world: World, s: State): void {
-  const b = s.bombs.find((bomb) => bomb.carried);
-  if (!b) return;
-  const aimLen = Math.hypot(s.aimX, s.aimY);
-  const dirX = aimLen > 1e-5 ? s.aimX / aimLen : 0;
-  const dirY = aimLen > 1e-5 ? s.aimY / aimLen : -1;
-  const [startX, startY] = clampBombSpawn(world, s, s.x, s.y);
-  delete b.carried;
-  b.x = startX;
-  b.y = startY;
-  b.vx = dirX * THROW_SPEED;
-  b.vy = dirY * THROW_SPEED;
-  b.z = THROW_Z0;
-  b.vz = THROW_VZ0;
-  b.thrown = true;
-  b.graceOverlap = true;
-  s.events.push('bomb-throw');
 }
 
 function startRoll(world: World, s: State, input: Input, inLen: number): void {
@@ -1770,21 +1670,6 @@ function startRoll(world: World, s: State, input: Input, inLen: number): void {
   s.vy = 0;
   s.rollTimer = ROLL_DURATION;
 
-  const [spawnX, spawnY] = clampBombSpawn(world, s, s.x, s.y);
-  const carried = s.bombs.find((b) => b.carried);
-  if (carried) {
-    delete carried.carried;
-    carried.x = spawnX;
-    carried.y = spawnY;
-    carried.vx = 0;
-    carried.vy = 0;
-    carried.z = 0;
-    carried.vz = 0;
-    carried.thrown = false;
-    carried.graceOverlap = true;
-    s.pullHoldTime = 0;
-    s.events.push('bomb-drop');
-  }
   // Rolling never lays the equipped bomb by default; a bomb-laying roll is a possible
   // future unlock for specific puzzles (`GAME.md` §10)
 
@@ -1813,10 +1698,10 @@ function resolveBombPairCollisions(world: World, s: State, swallowedIds: Set<num
   const minDist = BOMB_RADIUS * 2;
   for (let i = 0; i < s.bombs.length; i++) {
     const a = s.bombs[i];
-    if (!a || a.carried || a.z >= 0.22 || swallowedIds.has(a.id)) continue;
+    if (!a || a.z >= 0.22 || swallowedIds.has(a.id)) continue;
     for (let j = i + 1; j < s.bombs.length; j++) {
       const b = s.bombs[j];
-      if (!b || b.carried || b.z >= 0.22 || swallowedIds.has(b.id)) continue;
+      if (!b || b.z >= 0.22 || swallowedIds.has(b.id)) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const dist = Math.hypot(dx, dy);
@@ -1952,7 +1837,7 @@ function applyBombSlopePhysics(b: Bomb, sv: { dx: number; dy: number }, subDt: n
 }
 
 function checkLiveEmberTorchContact(world: World, s: State, b: Bomb): void {
-  if (b.kind !== 'ember' || b.carried) return;
+  if (b.kind !== 'ember') return;
   const contacts = getBombTorchContacts(s, b.id);
   const bcx = Math.floor(b.x);
   const bcy = Math.floor(b.y);
@@ -1987,7 +1872,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (s.invulnTimer > 0) s.invulnTimer = Math.max(0, s.invulnTimer - dt);
   if (s.portalCooldown > 0) s.portalCooldown = Math.max(0, s.portalCooldown - dt);
 
-  const prevBombCooldown = s.bombCooldown;
   if (s.bombCooldown > 0) s.bombCooldown = Math.max(0, s.bombCooldown - dt);
 
   // 1. Continuous 360° aim, B = Roll + recovery + input buffer, walking + corner slide + knockback
@@ -2001,10 +1885,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const pressedB = heldB && !s.prevHoldB;
   const heldA = Boolean(input.holdA);
   const pressedA = heldA && !s.prevHoldA;
-  const releasedA = !heldA && s.prevHoldA;
 
   const wasRollingAtTickStart = s.rollTimer > 0;
-  const prevRollTimer = s.rollTimer;
 
   if (wasRollingAtTickStart) {
     if (pressedB) {
@@ -2048,19 +1930,24 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     advanceWalk(world, s, input, inLen, dt);
   }
 
-  // Kick: walking into a grounded non-carried bomb sends it rolling
+  // Kick (`GAME.md` §2): walking into a grounded bomb sends it rolling straight along the
+  // dominant axis of the walk; kicks are orthogonal only
   if (s.rollTimer <= 0 && inLen > 0.15) {
-    const ux = input.dx / inLen;
-    const uy = input.dy / inLen;
+    const horizontal = Math.abs(input.dx) >= Math.abs(input.dy);
+    const kx = horizontal ? Math.sign(input.dx) : 0;
+    const ky = horizontal ? 0 : Math.sign(input.dy);
     const kickReach = PLAYER_RADIUS + BOMB_RADIUS + 0.06;
     for (const b of s.bombs) {
-      if (b.carried || b.z > 0.12 || b.graceOverlap) continue;
-      if (Math.hypot(b.x - s.x, b.y - s.y) > kickReach) continue;
-      if ((b.x - s.x) * input.dx + (b.y - s.y) * input.dy <= 0.05) continue;
-      if (b.vx * ux + b.vy * uy < KICK_SPEED * 0.7) {
-        b.vx = ux * KICK_SPEED;
-        b.vy = uy * KICK_SPEED;
-        b.thrown = false;
+      if (b.z > 0.12 || b.graceOverlap) continue;
+      const relX = b.x - s.x;
+      const relY = b.y - s.y;
+      const along = relX * kx + relY * ky;
+      const across = Math.abs(horizontal ? relY : relX);
+      if (Math.hypot(relX, relY) > kickReach || along <= 0.05 || across > 0.4) continue;
+      if (b.vx * kx + b.vy * ky < KICK_SPEED * 0.7) {
+        b.vx = kx * KICK_SPEED;
+        b.vy = ky * KICK_SPEED;
+        b.kicked = true;
         s.events.push('bomb-kick');
       }
     }
@@ -2145,82 +2032,19 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
-  // 2. A = Pull out (tap drops at feet, hold lifts & carries, release throws along 360° aim)
-  for (const b of s.bombs) {
-    if (b.carried) {
-      b.x = s.x;
-      b.y = s.y;
-      b.z = THROW_Z0;
-    }
-  }
-
-  const carryingBeforeA = s.bombs.some((b) => b.carried);
-  const underfootAvailable = hasUnderfootBomb(s);
-  const prevPullBuffer = s.pullBufferTimer;
-  let armedPullBufferThisTick = false;
-
-  if (
-    pressedA &&
-    (s.bombCooldown > 0 || s.rollTimer > 0) &&
-    !carryingBeforeA &&
-    !(s.rollTimer <= 0 && underfootAvailable)
-  ) {
-    s.pullBufferTimer = INPUT_BUFFER_WINDOW;
-    s.pullBufferTap = false;
-    armedPullBufferThisTick = true;
-  }
-
-  if (releasedA && (s.pullBufferTimer > 0 || prevPullBuffer > 0)) {
-    s.pullBufferTap = true;
-  }
-
-  if (!armedPullBufferThisTick && s.pullBufferTimer > 0) {
-    const waitReady = Math.max(
-      s.bombCooldown > 0 ? dt + 1 : prevBombCooldown,
-      s.rollTimer > 0 ? dt + 1 : prevRollTimer,
-    );
-    if (s.bombCooldown <= 0 && s.rollTimer <= 0 && prevPullBuffer + 1e-9 >= waitReady) {
-      const wasTap = s.pullBufferTap || !heldA;
-      s.pullBufferTimer = 0;
-      s.pullBufferTap = false;
-      if (wasTap) {
-        s.pullHoldTime = 0;
-        dropBomb(world, s, s.equipped);
-      }
-    } else {
-      s.pullBufferTimer = Math.max(0, s.pullBufferTimer - dt);
-      if (s.pullBufferTimer <= 0) {
-        s.pullBufferTap = false;
-      }
-    }
-  }
-
+  // 2. A = Place (`GAME.md` §2): a press puts the equipped bomb just ahead of Pip; walk into
+  // it to kick it. Presses during a roll, the bomb cooldown or a full satchel are buffered.
+  const readyToPlace = s.rollTimer <= 0 && canPlaceBomb(s);
   if (pressedA) {
-    s.pullHoldTime = dt;
-  } else if (heldA && s.pullHoldTime > 0) {
-    s.pullHoldTime += dt;
-  }
-
-  if (s.rollTimer <= 0) {
-    const carryingNow = s.bombs.some((b) => b.carried);
-    if (heldA) {
-      if (s.pullHoldTime >= LIFT_DELAY - 1e-9 && !carryingNow) {
-        if (liftBomb(s)) {
-          s.pullBufferTimer = 0;
-          s.pullBufferTap = false;
-        }
-      }
-    } else if (s.pullHoldTime > 0) {
-      const was = s.pullHoldTime;
-      s.pullHoldTime = 0;
-      if (carryingNow) {
-        throwCarried(world, s);
-      } else if (was < LIFT_DELAY - 1e-9 && s.pullBufferTimer <= 0) {
-        dropBomb(world, s, s.equipped);
-      }
+    if (readyToPlace) placeBomb(world, s, s.equipped);
+    else s.placeBufferTimer = INPUT_BUFFER_WINDOW;
+  } else if (s.placeBufferTimer > 0) {
+    if (readyToPlace) {
+      s.placeBufferTimer = 0;
+      placeBomb(world, s, s.equipped);
+    } else {
+      s.placeBufferTimer = Math.max(0, s.placeBufferTimer - dt);
     }
-  } else if (!heldA) {
-    s.pullHoldTime = 0;
   }
 
   s.prevHoldB = heldB;
@@ -2234,18 +2058,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const bombSubDt = dt / bombSubSteps;
 
   for (const b of s.bombs) {
-    if (b.carried) {
-      b.x = s.x;
-      b.y = s.y;
-      b.z = THROW_Z0;
-      b.vz = 0;
-      b.vx = 0;
-      b.vy = 0;
-      b.fuse -= dt;
-      if (b.fuse <= 0) toDetonate.push(b);
-      continue;
-    }
-
     if (b.graceOverlap && Math.hypot(b.x - s.x, b.y - s.y) > PLAYER_RADIUS + BOMB_RADIUS + 0.06) {
       b.graceOverlap = false;
     }
@@ -2273,7 +2085,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
             b.vx += wv.dx * 3.8 * bombSubDt;
             b.vy += wv.dy * 3.8 * bombSubDt;
             // Wind alone never blows a bomb into a pit: it stops at the edge (a kicked or
-            // thrown bomb still falls in)
+            // shoved bomb still falls in)
             const intoPit = (px: number, py: number): boolean =>
               tileAt(
                 world,
@@ -2311,7 +2123,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
             break;
           } else if (isWaterTile(landedTile)) {
             b.vz = 0;
-            b.thrown = false;
+            b.kicked = false;
             if (!floatingSet.has(b.id)) {
               floatingSet.add(b.id);
               s.events.push('bomb-splash');
@@ -2352,7 +2164,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         } else if (isWaterTile(groundTile)) {
           if (!floatingSet.has(b.id)) {
             floatingSet.add(b.id);
-            b.thrown = false;
+            b.kicked = false;
             b.vx *= 0.25;
             b.vy *= 0.25;
             s.events.push('bomb-splash');
@@ -2364,7 +2176,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
           if (Math.hypot(tvx, tvy) < 0.02) {
             b.vx = 0;
             b.vy = 0;
-            b.thrown = false;
+            b.kicked = false;
           } else {
             const dvx = tvx - b.vx;
             const dvy = tvy - b.vy;
@@ -2393,7 +2205,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
               if (nextSpeed <= stopThresh) {
                 b.vx = 0;
                 b.vy = 0;
-                b.thrown = false;
+                b.kicked = false;
               } else {
                 const ratio = nextSpeed / speed;
                 b.vx *= ratio;
@@ -2413,16 +2225,13 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         b.graceOverlap = false;
       }
 
-      // Impact detonation for thrown Blackpowder hitting an enemy (`GAME.md` §4.0)
-      const clearOrAged =
-        !b.graceOverlap ||
-        Math.hypot(b.x - s.x, b.y - s.y) > 0.35 ||
-        b.vz <= THROW_VZ0 - BOMB_GRAVITY * 0.045;
+      // Impact detonation for kicked Blackpowder hitting an enemy (`GAME.md` §4.0)
+      const clearOfPip = !b.graceOverlap || Math.hypot(b.x - s.x, b.y - s.y) > 0.35;
       if (
         b.kind === 'powder' &&
-        b.thrown &&
-        (b.z > 0.05 || Math.hypot(b.vx, b.vy) > 2.0) &&
-        clearOrAged &&
+        b.kicked &&
+        Math.hypot(b.vx, b.vy) > 2.0 &&
+        clearOfPip &&
         s.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < 0.68)
       ) {
         impactDetonated = true;
@@ -2445,7 +2254,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (s.bombs.length > 1) {
     const postSwallowed = new Set<number>();
     for (const b of s.bombs) {
-      if (b.carried || b.z > 0.02) continue;
+      if (b.z > 0.02) continue;
       const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
       const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
       const gt = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
@@ -2456,7 +2265,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       } else if (isWaterTile(gt)) {
         if (!floatingSet.has(b.id)) {
           floatingSet.add(b.id);
-          b.thrown = false;
+          b.kicked = false;
           s.events.push('bomb-splash');
         }
         const cv = currentVector(gt);
@@ -2648,9 +2457,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         speed = (roomLit ? 1.1 : 1.65) * 0.35;
       } else {
         const nearBomb = roomLit
-          ? s.bombs.find(
-              (b) => !b.carried && b.fuse < 1.0 && Math.hypot(b.x - e.x, b.y - e.y) <= 1.9,
-            )
+          ? s.bombs.find((b) => b.fuse < 1.0 && Math.hypot(b.x - e.x, b.y - e.y) <= 1.9)
           : undefined;
         if (nearBomb) {
           e.aiState = 'flee';
@@ -2758,7 +2565,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         // World reaction 2: Armored shielders kick grounded front-arc bombs back
         if (e.kind === 'shielder' && e.armored) {
           for (const b of s.bombs) {
-            if (b.carried || b.z > 0.16 || b.fuse <= 0.12) continue;
+            if (b.z > 0.16 || b.fuse <= 0.12) continue;
             const relX = b.x - e.x;
             const relY = b.y - e.y;
             const bDist = Math.hypot(relX, relY);
@@ -2783,7 +2590,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
               b.vz = 0.8;
               b.z = Math.max(b.z, 0.02);
               b.graceOverlap = false;
-              b.thrown = false;
+              b.kicked = false;
               floatingSet.delete(b.id);
               e.aiState = 'recover';
               e.stateTimer = 0.28;
@@ -2798,7 +2605,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         if (!(e.kind === 'shielder' && e.armored)) {
           let bestBombDist = ENEMY_FLEE_RADIUS;
           for (const b of s.bombs) {
-            if (b.carried || b.fuse >= 0.95) continue;
+            if (b.fuse >= 0.95) continue;
             const bd = Math.hypot(b.x - e.x, b.y - e.y);
             if (bd <= bestBombDist) {
               bestBombDist = bd;
@@ -3098,14 +2905,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (!arrival(1, 0)) s.x = Math.min(s.x, ROOM_W - PLAYER_RADIUS);
   if (!arrival(0, -1)) s.y = Math.max(s.y, PLAYER_RADIUS);
   if (!arrival(0, 1)) s.y = Math.min(s.y, ROOM_H - PLAYER_RADIUS);
-
-  for (const b of s.bombs) {
-    if (b.carried) {
-      b.x = s.x;
-      b.y = s.y;
-      b.z = THROW_Z0;
-    }
-  }
 
   return false;
 }

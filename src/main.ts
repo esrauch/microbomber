@@ -329,7 +329,7 @@ Object.assign(fade.style, {
 stage.append(fade);
 
 // =========================================================================
-// Dedicated Control Band (`GAME.md` §2): Joystick, START, B = Roll, A = Pull out
+// Dedicated Control Band (`GAME.md` §2): Joystick, START, B = Roll, A = Place
 // =========================================================================
 const joystick = mountJoystick(controls);
 
@@ -378,7 +378,7 @@ const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
   ember: { sprite: 'EMBER_1', label: 'Ember' },
 };
 
-/** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Pull out)]`. */
+/** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Place)]`. */
 const buttonHeld: [boolean, boolean] = [false, false];
 /**
  * Presses since the last simulation step: a tap that goes down and up between two frames
@@ -462,7 +462,7 @@ Object.assign(actionRow.style, {
   alignItems: 'center',
   gap: '10px',
 });
-// Game Boy order: B = Roll on the left, A = Pull out on the right
+// Game Boy order: B = Roll on the left, A = Place on the right
 const [rollBtn, rollBtnIcon] = makeVerbBtn(
   0,
   'B · Roll',
@@ -470,8 +470,8 @@ const [rollBtn, rollBtnIcon] = makeVerbBtn(
   'rgba(20, 42, 44, 0.88)',
   'inset 0 0 0 1.5px rgba(246, 224, 94, 0.42)',
 );
-const [pullBtn, pullBtnIcon] = makeVerbBtn(1, 'A · Pull out', '#f6e05e', 'rgba(45, 38, 24, 0.88)');
-actionRow.append(rollBtn, pullBtn);
+const [placeBtn, placeBtnIcon] = makeVerbBtn(1, 'A · Place', '#f6e05e', 'rgba(45, 38, 24, 0.88)');
+actionRow.append(rollBtn, placeBtn);
 
 rightCluster.append(topRow, actionRow);
 controls.append(rightCluster);
@@ -561,7 +561,8 @@ function renderMenu(): void {
   }
 
   const hint = document.createElement('div');
-  hint.textContent = 'Tap the bomb for A to pull out (or None) · B = Roll · A = Pull out';
+  hint.textContent =
+    'Tap the bomb for A to place (or None) · B = Roll · A = Place · walk into a bomb to kick it';
   Object.assign(hint.style, { fontSize: '12px', color: '#cbd5c0' });
 
   const resume = menuButton('▶ Resume', false);
@@ -603,7 +604,7 @@ for (const type of ['contextmenu', 'selectstart'] as const) {
   window.addEventListener(type, (e) => e.preventDefault());
 }
 
-// Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Pull out),
+// Keyboard: WASD / Arrows move, J / Space = B (Roll), K / E = A (Place),
 // Enter / Esc / P = START. In the menu, left/right cycle choices and J / Space / K / E equip.
 const B_KEYS = [' ', 'j'];
 const A_KEYS = ['k', 'e'];
@@ -751,14 +752,14 @@ function syncHud(force = false): void {
     }
   }
 
-  // Satchel pips & fixed-verb sprites on B = Roll and A = Pull out
+  // Satchel pips & fixed-verb sprites on B = Roll and A = Place
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
   rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 26);
-  pullBtnIcon.innerHTML = state.equipped
+  placeBtnIcon.innerHTML = state.equipped
     ? pxIcon(BOMB_META[state.equipped].sprite, 26)
     : '<span style="font-size:18px;font-weight:900;opacity:0.75">—</span>';
-  pullBtn.style.borderColor = state.equipped ? '#f6e05e' : '#718096';
+  placeBtn.style.borderColor = state.equipped ? '#f6e05e' : '#718096';
 
   // Boss HP bar
   if (boss) {

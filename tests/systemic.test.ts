@@ -23,7 +23,7 @@ import {
   tileAt,
   windVectorAt,
 } from '../src/game/world';
-import { idle, stepSeconds, stepTicks, throwA } from './input';
+import { idle, kickA, stepSeconds, stepTicks } from './input';
 
 function openRows(): string[] {
   return Array.from({ length: ROOM_H }, (_, y) =>
@@ -200,7 +200,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     const eastWorld = sandboxWorld(eastRows);
     const es = newState(eastWorld, 'overworld', 0, 0, 1.5, 6.5);
 
-    throwA(eastWorld, es, 1, 0);
+    kickA(eastWorld, es, 1, 0);
     stepSeconds(eastWorld, es, 0.45);
     expect(es.bombs).toHaveLength(1);
     const eastBomb = es.bombs[0]!;
@@ -255,7 +255,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     const stillWorld = sandboxWorld(stillRows);
     const sts = newState(stillWorld, 'overworld', 0, 0, 1.5, 6.5);
 
-    throwA(stillWorld, sts, 1, 0);
+    kickA(stillWorld, sts, 1, 0);
     stepSeconds(stillWorld, sts, 0.45);
     expect(sts.bombs).toHaveLength(1);
     const stillBomb = sts.bombs[0]!;

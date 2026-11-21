@@ -20,9 +20,9 @@ export type BombKind = 'powder' | 'ember';
  * '#' solid cliff / 2-tile-deep dungeon stone wall
  * 'Y' solid forest tree (Overworld, auto-paired into 2×2 interlocking canopies)
  * '%' cracked wall / cliff seam (always visibly seamed; broken by Blackpowder)
- * '~' water (blocks walking; thrown bombs arc over it)
- * '^' bottomless pit (blocks walking; knockback into pit costs 1 half-heart; thrown bombs arc over)
- * '=' low fence / stone balustrade (blocks walking; thrown bombs arc over)
+ * '~' water (blocks walking; airborne bombs pass over it)
+ * '^' bottomless pit (blocks walking; knockback into pit costs 1 half-heart; airborne bombs pass over)
+ * '=' low fence / stone balustrade (blocks walking and rolling bombs; airborne bombs pass over)
  * 'B' dry brambles (blocks walking; burned away by Ember)
  * 'W' wooden crate (blocks walking; broken by Blackpowder or burned by Ember)
  * 'R' red crystal barrier (raised when crystal === 'red', flat when 'blue')
@@ -196,16 +196,14 @@ export interface Bomb {
   z: number;
   /** Vertical velocity in tiles / second. */
   vz: number;
-  /** Remaining fuse in seconds (counts down while carried, airborne, or rolling). */
+  /** Remaining fuse in seconds (counts down while grounded, airborne, or rolling). */
   fuse: number;
   /** True while the player is still overlapping a freshly dropped/landed bomb. */
   graceOverlap: boolean;
   /** Number of blast shoves absorbed; a shoved bomb (`>= 1`) hit again chain-detonates. */
   shoveCount: number;
-  /** True if launched by A = Pull out throw (enables Blackpowder enemy impact detonation). */
-  thrown?: boolean;
-  /** True while held overhead by the player via A = Pull out (fuse still burning). */
-  carried?: boolean;
+  /** True while rolling from Pip's kick (enables Blackpowder enemy impact detonation). */
+  kicked?: boolean;
 }
 
 export interface FirePatch {
@@ -305,7 +303,7 @@ export interface Input {
   dy: number;
   /** B = Roll (`GAME.md` §2 & §10): dodge ~2 tiles in 0.25s (lays no bomb). */
   holdB?: boolean;
-  /** A = Pull out (`GAME.md` §2 & §10): tap drops at feet, hold lifts & carries, release throws. */
+  /** A = Place (`GAME.md` §2): a press puts the equipped bomb just ahead of Pip. */
   holdA?: boolean;
 }
 
@@ -339,13 +337,11 @@ export interface State {
   rollDirX: number;
   rollDirY: number;
 
-  /** Button hold & 100-150ms input forgiveness buffers. */
-  pullHoldTime: number;
+  /** Button edges & 100-150ms input forgiveness buffers. */
   prevHoldB: boolean;
   prevHoldA: boolean;
   rollBufferTimer: number;
-  pullBufferTimer: number;
-  pullBufferTap: boolean;
+  placeBufferTimer: number;
 
   /** Health in half-hearts (`6` = 3 full hearts; `20` = 10 full hearts). */
   hp: number;

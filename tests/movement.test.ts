@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idle, tapA, throwA } from './input';
+import { idle, kickA, tapA } from './input';
 import { campaignWorld, cardinalFacing, newState, tick } from '../src/game/world';
 
 describe('movement feel', () => {
@@ -75,9 +75,9 @@ describe('movement feel', () => {
     s.enemies = [];
     tapA(world, s);
     expect(s.bombs).toHaveLength(1);
-    throwA(world, s); // lifts the dropped bomb underfoot and throws it
+    kickA(world, s, s.aimX, s.aimY); // still on cooldown: no new bomb, just kicks the first
     expect(s.bombs).toHaveLength(1);
-    expect(s.bombs[0]?.thrown).toBe(true);
+    expect(s.bombs[0]?.kicked).toBe(true);
     tapA(world, s);
     expect(s.bombs).toHaveLength(1);
     for (let i = 0; i < 40; i++) tick(world, s, idle, 1 / 60);
@@ -107,7 +107,7 @@ describe('movement feel', () => {
     s.enemies = [];
     s.aimX = -1;
     s.aimY = 0;
-    throwA(world, s);
+    kickA(world, s, s.aimX, s.aimY);
     for (let i = 0; i < 20; i++) tick(world, s, idle, 1 / 60);
     expect(s.bombs).toHaveLength(1);
     const y0 = s.y;

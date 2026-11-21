@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idle, tapB } from './input';
+import { idle, tapA } from './input';
 import {
   EMBER_FUSE,
   ROOM_H,
@@ -178,7 +178,7 @@ describe('doorways and hazards', () => {
 
     // Drop an Ember Bomb in the doorway to burn through (2, 6), then walk into the foyer!
     s.bombCooldown = 0;
-    tapB(world, s);
+    tapA(world, s);
     for (let t = 0; t < EMBER_FUSE + 0.15; t += DT) tick(world, s, idle, DT);
     walk(world, s, 1, 0, 1.0);
     expect(s.x).toBeGreaterThan(3.0);

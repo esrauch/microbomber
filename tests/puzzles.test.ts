@@ -16,7 +16,7 @@ import {
   tick,
   tileAt,
 } from '../src/game/world';
-import { idle, rollB, stepSeconds, stepTicks, tapA, throwA } from './input';
+import { idle, kickA, placeDownChute, rollB, stepSeconds, stepTicks } from './input';
 
 /** Build an isolated 11x13 sandbox world for unit-testing contact triggers & slope vectors. */
 function sandboxWorld(
@@ -209,7 +209,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
       const world = sandboxWorld(rows);
       const s = newState(world, 'ember-crypt', 0, 0, c.drop[0], c.drop[1]);
 
-      tapA(world, s);
+      placeDownChute(world, s);
       expect(s.bombs).toHaveLength(1);
       // Step away from blast while the stationary-dropped bomb accelerates downhill on its own
       stepSeconds(world, s, POWDER_FUSE + 0.15);
@@ -226,7 +226,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     // --- 1. Crypt Foyer (1, 3): drop bomb on East 'ee' chute (6..7, 6) to smash crate W at (8, 6) ---
     const s = newState(world, 'ember-crypt', 1, 3, 6.5, 6.5);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 8, 6)).toBe('W');
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.35, { dx: -1, dy: 0 });
     stepSeconds(world, s, POWDER_FUSE);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 8, 6)).toBe('.');
@@ -245,7 +245,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 4.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.35, { dx: 0, dy: 1 });
     stepSeconds(world, s, POWDER_FUSE);
     expect(s.blocks[0]).toMatchObject({ x: 4, y: 3 });
@@ -255,7 +255,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 8.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.8);
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.some((p) => p.id === 'crypt-key-1')).toBe(true);
@@ -271,7 +271,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.unlockedBombs.push('ember');
     equipBomb(s, 'ember');
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('.');
   });
@@ -282,7 +282,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     // --- 3. Crystal Crossroads (1, 2): drop bomb on 'n' -> 'ee' L-chute (3.5, 7.5) to bank into C (5, 5) ---
     const s = newState(world, 'ember-crypt', 1, 2, 3.5, 7.5);
     expect(s.crystalColor).toBe('red');
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.25, { dx: 0, dy: 1 });
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(s.crystalColor).toBe('blue'); // East 'R' barriers at (8, 5..7) are now flat!
@@ -311,7 +311,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 3.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.25, { dx: -1, dy: 0 });
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(tileAt(world, s, 'ember-crypt', 2, 2, 5, 5)).toBe('.');
@@ -320,7 +320,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 3.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.25, { dx: -1, dy: 0 });
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(s.crystalColor).toBe('red'); // 'U' barriers at (5, 2..3) are now flat!
@@ -351,7 +351,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 2.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.45);
     expect(s.torches.find((t) => t.x === 2 && t.y === 2)?.lit).toBe(true);
 
@@ -359,7 +359,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 8.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.45);
     expect(s.torches.every((t) => t.lit)).toBe(true);
     expect(s.roomSolved).toBe(true);
@@ -369,7 +369,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 4.5;
     s.y = 6.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(tileAt(world, s, 'ember-crypt', 2, 1, 3, 6)).toBe('.');
 
@@ -387,7 +387,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 2.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.5);
     expect(s.torches.some((t) => t.lit)).toBe(true);
 
@@ -401,7 +401,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        tapA(world, s);
+        placeDownChute(world, s);
         stepSeconds(world, s, 0.5);
         equipBomb(s, 'powder');
       }
@@ -414,7 +414,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
       s.vx = 0;
       s.vy = 0;
       s.bombCooldown = 0;
-      throwA(world, s, 0, -1);
+      kickA(world, s, 0, -1);
       stepSeconds(world, s, 0.45);
     }
     expect(s.enemies).toHaveLength(0);
@@ -457,7 +457,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        throwA(world, s, 0, -1);
+        kickA(world, s, 0, -1);
         stepSeconds(world, s, 0.45);
       }
     }
@@ -470,13 +470,13 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.vx = 0;
     s.vy = 0;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     rollB(world, s, 1, 0); // dodges 2 tiles East to ~5.5 while bomb #1 banks into NW torch!
     stepSeconds(world, s, 0.5, { dx: 1, dy: 0 }); // arrives at ~7.5 right as cooldown clears
     s.x = 7.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
 
     expect(s.torches.every((t) => t.lit)).toBe(true);
@@ -492,7 +492,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 4.5;
     s.y = 9.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.6);
     expect(s.orderedStep).toBe(1);
 
@@ -500,7 +500,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 2.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.7);
     expect(s.orderedStep).toBe(2);
 
@@ -508,7 +508,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 6.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(3);
     expect(s.roomSolved).toBe(true);
@@ -532,7 +532,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(tileAt(world, s, 'ember-crypt', 0, 1, 3, 8)).toBe('W');
 
     equipBomb(s, 'powder');
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, 0.25, { dx: 1, dy: 0 });
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(tileAt(world, s, 'ember-crypt', 0, 1, 3, 8)).toBe('.');
@@ -567,7 +567,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 3.5;
     s.y = 8.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     for (let i = 0; i < 95 && boss.armored; i++) {
       boss.x = 3.5;
       boss.y = 5.2;
@@ -591,7 +591,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        tapA(world, s);
+        placeDownChute(world, s);
         for (let i = 0; i < 95 && b.armored; i++) {
           b.x = 7.5;
           b.y = 5.2;
@@ -605,7 +605,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        throwA(world, s, 0, -1);
+        kickA(world, s, 0, -1);
         stepTicks(world, s, 28);
       }
     }
@@ -628,7 +628,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     // 1. Millbrook Square (3, 2): rusted smithy '%' at (7, 1) -> ow-smithy-shard at (8.5, 1.5)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
     s.unlockedBombs.push('ember');
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('.');
     stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
@@ -638,7 +638,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     enterRoom(world, s, 'overworld', 2, 2, 5.5, 4.5);
     equipBomb(s, 'ember');
     s.bombCooldown = 0;
-    throwA(world, s, -1, 0);
+    kickA(world, s, -1, 0);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     s.x = 3.5;
     s.y = 4.5;
@@ -650,7 +650,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.enemies = [];
     equipBomb(s, 'powder');
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 2, 3, 9, 6)).toBe('.');
 
@@ -659,7 +659,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.enemies = [];
     equipBomb(s, 'ember');
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 3, 7, 3)).toBe('.');
     stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
@@ -670,7 +670,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.enemies = [];
     equipBomb(s, 'powder');
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 4, 7, 7)).toBe('.');
     stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
@@ -679,14 +679,14 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.x = 7.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 4, 8, 4)).toBe('.');
 
     // 6. Ember Crypt Arch (3, 5): mausoleum seal '%' at (5, 6) -> enter stairs '>' at (5, 5)
     enterRoom(world, s, 'overworld', 3, 5, 5.5, 7.5);
     s.bombCooldown = 0;
-    tapA(world, s);
+    placeDownChute(world, s);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 5, 5, 6)).toBe('.');
     s.x = 5.5;

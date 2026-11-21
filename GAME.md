@@ -27,30 +27,29 @@ minute campaign.
 
 All controls live in a **band below the room**:
 
-- **Left thumb:** a virtual analogue joystick (`360°` movement, roll direction,
-  and throw aim).
+- **Left thumb:** a virtual analogue joystick (`360°` movement and roll
+  direction).
 - **Right thumb:** two fixed-verb buttons, **B** on the left and **A** on the
   right:
   - **B = Roll:** dodges about `2` tiles in `0.25 s` along the stick (or current
     facing when idle), with invulnerability frames during the middle `0.15 s`
-    and `0.35 s` recovery. It lays no bomb; rolling while carrying a bomb sets
-    it down where the roll began.
-  - **A = Pull out:**
-    - **Tap** drops the equipped bomb at your feet.
-    - **Hold** lifts a live bomb underfoot (or pulls out a fresh equipped bomb
-      overhead while its fuse keeps burning); you can walk while carrying it.
-    - **Release** throws it along the joystick's exact `360°` angle (or facing
-      when idle) with a fixed lob. While carrying, a **dotted throw arc**
-      previews the trajectory.
-- **START:** pauses the game and picks the single equipped bomb that A pulls
-  out (or **None**).
+    and `0.35 s` recovery. It lays no bomb.
+  - **A = Place:** a press puts the equipped bomb on the ground **just in front
+    of Pip**, along the cardinal direction Pip faces and centred in Pip's lane.
+    Facing a wall up close, it sits against the wall instead.
+- **Kick:** walking into a bomb kicks it, and it rolls along the ground.
+  **Kicks are orthogonal only:** the bomb rolls straight along the dominant axis
+  of the walk, rebounds straight back off walls, rolls down chutes, and drifts
+  on currents. A kicked Blackpowder bomb goes off when it hits an enemy. There
+  is no throwing.
+- **START:** pauses the game and picks the single equipped bomb that A places
+  (or **None**).
 
-Placing or pulling a fresh bomb triggers a `0.7 s` cooldown; lifting a bomb that
-is already live underfoot does not.
+Placing a bomb triggers a `0.7 s` cooldown; kicking one doesn't.
 
 **Input forgiveness and feel aids:**
 
-- **Input buffer:** presses during roll recovery or the `0.7 s` bomb cooldown
+- **Input buffer:** presses during a roll or the `0.7 s` bomb cooldown
   are buffered (`100–150 ms` window) and fire as soon as recovery or cooldown
   ends.
 - **Magnetized pickups:** pickups drift toward Pip within about `1` tile.
@@ -141,13 +140,13 @@ puzzles and fights, and opens new overworld routes.
 
 - **Fuse and shape:** `1.5 s`, a `+` cross reaching `1` tile (upgradeable to `2`).
 - **Primary:** breaks cracked walls and cracked floor blocks.
-- **Later:** toggles red/blue crystal switches (thrown across pits or fences).
+- **Later:** toggles red/blue crystal switches (kicked down chutes or into them).
   A blast **shoves** any other live bomb caught in it; a bomb that has already
   been shoved once **detonates** when a second blast hits it, so chains take
   setting up.
-- **Combat:** `2` damage and knockback. **Impact detonation:** a *thrown*
+- **Combat:** `2` damage and knockback. **Impact detonation:** a *kicked*
   Blackpowder bomb goes off the moment it hits an enemy, so fights stay snappy;
-  a *dropped* one keeps its fuse for puzzles and traps.
+  a bomb left where it was placed keeps its fuse for puzzles and traps.
 
 ### 1. Ember (Fire): it sets things alight
 
@@ -161,7 +160,7 @@ puzzles and fights, and opens new overworld routes.
 
 ### 2. Gale (Air): its wind pushes things
 
-- **Fuse and shape:** `0.8 s`, or pop it early with Throw; a `3 × 3` gust that
+- **Fuse and shape:** `0.8 s`, or pop it early by pressing A again; a `3 × 3` gust that
   breaks nothing.
 - **Primary: blast-jump.** Standing on or beside a Gale Bomb when it pops
   launches you `2` tiles over pits, narrow water, toggle tiles and up one-tier
@@ -177,7 +176,7 @@ puzzles and fights, and opens new overworld routes.
 - **Primary: freezes liquids.** Water in the blast becomes walkable ice for
   `10 s` (renewed by another Frost blast); lava crusts over safely for the same
   time.
-- **Later:** glazes the floor so pushed blocks and thrown bombs **slide until
+- **Later:** glazes the floor so pushed blocks and kicked bombs **slide until
   they hit something**.
 - **Combat:** freezes small and medium enemies solid for `4 s`, into pushable
   ice blocks: a temporary weight for a button, a battering ram, or something to
@@ -214,7 +213,7 @@ puzzles and fights, and opens new overworld routes.
 3. **Remote:** no fuse; sits until you trigger it or another blast hits it, for
    simultaneous switches and landmines.
 4. **Crawler:** scurries straight ahead and slips through mouseholes too small
-   for a thrown bomb.
+   for a kicked bomb.
 
 ## 5. Shrines and bosses
 
@@ -292,9 +291,9 @@ interactions) may go well beyond what even the GBA could do.
 | Area | Decision |
 |---|---|
 | **Feel priorities** | **Input forgiveness** (buffer presses for `100–150 ms`, magnetized pickups, read intent over exact timing) and **snappy motion** (squash and stretch, eased tweens on pickups, doors and blocks, anticipation frames; nothing moves linearly). |
-| **Buttons** | Two fixed verbs, replacing the B / A item slots of §2. **B = Roll:** a short, snappy dodge (about `2` tiles in `0.25 s`, i-frames for the middle `0.15 s`, `0.35 s` recovery); it lays no bomb (see the bomb-laying roll below). **A = Pull out:** hold to lift the equipped bomb and carry it, release to throw; a quick tap drops it at your feet. **START** picks the one equipped bomb, or **none**. |
-| **Throwing** | Aimed along the joystick's exact angle (360°) with a fixed lob; the bomb lands, then bounces and rolls by physics. A dotted arc previews the throw while carrying. |
-| **Bomb physics** | **Full physics:** thrown bombs bounce and roll to a stop with friction and wall rebounds; blasts shove bombs, enemies and pushable objects outward; walking into a bomb kicks it. |
+| **Buttons** | Two fixed verbs, replacing the B / A item slots of §2. **B = Roll:** a short, snappy dodge (about `2` tiles in `0.25 s`, i-frames for the middle `0.15 s`, `0.35 s` recovery); it lays no bomb (see the bomb-laying roll below). **A = Place:** puts the equipped bomb on the ground just in front of Pip (decided 2026-11-22, replacing pull out and throw). **Kick:** walking into a bomb kicks it, orthogonally only. **START** picks the one equipped bomb, or **none**. |
+| **Kicking** | Replaces throwing (2026-11-22): bombs travel by being kicked along the ground in the 4 cardinal directions, then roll, rebound and ride chutes and currents by physics. |
+| **Bomb physics** | **Full physics:** kicked bombs roll to a stop with friction and rebound off walls; blasts shove bombs, enemies and pushable objects outward; walking into a bomb kicks it. |
 | **Puzzles** | **Designed for physics:** roll bombs down slopes into cracks, bank them off walls, ride currents. Switches and braziers trigger on contact radius, not tile. |
 | **World** | **Spreading fire** (dry grass and brambles burn tile by tile, crates burn, braziers light in range, water and stone stop it), **dynamic light** (every flame, fuse, blast and lantern casts light and shadow; dark rooms become lighting puzzles), **water and wind** (bombs float and drift on currents; wind carries smoke, fire and light objects). |
 | **Enemy AI** | **Systemic:** clear telegraphs and state machines (patrol, notice, chase, recover), fleeing lit fuses, stumbling when hit, and reacting to the world (bats put out flames, slimes split in fire, shielders kick bombs back). |

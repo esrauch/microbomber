@@ -89,6 +89,16 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 - [x] **Tests:** fire-spread bounds, current drift, AI state transitions.
 - [ ] **Playtest checkpoint:** emergent chaos stays fair and readable.
 
+## Mechanic change (2026-11-22): place and kick
+
+- [x] **A = Place:** a press puts the equipped bomb just in front of Pip (cardinal
+      facing, centred in the lane); lift, carry, throw and the arc preview are gone.
+- [x] **Orthogonal kicks:** walking into a bomb kicks it along the dominant axis
+      only; kicked Blackpowder impact-detonates on enemies.
+- [x] **Puzzles re-verified:** every Ember Crypt scripted solve passes with place
+      and kick.
+- [ ] **Playtest checkpoint:** placing and kicking feel on a phone.
+
 ## Phase 5: PixiJS renderer (HD-2D lite)
 
 - [ ] **PixiJS port:** move `gbc.ts` layers (ground, props, Y-sorted actors,

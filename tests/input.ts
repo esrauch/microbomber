@@ -1,11 +1,12 @@
 import {
   FIXED_DT,
   type Input,
-  LIFT_DELAY,
   ROLL_DURATION,
   type State,
   type World,
+  slopeVector,
   tick,
+  tileAt,
 } from '../src/game/world';
 
 export const idle: Input = { dx: 0, dy: 0 };
@@ -39,28 +40,40 @@ export function rollB(world: World, s: State, dx = 0, dy = 0): void {
   }
 }
 
-/** Tap A = Pull out: a quick press and release drops the equipped bomb at Pip's feet. */
+/** Press A = Place: puts the equipped bomb on the ground just ahead of Pip. */
 export function tapA(world: World, s: State): void {
   tick(world, s, { ...idle, holdA: true }, FIXED_DT);
   tick(world, s, idle, FIXED_DT);
 }
 
-/** Hold A = Pull out past the lift delay, then release: lifts a bomb overhead and throws it. */
-export function throwA(world: World, s: State, dx?: number, dy?: number): void {
-  if (dx !== undefined && dy !== undefined && Math.hypot(dx, dy) > 0) {
-    const len = Math.hypot(dx, dy);
-    s.aimX = dx / len;
-    s.aimY = dy / len;
-    s.fx = s.aimX;
-    s.fy = s.aimY;
+/**
+ * Place a bomb facing the cardinal direction of `(dx, dy)`, then walk into it until Pip kicks
+ * it (at most 0.5 s), so it rolls off that way.
+ */
+export function kickA(world: World, s: State, dx: number, dy: number): void {
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const kx = horizontal ? Math.sign(dx) : 0;
+  const ky = horizontal ? 0 : Math.sign(dy);
+  s.aimX = kx;
+  s.aimY = ky;
+  s.fx = kx;
+  s.fy = ky;
+  tapA(world, s);
+  for (let i = 0; i < 30; i++) {
+    tick(world, s, { dx: kx, dy: ky }, FIXED_DT);
+    if (s.events.includes('bomb-kick')) return;
   }
-  const holdSteps = Math.ceil((LIFT_DELAY + 1e-6) / FIXED_DT);
-  for (let i = 0; i < holdSteps; i++) {
-    tick(world, s, { ...idle, holdA: true }, FIXED_DT);
-  }
-  tick(world, s, idle, FIXED_DT);
 }
 
-/** Legacy aliases for callers not yet migrated to `tapA` / `throwA`. */
-export const tapB = tapA;
-export const throwB = throwA;
+/**
+ * Place a bomb as a player standing on a chute would: facing down the chute, so the bomb
+ * lands on it ahead of Pip and rolls away. Off a chute, Pip keeps the current aim.
+ */
+export function placeDownChute(world: World, s: State): void {
+  const sv = slopeVector(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(s.x), Math.floor(s.y)));
+  if (sv) {
+    s.aimX = sv.dx;
+    s.aimY = sv.dy;
+  }
+  tapA(world, s);
+}
