@@ -379,7 +379,10 @@ export function makeGbcView(): GbcView {
   let prevX = -1;
   let prevY = -1;
   let prevTime = 0;
-  let walkCycle = 0;
+  let lastMoveTime = -1;
+  let moveStartTime = 0;
+  let isMoving = false;
+  let isPushingBlock = false;
   // Fuse mouse posture: was he galloping last frame, and until when he crouches
   let mouseWasMoving = false;
   let mouseCrouchUntil = 0;
@@ -1164,7 +1167,7 @@ export function makeGbcView(): GbcView {
 
   /** Pip's contact shadow; small when upright, and long under the side gallop. */
   function pipShadowRadius(s: State): number {
-    const sideGallop = walkCycle > 0 && s.rollTimer <= 0 && Math.abs(s.aimX) > Math.abs(s.aimY);
+    const sideGallop = isMoving && s.rollTimer <= 0 && Math.abs(s.aimX) > Math.abs(s.aimY);
     return sideGallop ? 6.2 : 4.1;
   }
 
@@ -1224,8 +1227,10 @@ export function makeGbcView(): GbcView {
 
     const draw = (name: ObjSpriteName, sx = baseSx, sy = baseSy): void =>
       drawScaledSprite(ctx, name, dx, dy, sx, sy, flip);
-    const stepIdx = Math.floor(walkCycle) % 4;
-    const moving = walkCycle > 0;
+    // Real-world clock aligned gallop at 11 fps (half the old ~22 fps distance-based rate)
+    const elapsedMove = Math.max(0, time - moveStartTime);
+    const stepIdx = Math.floor(elapsedMove * (isPushingBlock ? 4.5 : 11)) % 4;
+    const moving = isMoving;
 
     if (time < crouchAnimUntil) {
       draw(`MOUSE_${dir}_LIFT`, 1.08, 0.92);
@@ -1235,7 +1240,7 @@ export function makeGbcView(): GbcView {
       draw(`MOUSE_${dir}_THROW`);
       return;
     }
-    if (s.blocks.some((b) => b.pushCharge > 0.04)) {
+    if (isPushingBlock) {
       draw(stepIdx < 2 ? `MOUSE_${dir}_RUN_1` : `MOUSE_${dir}_RUN_2`);
       return;
     }
@@ -1351,13 +1356,16 @@ export function makeGbcView(): GbcView {
       const movedDist = prevX >= 0 ? Math.hypot(s.x - prevX, s.y - prevY) : 0;
       prevX = s.x;
       prevY = s.y;
-      if (movedDist > 0.004 && movedDist < 1.2) {
-        walkCycle += movedDist * 5.2;
-      } else if (s.blocks.some((b) => b.pushCharge > 0.04)) {
-        walkCycle += dt * 9;
-      } else {
-        walkCycle = 0;
+      isPushingBlock = s.blocks.some((b) => b.pushCharge > 0.04);
+      if ((movedDist > 0.001 && movedDist < 1.2) || isPushingBlock) {
+        lastMoveTime = time;
       }
+      // Hold moving true across intermediate sub-tick render frames (up to 50ms of wall-clock time)
+      const nowMoving = isPushingBlock || (lastMoveTime >= 0 && time - lastMoveTime <= 0.05);
+      if (nowMoving && !isMoving) {
+        moveStartTime = time;
+      }
+      isMoving = nowMoving;
 
       for (const ev of s.events) {
         if (ev === 'bomb-kick') {

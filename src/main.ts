@@ -948,7 +948,7 @@ const frame = (now: number): void => {
   (window as Window & { __microbomberBooted?: boolean }).__microbomberBooted = true;
   const elapsed = Math.min(0.1, Math.max(0, (now - last) / 1000));
   last = now;
-  renderTime += elapsed;
+  renderTime = now / 1000;
 
   state.events = [];
   state.blasts = [];

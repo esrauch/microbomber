@@ -788,14 +788,14 @@ export function cardinalAim(s: Pick<State, 'aimX' | 'aimY'>): { dx: number; dy: 
 }
 
 /**
- * Where A places a bomb (`GAME.md` §2): just ahead of Pip along the cardinal aim, centred in
- * Pip's lane so an orthogonal kick sends it straight down a corridor.
+ * Where A places a bomb (`GAME.md` §2): directly in front of Pip along the cardinal aim,
+ * without snapping to the tile grid (pulling back toward Pip only when blocked by a wall or prop).
  */
 export function computePlaceTarget(world: World, s: State): { x: number; y: number } {
   const { dx, dy } = cardinalAim(s);
   const ahead = PLAYER_RADIUS + BOMB_RADIUS + 0.1;
-  const x = dx !== 0 ? s.x + dx * ahead : Math.floor(s.x) + 0.5;
-  const y = dy !== 0 ? s.y + dy * ahead : Math.floor(s.y) + 0.5;
+  const x = s.x + dx * ahead;
+  const y = s.y + dy * ahead;
   // Facing a wall or prop up close: pull the bomb back toward Pip until it fits
   for (let back = 0; back <= ahead + 1e-9; back += 0.05) {
     const [px, py] = clampBombSpawn(world, s, x - dx * back, y - dy * back);

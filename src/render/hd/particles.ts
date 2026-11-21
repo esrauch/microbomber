@@ -231,17 +231,20 @@ export class ParticleSystem {
 
   /** Rising embers from fire patches and lit braziers, at a steady rate. */
   emitAmbient(s: State, dt: number): void {
-    this.emberClock += dt;
+    const sources: Array<[number, number]> = [
+      ...s.fires.map((f): [number, number] => [(f.x + 0.5) * TILE, (f.y + 0.6) * TILE]),
+      ...s.torches
+        .filter((t) => t.lit)
+        .map((t): [number, number] => [(t.x + 0.5) * TILE, t.y * TILE]),
+    ];
+    if (sources.length === 0 || this.particles.length >= MAX_PARTICLES) {
+      this.emberClock = 0;
+      return;
+    }
+    this.emberClock = Math.min(this.emberClock + dt, 0.36);
     const r = this.rand;
-    while (this.emberClock > 0.09) {
+    for (let step = 0; step < 4 && this.emberClock > 0.09; step++) {
       this.emberClock -= 0.09;
-      const sources: Array<[number, number]> = [
-        ...s.fires.map((f): [number, number] => [(f.x + 0.5) * TILE, (f.y + 0.6) * TILE]),
-        ...s.torches
-          .filter((t) => t.lit)
-          .map((t): [number, number] => [(t.x + 0.5) * TILE, t.y * TILE]),
-      ];
-      if (sources.length === 0) break;
       const src = sources[Math.floor(r() * sources.length)];
       if (!src || this.particles.length >= MAX_PARTICLES) break;
       this.particles.push({
