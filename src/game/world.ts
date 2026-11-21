@@ -1960,36 +1960,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     if (damagePlayer(world, s, 1)) return false;
   }
 
-  // Push-block interaction (`P`)
-  if (inLen > 0.4 && s.rollTimer <= 0) {
-    const { dx: pdx, dy: pdy } = cardinalFacing(s);
-    const aheadX = Math.floor(s.x + pdx * (PLAYER_RADIUS + 0.22));
-    const aheadY = Math.floor(s.y + pdy * (PLAYER_RADIUS + 0.22));
-    const blk = s.blocks.find((b) => b.x === aheadX && b.y === aheadY);
-    if (blk) {
-      if (blk.pushDirX === pdx && blk.pushDirY === pdy) {
-        blk.pushCharge += dt;
-      } else {
-        blk.pushDirX = pdx;
-        blk.pushDirY = pdy;
-        blk.pushCharge = dt;
-      }
-      if (blk.pushCharge >= 0.16) {
-        blk.pushCharge = 0;
-        const destX = blk.x + pdx;
-        const destY = blk.y + pdy;
-        if (destX >= 1 && destY >= 1 && destX < ROOM_W - 1 && destY < ROOM_H - 1) {
-          const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
-          if (isPushBlockFloor(destTile) && !hasBlockAt(s, destX, destY)) {
-            blk.x = destX;
-            blk.y = destY;
-            s.events.push('block-push');
-          }
-        }
-      }
-    }
-  }
-
   // NPC proximity greeting
   const room = currentRoom(world, s);
   for (const npc of room?.npcs ?? []) {

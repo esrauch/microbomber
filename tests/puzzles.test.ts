@@ -242,8 +242,12 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect([s.rx, s.ry]).toEqual([2, 3]);
     expect(s.roomSolved).toBe(false);
 
-    // --- 2. Block Antechamber (2, 3): blast-shove P (4, 4) -> O (4, 3), then bowl East 'n' chute -> O (8, 2) ---
+    // --- 2. Block Antechamber (2, 3): walking cannot push P (4, 4); only a bomb blast shoves P -> O (4, 3) ---
     s.enemies = [];
+    s.x = 4.5;
+    s.y = 5.4;
+    stepSeconds(world, s, 0.5, { dx: 0, dy: -1 });
+    expect(s.blocks[0]).toMatchObject({ x: 4, y: 4 });
     s.x = 4.5;
     s.y = 5.5;
     s.bombCooldown = 0;
