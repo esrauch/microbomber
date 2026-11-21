@@ -38,6 +38,7 @@ import {
   resolveBlobTile,
 } from './gbcArt';
 import type { BgPaletteId } from './gbcPalette';
+import { type Crown, placeCrowns } from './thicketCrowns';
 
 export interface PlacedTile {
   x: number;
@@ -65,6 +66,8 @@ export interface RoomRenderPlan {
   warpPads: Array<{ x: number; y: number; active: boolean }>;
   /** Optional chimney smoke emitter pixel positions `(px, py)`. */
   chimneys: Array<[number, number]>;
+  /** Thicket crowns, top to bottom, drawn over the thicket backdrop (`thicketCrowns.ts`). */
+  crowns: Crown[];
 }
 
 function recolorQuads(
@@ -694,5 +697,6 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     }
   }
 
-  return { ground, decals, props, overhead, ceiling, interiorWater, warpPads, chimneys };
+  const crowns = isCrypt ? [] : placeCrowns(isThicket, s.rx * 31 + s.ry * 17 + 5);
+  return { ground, decals, props, overhead, ceiling, interiorWater, warpPads, chimneys, crowns };
 }

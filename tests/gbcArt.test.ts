@@ -12,6 +12,7 @@ import {
   resolveBlobTile,
 } from '../src/render/gbcArt';
 import { buildRoomLayout } from '../src/render/gbcAutotile';
+import { CROWN_H, CROWN_W } from '../src/render/thicketCrowns';
 import {
   BG_PALETTES,
   BG_PALETTE_IDS,
@@ -190,6 +191,35 @@ describe('GBC colour and multi-tile rules', () => {
     expect(plan.props.some((p) => p.tile === BG.slopeN || p.tile === BG.sealRingCenter)).toBe(
       false,
     );
+  });
+
+  it('covers the thicket with overlapping crowns that cross tile rows, drawn back to front', () => {
+    const world = campaignWorld();
+    const { crowns } = buildRoomLayout(world, newState(world, 'overworld', 3, 3, 5.5, 6.5));
+    expect(crowns.length).toBeGreaterThan(20);
+    // Back to front, so each lower crown draws over the ones above it
+    for (let i = 1; i < crowns.length; i++) {
+      expect(crowns[i]!.py).toBeGreaterThanOrEqual(crowns[i - 1]!.py);
+    }
+    // Crown tops fall at many offsets within a tile, so no row lines up with the tile grid
+    const offsets = new Set(crowns.map((c) => ((c.py % 16) + 16) % 16));
+    expect(offsets.size).toBeGreaterThanOrEqual(6);
+    // Nearly every crown below the top overlaps one above it by several pixels (a few at the
+    // ends of a band have open ground above)
+    const below = crowns.filter((k) => k.py > 0);
+    const overlapped = below.filter((c) =>
+      crowns.some(
+        (o) => o.py < c.py && c.py - o.py <= CROWN_H - 6 && Math.abs(o.px - c.px) <= CROWN_W - 6,
+      ),
+    );
+    expect(overlapped.length / below.length).toBeGreaterThan(0.85);
+    // Crown centres stay inside the room, so none spill over the top or bottom borders
+    for (const c of crowns) {
+      expect(c.py + CROWN_H / 2).toBeGreaterThanOrEqual(0);
+      expect(c.py + CROWN_H / 2).toBeLessThan(13 * 16);
+    }
+    // Crypt rooms have no thicket
+    expect(buildRoomLayout(world, newState(world, 'ember-crypt', 1, 3)).crowns).toHaveLength(0);
   });
 
   it('frames side borders as a seamless thicket and varies the round trees along the top', () => {

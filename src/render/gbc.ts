@@ -20,6 +20,7 @@ import {
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
 import { bakeAux } from './gbcAux';
+import { CROWN_H, CROWN_VARIANTS, CROWN_W } from './thicketCrowns';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
 import {
   BG_PALETTES,
@@ -330,7 +331,39 @@ export function makeGbcView(): GbcView {
     return c;
   };
 
+  // Thicket crowns baked per zone from indexed art (`thicketCrowns.ts`), '.' transparent
+  const crownCache = new Map<string, HTMLCanvasElement>();
+  const getCrown = (zone: ZoneId, variant: number): HTMLCanvasElement => {
+    const key = `${zone}|${variant}`;
+    let c = crownCache.get(key);
+    if (!c) {
+      const rows = CROWN_VARIANTS[variant] ?? CROWN_VARIANTS[0] ?? [];
+      const [canvasEl, ctx] = canvasOf(CROWN_W, CROWN_H);
+      if (ctx) {
+        const pal = BG_PALETTES[zone].foliage;
+        const img = ctx.createImageData(CROWN_W, CROWN_H);
+        rows.forEach((row, y) => {
+          [...row].forEach((ch, x) => {
+            if (ch === '.') return;
+            const col = pal[Number(ch)];
+            if (!col) return;
+            const i = (y * CROWN_W + x) * 4;
+            img.data[i] = col[0];
+            img.data[i + 1] = col[1];
+            img.data[i + 2] = col[2];
+            img.data[i + 3] = 255;
+          });
+        });
+        ctx.putImageData(img, 0, 0);
+      }
+      c = canvasEl;
+      crownCache.set(key, c);
+    }
+    return c;
+  };
+
   let plan: RoomRenderPlan = {
+    crowns: [],
     ground: [],
     decals: [],
     props: [],
@@ -1273,6 +1306,10 @@ export function makeGbcView(): GbcView {
       }
       for (const d of plan.decals) {
         rctx.drawImage(getPlacedBg(s.zone, d), d.x * TILE_PX, d.y * TILE_PX);
+      }
+      // Thicket crowns back to front: each lower crown overlaps the ones above it
+      for (const cr of plan.crowns) {
+        rctx.drawImage(getCrown(s.zone, cr.variant), cr.px, cr.py);
       }
       for (const p of plan.props) {
         if (isFlatFloorDecal(p.tile)) {
