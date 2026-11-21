@@ -14,6 +14,7 @@ import {
   type State,
   type World,
   currentRoom,
+  isShallowWaterTile,
   isWaterTile,
   tileAt,
   windVectorAt,
@@ -1070,7 +1071,7 @@ export function makeGbcView(): GbcView {
         'SLIME_2',
         'SLIME_3',
       ];
-      const hopY = f === 2 ? -2 : f === 0 ? -1 : 0;
+      const hopY = f === 2 ? -1 : 0;
       const noticeJiggle = noticing ? Math.round(Math.sin(time * 36 + e.id) * 1) : 0;
       drawScaledSprite(
         ctx,
@@ -1624,6 +1625,30 @@ export function makeGbcView(): GbcView {
         );
         auxCtx.fillRect(wx * TILE_PX, wy * TILE_PX, TILE_PX, TILE_PX);
       }
+      // Tag all deep and shallow water cells in aux for reflections, and draw shallow ford pebbles/ripples
+      const waterPal = BG_PALETTES[s.zone].water;
+      const shallowFoamCss = cssRgb(waterPal[0]);
+      const shallowMidCss = cssRgb(waterPal[1]);
+      for (let wy = 0; wy < ROOM_H; wy++) {
+        for (let wx = 0; wx < ROOM_W; wx++) {
+          const wt = tileAt(world, s, s.zone, s.rx, s.ry, wx, wy);
+          if (isWaterTile(wt) || isShallowWaterTile(wt)) {
+            auxCtx.fillStyle = 'rgba(0, 0, 64, 1)';
+            auxCtx.fillRect(wx * TILE_PX + 2, wy * TILE_PX + 2, TILE_PX - 4, TILE_PX - 4);
+            if (isShallowWaterTile(wt)) {
+              const bx = wx * TILE_PX;
+              const by = wy * TILE_PX;
+              const shift = Math.floor(time * 3 + wx + wy) % 3;
+              mainCtx.fillStyle = shallowMidCss;
+              mainCtx.fillRect(bx + 4 + shift, by + 5, 3, 2);
+              mainCtx.fillRect(bx + 9 - shift, by + 10, 3, 2);
+              mainCtx.fillStyle = shallowFoamCss;
+              mainCtx.fillRect(bx + 5 + shift, by + 5, 2, 1);
+              mainCtx.fillRect(bx + 10 - shift, by + 10, 2, 1);
+            }
+          }
+        }
+      }
 
       // Fading floor scorch craters from bomb detonations (drawn on ground below actors)
       for (const sc of activeScorches) {
@@ -1730,12 +1755,12 @@ export function makeGbcView(): GbcView {
           const isMini = Boolean(e.splitGen && e.splitGen >= 1);
           const f =
             Math.floor(time * (isMini ? 10 : 7.5) * (e.aiState === 'flee' ? 2.4 : 1) + e.id) % 4;
-          const hopH = f === 2 ? 0.14 : f === 0 ? 0.06 : 0;
+          const hopH = f === 2 ? 0.08 : 0;
           drawContactShadow(
             mainCtx,
             s.zone,
             e.x * TILE_PX,
-            e.y * TILE_PX + (isMini ? 4 : 5),
+            e.y * TILE_PX + (isMini ? 1 : 2),
             isMini ? 4.2 : 6,
             hopH,
           );
@@ -1948,17 +1973,47 @@ export function makeGbcView(): GbcView {
       for (const e of s.enemies) {
         const ek: DepthActorKind =
           e.kind === 'slime' && e.splitGen && e.splitGen >= 1 ? 'mini-slime' : e.kind;
+        const enemyInShallow = isShallowWaterTile(
+          tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(e.x), Math.floor(e.y)),
+        );
         rawActors.push({
           footY: actorFootY(ek, e.y),
           orderTie: tieSeq++,
-          draw: () => drawEnemy(mainCtx, e, time),
+          draw: () => {
+            if (enemyInShallow && e.kind !== 'bat' && e.kind !== 'wickgeist') {
+              drawFloatingWaterRing(
+                mainCtx,
+                s.zone,
+                Math.round(e.x * TILE_PX),
+                Math.round(e.y * TILE_PX) + 3,
+                e.id,
+                time,
+              );
+            }
+            drawEnemy(mainCtx, e, time);
+          },
         });
       }
 
+      const pipInShallow =
+        s.rollTimer <= 0 &&
+        isShallowWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(s.x), Math.floor(s.y)));
       rawActors.push({
         footY: actorFootY('pip', s.y),
         orderTie: tieSeq,
-        draw: () => drawPip(mainCtx, s, time),
+        draw: () => {
+          if (pipInShallow) {
+            drawFloatingWaterRing(
+              mainCtx,
+              s.zone,
+              Math.round(s.x * TILE_PX),
+              Math.round(s.y * TILE_PX) + 3,
+              0,
+              time,
+            );
+          }
+          drawPip(mainCtx, s, time);
+        },
       });
 
       const sortedActors = sortDepthItems(rawActors);

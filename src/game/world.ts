@@ -119,9 +119,14 @@ export function slopeVector(t: Tile): { dx: number; dy: number } | null {
   }
 }
 
-/** True for still water (`'~'`) and directional water currents (`'1'..'4'`). */
+/** True for still deep water (`'~'`) and directional water currents (`'1'..'4'`). */
 export function isWaterTile(t: Tile): boolean {
   return t === '~' || t === '1' || t === '2' || t === '3' || t === '4';
+}
+
+/** True for walkable shallow water (`';'`). */
+export function isShallowWaterTile(t: Tile): boolean {
+  return t === ';';
 }
 
 /** Unit flow vector for `'1'..'4'` water current tiles (N, S, E, W), or `null` otherwise. */
@@ -219,6 +224,7 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
     t === ',' ||
     t === ':' ||
     t === '_' ||
+    t === ';' ||
     t === 'O' ||
     t === '!' ||
     t === '>' ||
@@ -1068,7 +1074,8 @@ function igniteTile(
     return null;
   }
   const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
-  if (isWaterTile(t) || isSolidBlastWall(t) || t === '%' || t === '^') return null;
+  if (isWaterTile(t) || isShallowWaterTile(t) || isSolidBlastWall(t) || t === '%' || t === '^')
+    return null;
 
   if (t === ',' || t === 'B' || t === 'W') {
     const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
@@ -1197,6 +1204,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     if (
       !isTileSolidForWalk(centreTile, s.crystalColor) &&
       !isWaterTile(centreTile) &&
+      !isShallowWaterTile(centreTile) &&
       centreTile !== '^'
     ) {
       blastPatches.push(upsertFirePatch(s, cx, cy, 0));
@@ -2267,7 +2275,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   for (const f of [...s.fires]) {
     const fcx = Math.round(f.x);
     const fcy = Math.round(f.y);
-    if (isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, fcx, fcy))) {
+    const ft = tileAt(world, s, s.zone, s.rx, s.ry, fcx, fcy);
+    if (isWaterTile(ft) || isShallowWaterTile(ft)) {
       f.remaining = 0;
       continue;
     }

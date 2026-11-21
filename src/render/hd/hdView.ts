@@ -676,10 +676,9 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       }
 
       actorArray.fill(0);
-      let actorCount = 0;
       // 1. Pip (the fuse mouse) casts a directional shadow from every torch, fire, and bomb blast
       actorArray.set([s.x * TILE_PX, s.y * TILE_PX + 2, 4.4, 30], 0);
-      actorCount = 1;
+      let actorCount = 1;
       // 2. Enemies & Bosses
       for (const e of s.enemies) {
         if (actorCount >= MAX_SHADOW_ACTORS) break;
@@ -692,7 +691,8 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
                 ? 4.0
                 : 5.5;
         const reach = e.kind === 'cinderhull' ? 56 : e.kind === 'wickgeist' ? 44 : 34;
-        actorArray.set([e.x * TILE_PX, e.y * TILE_PX + 2, rad, reach], actorCount * 4);
+        const footOff = e.kind === 'slime' ? 1 : 2;
+        actorArray.set([e.x * TILE_PX, e.y * TILE_PX + footOff, rad, reach], actorCount * 4);
         actorCount++;
       }
       // 3. NPCs

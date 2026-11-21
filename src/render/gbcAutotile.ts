@@ -274,7 +274,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   }
 
   const isWaterCell = (t: Tile): boolean =>
-    t === '~' || t === '1' || t === '2' || t === '3' || t === '4';
+    t === '~' || t === ';' || t === '1' || t === '2' || t === '3' || t === '4';
 
   const isWaterLike = (x: number, y: number): boolean => {
     const t = at(x, y);

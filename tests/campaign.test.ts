@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ROOM_H, ROOM_W, campaignWorld, roomKey } from '../src/game/world';
+import {
+  FIXED_DT,
+  ROOM_H,
+  ROOM_W,
+  campaignWorld,
+  isShallowWaterTile,
+  isTileSolidForWalk,
+  newState,
+  roomKey,
+  tick,
+} from '../src/game/world';
 
 const VALID_TILES = new Set([
   '.',
@@ -10,6 +20,7 @@ const VALID_TILES = new Set([
   'Y',
   '%',
   '~',
+  ';',
   '1',
   '2',
   '3',
@@ -127,5 +138,17 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
     expect(brambleWoods?.rows[5]?.[6]).toBe(',');
     expect(brambleWoods?.rows[3]?.[6]).toBe(',');
     expect(brambleWoods?.rows[3]?.[7]).toBe('B');
+
+    const millbrookSquare = world.rooms.get(roomKey('overworld', 3, 2));
+    expect(millbrookSquare?.rows[6]?.[7]).toBe(';');
+    expect(millbrookSquare?.rows[6]?.[8]).toBe(';');
+    expect(isShallowWaterTile(';')).toBe(true);
+    expect(isTileSolidForWalk(';', 'red')).toBe(false);
+
+    const s = newState(world, 'overworld', 3, 2, 6.5, 6.5);
+    for (let i = 0; i < 30; i++) {
+      tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    }
+    expect(s.x).toBeGreaterThan(7.4);
   });
 });

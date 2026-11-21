@@ -21,6 +21,7 @@ export type BombKind = 'powder' | 'ember';
  * 'Y' solid forest tree (Overworld, auto-paired into 2×2 interlocking canopies)
  * '%' cracked wall / cliff seam (always visibly seamed; broken by Blackpowder)
  * '~' water (blocks walking; airborne bombs pass over it)
+ * ';' shallow water (walkable with wading ripples & reflections; douses fire)
  * '^' bottomless pit (blocks walking; knockback into pit costs 1 half-heart; airborne bombs pass over)
  * '=' low fence / stone balustrade (blocks walking and rolling bombs; airborne bombs pass over)
  * 'B' dry brambles (blocks walking; burned away by Ember)
@@ -48,6 +49,7 @@ export type Tile =
   | 'Y'
   | '%'
   | '~'
+  | ';'
   | '1'
   | '2'
   | '3'
