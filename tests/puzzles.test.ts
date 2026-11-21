@@ -641,15 +641,17 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
     expect(s.collectedPickups.has('ow-smithy-shard')).toBe(true);
 
-    // 2. Millbrook West (2, 2): brambles 'B' at (4, 5) -> ow-west-powder at (3.5, 4.5)
+    // 2. Millbrook West (2, 2): sealed bramble cage 'B' at (4, 4) guards ow-west-powder at (3.5, 4.5)
     enterRoom(world, s, 'overworld', 2, 2, 5.5, 4.5);
+    stepSeconds(world, s, 0.5, { dx: -1, dy: 0 });
+    expect(s.x).toBeGreaterThan(5.1);
+    expect(s.collectedPickups.has('ow-west-powder')).toBe(false);
     equipBomb(s, 'ember');
     s.bombCooldown = 0;
     kickA(world, s, -1, 0);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
-    s.x = 3.5;
-    s.y = 4.5;
-    stepSeconds(world, s, 0.2);
+    expect(tileAt(world, s, 'overworld', 2, 2, 4, 4)).toBe('.');
+    stepSeconds(world, s, 0.8, { dx: -1, dy: 0 });
     expect(s.collectedPickups.has('ow-west-powder')).toBe(true);
 
     // 3. Orchard Gate (2, 3): East cracked gate '%' at (9, 6)
