@@ -77,7 +77,6 @@ const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
 const AIM_MIN_INPUT = 0.22;
 
-const emberBombTorchContacts = new WeakMap<State, Map<number, Set<string>>>();
 const firePatchTorchContacts = new WeakMap<State, WeakMap<object, Set<string>>>();
 const floatingBombIds = new WeakMap<State, Set<number>>();
 
@@ -86,20 +85,6 @@ function getFloatingBombs(s: State): Set<number> {
   if (!set) {
     set = new Set();
     floatingBombIds.set(s, set);
-  }
-  return set;
-}
-
-function getBombTorchContacts(s: State, bombId: number): Set<string> {
-  let byBomb = emberBombTorchContacts.get(s);
-  if (!byBomb) {
-    byBomb = new Map();
-    emberBombTorchContacts.set(s, byBomb);
-  }
-  let set = byBomb.get(bombId);
-  if (!set) {
-    set = new Set();
-    byBomb.set(bombId, set);
   }
   return set;
 }
@@ -266,7 +251,6 @@ export function isRoomLit(world: World, s: State): boolean {
   if (s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry))) return true;
   if (s.torches.some((t) => t.lit)) return true;
   if (s.fires.length > 0) return true;
-  if (s.bombs.some((b) => b.kind === 'ember')) return true;
   return false;
 }
 
@@ -331,7 +315,6 @@ export function enterRoom(
   s.bombs = [];
   s.fires = [];
   s.gusts = [];
-  emberBombTorchContacts.delete(s);
   firePatchTorchContacts.delete(s);
   floatingBombIds.delete(s);
   s.blocks = [];
@@ -1836,31 +1819,6 @@ function applyBombSlopePhysics(b: Bomb, sv: { dx: number; dy: number }, subDt: n
   }
 }
 
-function checkLiveEmberTorchContact(world: World, s: State, b: Bomb): void {
-  if (b.kind !== 'ember') return;
-  const contacts = getBombTorchContacts(s, b.id);
-  const bcx = Math.floor(b.x);
-  const bcy = Math.floor(b.y);
-  for (let ty = Math.max(0, bcy - 1); ty <= Math.min(ROOM_H - 1, bcy + 1); ty++) {
-    for (let tx = Math.max(0, bcx - 1); tx <= Math.min(ROOM_W - 1, bcx + 1); tx++) {
-      if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) !== 'T') continue;
-      const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
-      const centreDist = Math.hypot(b.x - (tx + 0.5), b.y - (ty + 0.5));
-      const clampedX = Math.max(tx, Math.min(tx + 1, b.x));
-      const clampedY = Math.max(ty, Math.min(ty + 1, b.y));
-      const edgeDist = Math.hypot(b.x - clampedX, b.y - clampedY);
-      if (centreDist <= 0.76 || edgeDist <= 0.26) {
-        if (!contacts.has(ck)) {
-          contacts.add(ck);
-          lightTorchAt(world, s, tx, ty);
-        }
-      } else if (centreDist > 0.92) {
-        contacts.delete(ck);
-      }
-    }
-  }
-}
-
 export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT): boolean {
   s.blasts = [];
   s.events = [];
@@ -2216,7 +2174,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         }
       }
 
-      checkLiveEmberTorchContact(world, s, b);
       if (!s.roomSolved && b.z <= 0.12 && room?.condition === 'hold-buttons') {
         checkSolveCondition(world, s);
       }
@@ -2300,12 +2257,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   }
 
   const liveBombIds = new Set(s.bombs.map((b) => b.id));
-  const bombTorchMap = emberBombTorchContacts.get(s);
-  if (bombTorchMap && bombTorchMap.size > 0) {
-    for (const id of bombTorchMap.keys()) {
-      if (!liveBombIds.has(id)) bombTorchMap.delete(id);
-    }
-  }
   if (floatingSet.size > 0) {
     for (const id of floatingSet) {
       if (!liveBombIds.has(id)) floatingSet.delete(id);

@@ -106,7 +106,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     tick(wallWorld, wallTest, idle, FIXED_DT);
     expect(wallTest.crystalColor).toBe('red');
 
-    // 2. Live rolling Ember bomb brushing within 0.76 tiles of 'T' lights it BEFORE fuse expires!
+    // 2. Ember bomb only lights 'T' once it explodes (not while still ticking/rolling)
     const tRows = [...OPEN_CRYPT];
     setCell(tRows, 5, 3, 'T');
     const tWorld = sandboxWorld(tRows, {
@@ -119,18 +119,20 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     ts.bombs.push({
       id: 903,
       kind: 'ember',
-      x: 4.75,
-      y: 4.6,
+      x: 5.5,
+      y: 4.2,
       vx: 0,
-      vy: -7.0,
+      vy: 0,
       z: 0,
       vz: 0,
       fuse: EMBER_FUSE,
       graceOverlap: false,
       shoveCount: 0,
     });
-    stepSeconds(tWorld, ts, 0.35); // well before 1.3s EMBER_FUSE!
+    stepSeconds(tWorld, ts, 0.35); // before 1.3s EMBER_FUSE: still unlit!
     expect(ts.bombs).toHaveLength(1);
+    expect(ts.torches[0]?.lit).toBe(false);
+    stepSeconds(tWorld, ts, EMBER_FUSE);
     expect(ts.torches[0]?.lit).toBe(true);
     expect(ts.roomSolved).toBe(true);
 
@@ -352,7 +354,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.y = 4.5;
     s.bombCooldown = 0;
     placeDownChute(world, s);
-    stepSeconds(world, s, 0.45);
+    stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.torches.find((t) => t.x === 2 && t.y === 2)?.lit).toBe(true);
 
     // Bowl NE brazier (8, 2) via East 'n' chute (8.5, 4.5) -> opens West 'S' shutters!
@@ -360,12 +362,11 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.y = 4.5;
     s.bombCooldown = 0;
     placeDownChute(world, s);
-    stepSeconds(world, s, 0.45);
+    stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.torches.every((t) => t.lit)).toBe(true);
     expect(s.roomSolved).toBe(true);
 
-    // Let bowled Ember bombs finish detonating so a satchel slot frees up, then burn West brambles (3, 6)
-    stepSeconds(world, s, EMBER_FUSE);
+    // Burn West brambles (3, 6)
     s.x = 4.5;
     s.y = 6.5;
     s.bombCooldown = 0;
@@ -388,7 +389,9 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.y = 4.5;
     s.bombCooldown = 0;
     placeDownChute(world, s);
-    stepSeconds(world, s, 0.5);
+    stepSeconds(world, s, 0.4);
+    expect(s.torches.some((t) => t.lit)).toBe(false);
+    stepSeconds(world, s, EMBER_FUSE);
     expect(s.torches.some((t) => t.lit)).toBe(true);
 
     // Defeat Wickgeist with Blackpowder (re-bowling SE 's' feeder (8.5, 8.5) when Phase 2 snuffs a torch)
@@ -402,7 +405,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vy = 0;
         s.bombCooldown = 0;
         placeDownChute(world, s);
-        stepSeconds(world, s, 0.5);
+        stepSeconds(world, s, EMBER_FUSE + 0.15);
         equipBomb(s, 'powder');
       }
       const geist = s.enemies[0];
@@ -493,7 +496,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.y = 9.5;
     s.bombCooldown = 0;
     placeDownChute(world, s);
-    stepSeconds(world, s, 0.6);
+    stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(1);
 
     // Shot II: NW 'n' chute past '~' water from (2.5, 5.5) into (2, 2)
@@ -501,7 +504,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     s.y = 5.5;
     s.bombCooldown = 0;
     placeDownChute(world, s);
-    stepSeconds(world, s, 0.7);
+    stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(2);
 
     // Shot III: NE 'n' -> 'ee' banked chute from (6.5, 4.5) into (8, 2)

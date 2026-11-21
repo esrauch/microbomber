@@ -10,6 +10,7 @@ import {
   equipBomb,
   exportSave,
   importSave,
+  isRoomLit,
   newState,
   tick,
   tileAt,
@@ -147,8 +148,13 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     equipBomb(s, 'ember');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     kickA(world, s, s.aimX, s.aimY);
-    stepSeconds(world, s, 1.45);
+    stepSeconds(world, s, 0.3);
+    expect(s.bombs).toHaveLength(1);
+    expect(s.torches.some((t) => t.lit)).toBe(false);
+    expect(isRoomLit(world, s)).toBe(false);
+    stepSeconds(world, s, 1.15);
     expect(s.torches.some((t) => t.lit)).toBe(true);
+    expect(isRoomLit(world, s)).toBe(true);
 
     // Deal 8 damage with Blackpowder throws (re-lighting if phase 2 snuffs a torch)
     equipBomb(s, 'powder');
