@@ -6,9 +6,13 @@
 const SIZE = 118; // ring diameter, px
 const REACH = SIZE / 2 - 18; // max travel of knob centre, px
 const DEAD = 0.14; // dead-zone fraction
+const FULL = 0.7; // fraction of reach that already gives full speed, so thumbs needn't hit the rim
 
 export interface Joystick {
-  /** Analogue direction (-1..1 each; x right, y down), or 0, 0 inside the dead zone. */
+  /**
+   * Analogue direction (x right, y down) with length 0..1: rescaled from the dead-zone edge
+   * so movement starts from zero, and saturating at `FULL` of the stick's reach.
+   */
   read(): { dx: number; dy: number };
 }
 
@@ -86,7 +90,10 @@ export function mountJoystick(host: HTMLElement): Joystick {
     read() {
       const dx = offset.x / REACH;
       const dy = offset.y / REACH;
-      return Math.hypot(dx, dy) < DEAD ? { dx: 0, dy: 0 } : { dx, dy };
+      const m = Math.hypot(dx, dy);
+      if (m < DEAD) return { dx: 0, dy: 0 };
+      const k = Math.min(1, (m - DEAD) / (FULL - DEAD)) / m;
+      return { dx: dx * k, dy: dy * k };
     },
   };
 }

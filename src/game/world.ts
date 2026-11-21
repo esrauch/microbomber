@@ -31,6 +31,10 @@ export const THROW_RANGE = 3; // tiles lobbed ahead
 export const THROW_DURATION = 0.24; // seconds in flight
 const PLAYER_RADIUS = 0.28;
 const CORNER_SLIDE_MAX = 0.42;
+/** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
+const AIM_MIN_INPUT = 0.3;
+/** The off-axis must beat the current aim axis by this ratio to turn (~50 degrees). */
+const AIM_TURN_RATIO = 1.2;
 
 export function cellKey(zone: ZoneId, rx: number, ry: number, x: number, y: number): string {
   return `${zone}:${rx},${ry}:${x},${y}`;
@@ -271,6 +275,8 @@ export function newState(
     y,
     fx: 0,
     fy: -1,
+    aimX: 0,
+    aimY: -1,
     entryX: x,
     entryY: y,
     vx: 0,
@@ -316,11 +322,64 @@ export function newState(
 }
 
 /** Snap facing vector to the nearest cardinal direction for crisp tile-aligned throws. */
-export function cardinalFacing(s: Pick<State, 'fx' | 'fy'>): { dx: number; dy: number } {
-  if (Math.abs(s.fx) >= Math.abs(s.fy)) {
-    return { dx: s.fx >= 0 ? 1 : -1, dy: 0 };
+export function cardinalFacing(s: Pick<State, 'aimX' | 'aimY'>): { dx: number; dy: number } {
+  return { dx: s.aimX, dy: s.aimY };
+}
+
+/** Re-aim toward stick direction `(dx, dy)`, holding the current axis near diagonals. */
+function updateAim(s: State, dx: number, dy: number): void {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const onX = s.aimX !== 0;
+  if (onX ? ay > ax * AIM_TURN_RATIO : ax <= ay * AIM_TURN_RATIO) {
+    s.aimX = 0;
+    s.aimY = dy >= 0 ? 1 : -1;
+  } else {
+    s.aimX = dx >= 0 ? 1 : -1;
+    s.aimY = 0;
   }
-  return { dx: 0, dy: s.fy >= 0 ? 1 : -1 };
+}
+
+/**
+ * Move the player along one axis by `d`, stopping flush against whatever blocks it
+ * rather than short of it. Returns true if the whole move was free.
+ */
+function sweepAxis(world: World, s: State, axis: 'x' | 'y', d: number): boolean {
+  const at = (f: number): [number, number] =>
+    axis === 'x' ? [s.x + d * f, s.y] : [s.x, s.y + d * f];
+  if (!playerBlockedAt(world, s, ...at(1), true)) {
+    [s.x, s.y] = at(1);
+    return true;
+  }
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 6; i++) {
+    const mid = (lo + hi) / 2;
+    if (playerBlockedAt(world, s, ...at(mid), false)) hi = mid;
+    else lo = mid;
+  }
+  [s.x, s.y] = at(lo);
+  return false;
+}
+
+/**
+ * Corner assist (`GAME.md` §2): blocked while pushing mostly straight, ease toward the
+ * nearest open lane within reach, stopping on its centre line rather than overshooting.
+ */
+function cornerSlide(world: World, s: State, axis: 'x' | 'y', d: number, dt: number): void {
+  const along = axis === 'x' ? s.x : s.y;
+  const across = axis === 'x' ? s.y : s.x;
+  const probe = (a: number, c: number): boolean =>
+    axis === 'x' ? playerBlockedAt(world, s, a, c, false) : playerBlockedAt(world, s, c, a, false);
+  const lanes = [-1, 1]
+    .map((sign) => Math.floor(across + sign * CORNER_SLIDE_MAX) + 0.5)
+    .filter((c) => !probe(along + d, c))
+    .sort((a, b) => Math.abs(a - across) - Math.abs(b - across));
+  const lane = lanes[0];
+  if (lane === undefined) return;
+  const step = Math.sign(lane - across) * Math.min(SPEED * dt, Math.abs(lane - across));
+  if (axis === 'x' && !probe(s.x, s.y + step)) s.y += step;
+  if (axis === 'y' && !probe(s.y, s.x + step)) s.x += step;
 }
 
 /**
@@ -828,6 +887,7 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     moveVy = input.dy * scale;
     s.fx = input.dx / inLen;
     s.fy = input.dy / inLen;
+    if (inLen >= AIM_MIN_INPUT) updateAim(s, input.dx, input.dy);
   }
 
   const totalDx = moveVx * dt;
@@ -841,40 +901,20 @@ export function tick(world: World, s: State, input: Input, dt: number): boolean 
     s.vy = 0;
   }
 
-  // Move X with corner-slide assist
-  if (Math.abs(totalDx) > 1e-5) {
-    const nx = s.x + totalDx;
-    if (!playerBlockedAt(world, s, nx, s.y, true)) {
-      s.x = nx;
-    } else if (Math.abs(input.dy) < 0.35) {
-      const slideStep = SPEED * 0.85 * dt;
-      for (const sign of [-1, 1] as const) {
-        const targetCenterY = Math.floor(s.y + sign * CORNER_SLIDE_MAX) + 0.5;
-        if (!playerBlockedAt(world, s, nx, targetCenterY, false)) {
-          const ny = s.y + sign * slideStep;
-          if (!playerBlockedAt(world, s, s.x, ny, false)) s.y = ny;
-          break;
-        }
-      }
-    }
+  // Move each axis flush to contact, with corner assist when pushing mostly straight
+  if (
+    Math.abs(totalDx) > 1e-5 &&
+    !sweepAxis(world, s, 'x', totalDx) &&
+    Math.abs(input.dy) < 0.5 * inLen
+  ) {
+    cornerSlide(world, s, 'x', totalDx, dt);
   }
-
-  // Move Y with corner-slide assist
-  if (Math.abs(totalDy) > 1e-5) {
-    const ny = s.y + totalDy;
-    if (!playerBlockedAt(world, s, s.x, ny, true)) {
-      s.y = ny;
-    } else if (Math.abs(input.dx) < 0.35) {
-      const slideStep = SPEED * 0.85 * dt;
-      for (const sign of [-1, 1] as const) {
-        const targetCenterX = Math.floor(s.x + sign * CORNER_SLIDE_MAX) + 0.5;
-        if (!playerBlockedAt(world, s, targetCenterX, ny, false)) {
-          const nx = s.x + sign * slideStep;
-          if (!playerBlockedAt(world, s, nx, s.y, false)) s.x = nx;
-          break;
-        }
-      }
-    }
+  if (
+    Math.abs(totalDy) > 1e-5 &&
+    !sweepAxis(world, s, 'y', totalDy) &&
+    Math.abs(input.dx) < 0.5 * inLen
+  ) {
+    cornerSlide(world, s, 'y', totalDy, dt);
   }
 
   // Knockback moves separately: it ignores corner sliding and can carry you over a pit

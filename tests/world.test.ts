@@ -65,8 +65,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1, 2): Crystal Switch 'C' sits at (4, 4) behind '=' fence at (4, 5)
     const s = newState(world, 'ember-crypt', 1, 2, 4.5, 6.5);
-    s.fx = 0;
-    s.fy = -1;
+    s.aimX = 0;
+    s.aimY = -1;
     expect(s.crystalColor).toBe('red');
 
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
@@ -75,8 +75,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     // Impact detonation on enemy: Spire Causeway (2, 1) has a slime at (4.5, 3.5)
     enterRoom(world, s, 'overworld', 2, 1, 4.5, 5.5);
-    s.fx = 0;
-    s.fy = -1;
+    s.aimX = 0;
+    s.aimY = -1;
     const initialEnemies = s.enemies.length;
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     // Flight takes <= 0.25s — far less than the 1.5s fuse!
@@ -100,8 +100,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     enterRoom(world, s, 'ember-crypt', 0, 2, 2.5, 1.5);
     s.enemies = [];
     // Lighting torch #2 first fizzles back to 0!
-    s.fx = -1;
-    s.fy = 0;
+    s.aimX = -1;
+    s.aimY = 0;
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     expect(s.orderedStep).toBe(0);
@@ -116,8 +116,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     for (const [px, py, fx, fy] of steps) {
       s.x = px;
       s.y = py;
-      s.fx = fx;
-      s.fy = fy;
+      s.aimX = fx;
+      s.aimY = fy;
       tick(world, s, { ...idle, throwBomb: true }, 0.02);
       for (let i = 0; i < 12; i++) tick(world, s, idle, 0.04);
     }
@@ -134,8 +134,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     // In the dark, Blackpowder deals 0 damage
     s.selectedBomb = 'powder';
-    s.fx = 0;
-    s.fy = -1;
+    s.aimX = 0;
+    s.aimY = -1;
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(geist.hp).toBe(8);
@@ -143,8 +143,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     // Light NW brazier (1, 1) with Ember, then damage Wickgeist
     s.x = 2.5;
     s.y = 1.5;
-    s.fx = -1;
-    s.fy = 0;
+    s.aimX = -1;
+    s.aimY = 0;
     s.selectedBomb = 'ember';
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
@@ -156,8 +156,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       if (!s.torches.some((t) => t.lit)) {
         s.x = 2.5;
         s.y = 1.5;
-        s.fx = -1;
-        s.fy = 0;
+        s.aimX = -1;
+        s.aimY = 0;
         s.selectedBomb = 'ember';
         tick(world, s, { ...idle, throwBomb: true }, 0.02);
         for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
@@ -168,8 +168,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       target.invulnTimer = 0;
       s.x = target.x;
       s.y = Math.min(9.2, target.y + 1.8);
-      s.fx = 0;
-      s.fy = -1;
+      s.aimX = 0;
+      s.aimY = -1;
       tick(world, s, { ...idle, throwBomb: true }, 0.02);
       for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     }
@@ -189,8 +189,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     s.selectedBomb = 'powder';
     s.x = boss.x;
     s.y = boss.y + 1.8;
-    s.fx = 0;
-    s.fy = -1;
+    s.aimX = 0;
+    s.aimY = -1;
     tick(world, s, { ...idle, throwBomb: true }, 0.02);
     for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
     expect(boss.hp).toBe(12);
@@ -219,8 +219,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         b.invulnTimer = 0;
         s.x = b.x;
         s.y = Math.min(9.0, b.y + 1.8);
-        s.fx = 0;
-        s.fy = -1;
+        s.aimX = 0;
+        s.aimY = -1;
         tick(world, s, { ...idle, throwBomb: true }, 0.02);
         for (let i = 0; i < 10; i++) tick(world, s, idle, 0.03);
       }

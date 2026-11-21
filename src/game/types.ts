@@ -260,6 +260,9 @@ export interface State {
   /** Unit facing vector (defaults to `(0, -1)` north). */
   fx: number;
   fy: number;
+  /** Cardinal aim for Drop/Throw: `fx, fy` snapped with hysteresis so it doesn't flicker. */
+  aimX: number;
+  aimY: number;
   /** Entry doorway snapshot for instant room-doorway respawn on death (`GAME.md` §1). */
   entryX: number;
   entryY: number;
