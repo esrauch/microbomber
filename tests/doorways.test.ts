@@ -110,7 +110,19 @@ describe('doorways and hazards', () => {
     // Cinder Trail (3,4): pits along row 3; a blast just north pushes south into them
     const s = newState(world, 'overworld', 3, 4, 5.5, 2.6);
     s.invulnTimer = 1;
-    s.bombs.push({ id: 999, kind: 'powder', x: 5.5, y: 1.9, fuse: 0.01, graceOverlap: false });
+    s.bombs.push({
+      id: 999,
+      kind: 'powder',
+      x: 5.5,
+      y: 1.9,
+      vx: 0,
+      vy: 0,
+      z: 0,
+      vz: 0,
+      fuse: 0.01,
+      graceOverlap: false,
+      shoveCount: 0,
+    });
     for (let i = 0; i < 60; i++) tick(world, s, idle, DT);
     expect(s.hp).toBe(s.maxHp - 1);
     expect([s.x, s.y]).toEqual([s.entryX, s.entryY]);

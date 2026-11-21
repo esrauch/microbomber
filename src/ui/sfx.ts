@@ -59,6 +59,21 @@ export function makeSfx(): SfxPlayer {
         tone(240, 140, 0.07, 'sine', 0.12);
       } else if (ev === 'bomb-throw') {
         tone(280, 520, 0.1, 'triangle', 0.13);
+      } else if (ev === 'bomb-bounce') {
+        tone(210, 320, 0.055, 'triangle', 0.11, 0);
+        tone(150, 95, 0.06, 'sine', 0.1, 0.01);
+      } else if (ev === 'bomb-kick') {
+        tone(160, 75, 0.055, 'square', 0.12, 0);
+        tone(260, 410, 0.07, 'triangle', 0.12, 0.015);
+      } else if (ev === 'bomb-shove') {
+        tone(190, 90, 0.09, 'sawtooth', 0.13, 0);
+        tone(380, 540, 0.08, 'triangle', 0.11, 0.02);
+      } else if (ev === 'bomb-splash') {
+        tone(290, 130, 0.075, 'sine', 0.12, 0);
+        tone(360, 680, 0.085, 'sine', 0.11, 0.05);
+      } else if (ev === 'bomb-swallow') {
+        tone(420, 95, 0.16, 'sine', 0.12, 0);
+        tone(180, 55, 0.12, 'triangle', 0.09, 0.05);
       } else if (ev === 'boom-powder') {
         tone(150, 38, 0.24, 'sawtooth', 0.22);
         tone(95, 28, 0.28, 'square', 0.14);

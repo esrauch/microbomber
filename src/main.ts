@@ -3,8 +3,9 @@
  * Portrait layout: Top Status + Minimap -> 2D GBC Sprite Stage -> Dedicated Control Band.
  */
 import buildInfo from 'virtual:build-info';
-import type { BombKind } from './game/types';
+import type { BlastVisual, BombKind } from './game/types';
 import {
+  FIXED_DT,
   type Input,
   type State,
   campaignWorld,
@@ -787,21 +788,52 @@ const REBUILD_EVENTS = new Set([
   'core-slotted',
 ]);
 
+const MAX_FRAME_STEPS = 6;
+
 let last = performance.now();
+let accumulator = 0;
 let cutting = false;
 
 const frame = (now: number): void => {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const elapsed = Math.min(0.1, Math.max(0, (now - last) / 1000));
   last = now;
 
+  state.events = [];
+  state.blasts = [];
+
   if (!cutting && !menuOpen) {
-    const moved = tick(world, state, readInput(), dt);
-    for (const ev of state.events) {
-      sfx.play(ev);
+    accumulator += elapsed;
+    const frameEvents: string[] = [];
+    const frameBlasts: BlastVisual[] = [];
+    let moved = false;
+    let needsRebuild = false;
+    let gotPickup = false;
+
+    for (let step = 0; step < MAX_FRAME_STEPS && accumulator >= FIXED_DT; step++) {
+      accumulator -= FIXED_DT;
+      moved = tick(world, state, readInput(), FIXED_DT);
+      for (const ev of state.events) {
+        sfx.play(ev);
+        frameEvents.push(ev);
+        if (REBUILD_EVENTS.has(ev)) needsRebuild = true;
+        if (ev.startsWith('pickup-') || ev === 'room-solved') gotPickup = true;
+      }
+      if (moved) {
+        accumulator = 0;
+        frameBlasts.length = 0;
+        break;
+      }
+      for (const bl of state.blasts) {
+        frameBlasts.push(bl);
+      }
     }
-    const needsRebuild = state.events.some((ev) => REBUILD_EVENTS.has(ev));
-    const gotPickup = state.events.some((ev) => ev.startsWith('pickup-') || ev === 'room-solved');
+    if (accumulator >= FIXED_DT) {
+      accumulator = 0;
+    }
+
+    state.events = frameEvents;
+    state.blasts = frameBlasts;
 
     if (moved) {
       persistState(state);
@@ -817,6 +849,8 @@ const frame = (now: number): void => {
       if (needsRebuild) rebuildRoom();
       if (gotPickup) persistState(state);
     }
+  } else {
+    accumulator = 0;
   }
 
   syncHud();

@@ -156,6 +156,25 @@ interface DoorTween {
   startTime: number;
 }
 
+interface BombKinSnapshot {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  shoveCount: number;
+  kind: 'powder' | 'ember';
+}
+
+interface MicroVfxInstance {
+  kind: 'splash' | 'swallow';
+  bombKind: 'powder' | 'ember';
+  x: number;
+  y: number;
+  born: number;
+}
+
 function easeOutCubic(t: number): number {
   const u = Math.max(0, Math.min(1, t));
   return 1 - (1 - u) ** 3;
@@ -244,8 +263,10 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
   let holdAnimUntil = 0;
   let heldKind: PickupKind = 'ember-bomb';
   let activeBlasts: BlastInstance[] = [];
-  const flyingBombIds = new Set<number>();
+  let activeMicroVfx: MicroVfxInstance[] = [];
   const bombLandUntil = new Map<number, number>();
+  const bombPrevKin = new Map<number, BombKinSnapshot>();
+  const bombRollPhase = new Map<number, number>();
   const blockTweens = new Map<number, BlockTween>();
   const pickupSpawnTime = new Map<string, number>();
   const pickupPrevPos = new Map<string, { x: number; y: number }>();
@@ -508,6 +529,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     time: number,
     sx = 1,
     sy = 1,
+    tiltRad = 0,
   ): void {
     const idx =
       b.fuse > 0.55
@@ -528,7 +550,163 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
       'EMBER_4',
     ];
     const list = b.kind === 'ember' ? emberFrames : powderFrames;
-    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy);
+    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy, false, undefined, tiltRad);
+  }
+
+  function computeBombDeform(b: Bomb, time: number): { sx: number; sy: number; tiltRad: number } {
+    let sx = 1;
+    let sy = 1;
+    let tiltRad = 0;
+
+    const landEnd = bombLandUntil.get(b.id) ?? 0;
+    if (time < landEnd) {
+      const e = easeOutCubic(1 - (landEnd - time) / 0.14);
+      sx *= 1.24 + (1 - 1.24) * e;
+      sy *= 0.78 + (1 - 0.78) * e;
+    }
+
+    const planarSpeed = Math.hypot(b.vx, b.vy);
+    if (planarSpeed > 0.35 && b.z <= 0.08) {
+      const phase = bombRollPhase.get(b.id) ?? 0;
+      const rollStrength = Math.min(1, (planarSpeed - 0.35) / 3.0);
+      const wobble = Math.cos(phase * 2) * 0.07 * rollStrength;
+      sx *= 1 + wobble;
+      sy *= 1 - wobble;
+      tiltRad =
+        Math.sin(phase) * (0.14 + 0.13 * rollStrength) + Math.sign(b.vx) * 0.05 * rollStrength;
+    }
+
+    if (b.fuse < 0.45) {
+      const urgency = Math.max(0, Math.min(1, (0.45 - b.fuse) / 0.45));
+      const swell = 1 + 0.18 * urgency;
+      const pulse = Math.sin(time * (28 + urgency * 26)) * (0.08 + 0.1 * urgency);
+      sx *= swell + pulse;
+      sy *= swell - pulse * 0.85;
+    }
+
+    return { sx, sy, tiltRad };
+  }
+
+  const SPLASH_DROP_ANGLES: readonly [number, number, number, number] = [-2.35, -0.78, 0.78, 2.35];
+
+  function drawMicroVfx(
+    ctx: CanvasRenderingContext2D,
+    zone: ZoneId,
+    fx: MicroVfxInstance,
+    age: number,
+  ): void {
+    const cx = Math.round(fx.x * TILE_PX);
+    const cy = Math.round(fx.y * TILE_PX);
+
+    if (fx.kind === 'splash') {
+      const u = Math.max(0, Math.min(1, age / 0.26));
+      const waterPal = BG_PALETTES[zone].water;
+      const foamCss = cssRgb(waterPal[1]);
+      const azureCss = cssRgb(waterPal[2]);
+      const deepWaterCss = cssRgb(waterPal[3]);
+
+      const rx = Math.round(2 + u * 6);
+      const ry = Math.round(1 + u * 3);
+      const dx = Math.max(1, Math.round(rx * 0.7));
+      const dy = Math.max(1, Math.round(ry * 0.7));
+      const ringPts: ReadonlyArray<readonly [number, number]> = [
+        [-rx, 0],
+        [rx, 0],
+        [0, -ry],
+        [0, ry],
+        [-dx, -dy],
+        [dx, -dy],
+        [-dx, dy],
+        [dx, dy],
+      ];
+      if (u < 0.9) {
+        const ringCol = u < 0.45 ? foamCss : azureCss;
+        for (let i = 0; i < ringPts.length; i++) {
+          if (u > 0.7 && i >= 4 && i % 2 === 1) continue;
+          const pt = ringPts[i];
+          if (!pt) continue;
+          const px = cx + pt[0];
+          const py = cy + pt[1];
+          ctx.fillStyle = deepWaterCss;
+          ctx.fillRect(px, py + 1, 1, 1);
+          ctx.fillStyle = ringCol;
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+
+      if (u < 0.3) {
+        const h = Math.max(1, Math.round((1 - u / 0.3) * 5));
+        ctx.fillStyle = INK_CSS;
+        ctx.fillRect(cx - 2, cy - h - 1, 4, h + 2);
+        ctx.fillStyle = foamCss;
+        ctx.fillRect(cx - 1, cy - h, 2, h);
+      }
+
+      if (u < 0.88) {
+        const dropCol = u < 0.5 ? foamCss : azureCss;
+        for (const a of SPLASH_DROP_ANGLES) {
+          const ox = Math.round(Math.cos(a) * (1.5 + u * 5.5));
+          const oy = Math.round(Math.sin(a) * (0.8 + u * 2.5) - 4 * 6 * u * (1 - u));
+          const dpx = cx + ox;
+          const dpy = cy + oy;
+          ctx.fillStyle = INK_CSS;
+          ctx.fillRect(dpx - 1, dpy, 3, 1);
+          ctx.fillRect(dpx, dpy - 1, 1, 3);
+          ctx.fillStyle = dropCol;
+          ctx.fillRect(dpx, dpy, 1, 1);
+        }
+      }
+      return;
+    }
+
+    // 'swallow': shrinking silhouette + inward abyss puff
+    const u = Math.max(0, Math.min(1, age / 0.24));
+    const rimLight = cssRgb(OBJ_PALETTES.powder[2]);
+    const rimMid = cssRgb(OBJ_PALETTES.powder[3]);
+    const bodyCol =
+      fx.bombKind === 'ember' ? cssRgb(OBJ_PALETTES.fire[3]) : cssRgb(OBJ_PALETTES.powder[4]);
+    const dropY = Math.round(u * 4);
+
+    const r = Math.max(1, Math.round((1 - u) * 5));
+    const moteCol = u < 0.45 ? rimLight : rimMid;
+    for (const [mx, my] of [
+      [-r, -r],
+      [r, -r],
+      [-r, r],
+      [r, r],
+    ] as const) {
+      const px = cx + mx;
+      const py = cy + my + Math.round(dropY * 0.5);
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(px, py + 1, 1, 1);
+      ctx.fillStyle = moteCol;
+      ctx.fillRect(px, py, 1, 1);
+    }
+
+    if (u < 0.35) {
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(cx - 3, cy - 3 + dropY, 6, 6);
+      ctx.fillStyle = bodyCol;
+      ctx.fillRect(cx - 2, cy - 2 + dropY, 4, 4);
+      ctx.fillStyle = FIRE_WHITE;
+      ctx.fillRect(cx - 1, cy - 1 + dropY, 1, 1);
+    } else if (u < 0.7) {
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(cx - 2, cy - 2 + dropY, 4, 4);
+      ctx.fillStyle = bodyCol;
+      ctx.fillRect(cx - 1, cy - 1 + dropY, 2, 2);
+    } else if (u < 0.92) {
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(cx - 1, cy + dropY, 3, 1);
+      ctx.fillRect(cx, cy - 1 + dropY, 1, 3);
+      ctx.fillStyle = rimMid;
+      ctx.fillRect(cx, cy + dropY, 1, 1);
+    }
+
+    if (u < 0.4) {
+      ctx.fillStyle = FIRE_LIGHT;
+      ctx.fillRect(cx, cy - 3 + dropY, 1, 1);
+    }
   }
 
   function drawNpc(ctx: CanvasRenderingContext2D, npc: NpcSpec, time: number): void {
@@ -760,7 +938,7 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
     }
     for (const b of s.bombs) {
       if (b.kind === 'ember') {
-        lights.push({ x: b.x * TILE_PX, y: b.y * TILE_PX, r: 22 });
+        lights.push({ x: b.x * TILE_PX, y: (b.y - b.z) * TILE_PX, r: 22 });
       }
     }
 
@@ -799,8 +977,10 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
 
       if (roomChanged) {
         activeBlasts = [];
-        flyingBombIds.clear();
+        activeMicroVfx = [];
         bombLandUntil.clear();
+        bombPrevKin.clear();
+        bombRollPhase.clear();
         blockTweens.clear();
         pickupSpawnTime.clear();
         pickupPrevPos.clear();
@@ -872,22 +1052,142 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         }
       }
 
-      // Track bomb flight -> landing transitions for 0.14s landing squash
+      // Track continuous z-height landings, bounce/kick/shove squash, rolling phase, and splash/swallow VFX
       const liveBombIds = new Set<number>();
       for (const b of s.bombs) {
         liveBombIds.add(b.id);
-        if (b.flight) {
-          flyingBombIds.add(b.id);
-        } else if (flyingBombIds.has(b.id)) {
-          flyingBombIds.delete(b.id);
-          bombLandUntil.set(b.id, time + 0.14);
+      }
+      const vanishedBombs: BombKinSnapshot[] = [];
+      for (const [id, prev] of bombPrevKin) {
+        if (!liveBombIds.has(id)) {
+          const blewUp = s.blasts.some(
+            (bl) =>
+              Math.floor(bl.x) === Math.floor(prev.x) && Math.floor(bl.y) === Math.floor(prev.y),
+          );
+          if (!blewUp) vanishedBombs.push(prev);
+          bombPrevKin.delete(id);
+          bombLandUntil.delete(id);
+          bombRollPhase.delete(id);
         }
       }
-      for (const id of flyingBombIds) {
-        if (!liveBombIds.has(id)) flyingBombIds.delete(id);
+
+      const resolveHazardSpot = (
+        targetTile: '~' | '^',
+      ): { x: number; y: number; bombKind: 'powder' | 'ember' } => {
+        for (let i = 0; i < vanishedBombs.length; i++) {
+          const cand = vanishedBombs[i];
+          if (!cand) continue;
+          const px = cand.x + cand.vx * dt;
+          const py = cand.y + cand.vy * dt;
+          const cx = Math.floor(px);
+          const cy = Math.floor(py);
+          if (tileAt(world, s, s.zone, s.rx, s.ry, cx, cy) === targetTile) {
+            vanishedBombs.splice(i, 1);
+            return { x: px, y: py, bombKind: cand.kind };
+          }
+          for (const [ox, oy] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ] as const) {
+            const nx = cx + ox;
+            const ny = cy + oy;
+            if (tileAt(world, s, s.zone, s.rx, s.ry, nx, ny) === targetTile) {
+              vanishedBombs.splice(i, 1);
+              return {
+                x: Math.max(nx + 0.25, Math.min(nx + 0.75, px)),
+                y: Math.max(ny + 0.25, Math.min(ny + 0.75, py)),
+                bombKind: cand.kind,
+              };
+            }
+          }
+        }
+        const firstVanished = vanishedBombs.shift();
+        if (firstVanished) {
+          return {
+            x: firstVanished.x + firstVanished.vx * dt,
+            y: firstVanished.y + firstVanished.vy * dt,
+            bombKind: firstVanished.kind,
+          };
+        }
+        const fallbackKind: 'powder' | 'ember' = s.equipped ?? 'powder';
+        for (const dist of [0.65, 1.15, 1.8, 2.4, 3.0]) {
+          const sx = s.x + s.aimX * dist;
+          const sy = s.y + s.aimY * dist;
+          const tx = Math.floor(sx);
+          const ty = Math.floor(sy);
+          if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) === targetTile) {
+            return { x: sx, y: sy, bombKind: fallbackKind };
+          }
+        }
+        return { x: s.x + s.aimX * 0.75, y: s.y + s.aimY * 0.75, bombKind: fallbackKind };
+      };
+
+      for (const ev of s.events) {
+        if (ev === 'bomb-splash') {
+          const spot = resolveHazardSpot('~');
+          activeMicroVfx.push({
+            kind: 'splash',
+            bombKind: spot.bombKind,
+            x: spot.x,
+            y: spot.y,
+            born: time,
+          });
+        } else if (ev === 'bomb-swallow') {
+          const spot = resolveHazardSpot('^');
+          activeMicroVfx.push({
+            kind: 'swallow',
+            bombKind: spot.bombKind,
+            x: spot.x,
+            y: spot.y,
+            born: time,
+          });
+        }
       }
-      for (const id of bombLandUntil.keys()) {
-        if (!liveBombIds.has(id)) bombLandUntil.delete(id);
+      activeMicroVfx = activeMicroVfx.filter(
+        (fx) => time - fx.born < (fx.kind === 'splash' ? 0.26 : 0.24),
+      );
+
+      const hasBounceLikeEvent = s.events.some(
+        (ev) => ev === 'bomb-bounce' || ev === 'bomb-kick' || ev === 'bomb-shove',
+      );
+      let triggeredAnySquash = false;
+      for (const b of s.bombs) {
+        const prev = bombPrevKin.get(b.id);
+        if (!b.carried && prev) {
+          const landedZ = prev.z > 0.01 && b.z <= 0.01;
+          const bouncedFloor = prev.vz < -0.05 && b.vz > 0;
+          const shoved = b.shoveCount > prev.shoveCount;
+          const impulseJump =
+            hasBounceLikeEvent && Math.hypot(b.vx - prev.vx, b.vy - prev.vy) > 0.45;
+          if (landedZ || bouncedFloor || shoved || impulseJump) {
+            bombLandUntil.set(b.id, time + 0.14);
+            triggeredAnySquash = true;
+          }
+        }
+        const planarSpeed = Math.hypot(b.vx, b.vy);
+        if (!b.carried && planarSpeed > 0.35) {
+          const phase = (bombRollPhase.get(b.id) ?? b.id * 1.7) + planarSpeed * dt * 11;
+          bombRollPhase.set(b.id, phase);
+        }
+        bombPrevKin.set(b.id, {
+          x: b.x,
+          y: b.y,
+          z: b.z,
+          vx: b.vx,
+          vy: b.vy,
+          vz: b.vz,
+          shoveCount: b.shoveCount,
+          kind: b.kind,
+        });
+      }
+      if (hasBounceLikeEvent && !triggeredAnySquash) {
+        for (const b of s.bombs) {
+          if (!b.carried) {
+            bombLandUntil.set(b.id, time + 0.14);
+          }
+        }
       }
 
       // Stamp startTime on newly opened doors/shutters and prune finished 0.18s tweens
@@ -1071,35 +1371,25 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         });
       }
 
+      for (const fx of activeMicroVfx) {
+        actors.push({
+          footY: fx.y - 0.05,
+          draw: () => drawMicroVfx(mainCtx, s.zone, fx, Math.max(0, time - fx.born)),
+        });
+      }
+
       for (const b of s.bombs) {
-        if (b.flight || b.carried) continue;
-        let sx = 1;
-        let sy = 1;
-        const landEnd = bombLandUntil.get(b.id) ?? 0;
-        if (time < landEnd) {
-          const e = easeOutCubic(1 - (landEnd - time) / 0.14);
-          sx *= 1.25 + (1 - 1.25) * e;
-          sy *= 0.78 + (1 - 0.78) * e;
-        }
-        if (b.fuse < 0.45) {
-          const urgency = Math.max(0, Math.min(1, (0.45 - b.fuse) / 0.45));
-          const swell = 1 + 0.18 * urgency;
-          const pulse = Math.sin(time * (28 + urgency * 26)) * (0.08 + 0.1 * urgency);
-          sx *= swell + pulse;
-          sy *= swell - pulse * 0.85;
-        }
+        if (b.carried || b.z > 0.08) continue;
+        const { sx, sy, tiltRad } = computeBombDeform(b, time);
+        const gx = Math.round(b.x * TILE_PX - 8);
+        const gy = Math.round(b.y * TILE_PX - 8);
+        const elevPx = Math.round(b.z * TILE_PX);
         actors.push({
           footY: b.y,
-          draw: () =>
-            drawBomb(
-              mainCtx,
-              b,
-              Math.round(b.x * TILE_PX - 8),
-              Math.round(b.y * TILE_PX - 9),
-              time,
-              sx,
-              sy,
-            ),
+          draw: () => {
+            drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
+            drawBomb(mainCtx, b, gx, gy - 1 - elevPx, time, sx, sy, tiltRad);
+          },
         });
       }
 
@@ -1133,15 +1423,16 @@ export function makeGbcView(canvas: HTMLCanvasElement): GbcView {
         drawThrowArcPreview(mainCtx, s, targetX, targetY, carried.kind === 'ember', time);
       }
 
-      // 6. Airborne thrown bombs
-      for (const b of s.bombs) {
-        if (!b.flight) continue;
-        const u = Math.min(1, b.flight.elapsed / b.flight.duration);
-        const arcPx = Math.round(4 * 14 * u * (1 - u));
+      // 6. Airborne bombs (`!b.carried && b.z > 0.08`)
+      const airborneBombs = s.bombs.filter((b) => !b.carried && b.z > 0.08);
+      airborneBombs.sort((a, b) => a.y - b.y);
+      for (const b of airborneBombs) {
+        const { sx, sy, tiltRad } = computeBombDeform(b, time);
         const gx = Math.round(b.x * TILE_PX - 8);
         const gy = Math.round(b.y * TILE_PX - 8);
+        const elevPx = Math.round(b.z * TILE_PX);
         drawObjSprite(mainCtx, 'SHADOW_CELL', gx, gy);
-        drawBomb(mainCtx, b, gx, gy - 1 - arcPx, time);
+        drawBomb(mainCtx, b, gx, gy - 1 - elevPx, time, sx, sy, tiltRad);
       }
 
       // 7. Enemy projectiles

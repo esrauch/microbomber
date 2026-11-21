@@ -175,21 +175,23 @@ export interface Bomb {
   /** Current world position in tiles (tile centres are `k + 0.5`). */
   x: number;
   y: number;
-  /** Remaining fuse in seconds (counts down once landed, while carried, or during flight). */
+  /** Planar velocity in tiles / second (rolling, kicked, bounced, or blast-shoved). */
+  vx: number;
+  vy: number;
+  /** Vertical height above floor in tiles (`0` when grounded, `> 0` during lob/bounce). */
+  z: number;
+  /** Vertical velocity in tiles / second. */
+  vz: number;
+  /** Remaining fuse in seconds (counts down while carried, airborne, or rolling). */
   fuse: number;
-  /** True while the player is still overlapping a freshly dropped bomb. */
+  /** True while the player is still overlapping a freshly dropped/landed bomb. */
   graceOverlap: boolean;
+  /** Number of blast shoves absorbed; a shoved bomb (`>= 1`) hit again chain-detonates. */
+  shoveCount: number;
+  /** True if launched by A = Pull out throw (enables Blackpowder enemy impact detonation). */
+  thrown?: boolean;
   /** True while held overhead by the player via A = Pull out (fuse still burning). */
   carried?: boolean;
-  /** Flight state when thrown along the stick's 360° angle. */
-  flight?: {
-    startX: number;
-    startY: number;
-    targetX: number;
-    targetY: number;
-    elapsed: number;
-    duration: number;
-  };
 }
 
 export interface FirePatch {

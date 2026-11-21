@@ -35,19 +35,19 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 
 ## Phase 2: Bomb physics
 
-- [ ] **Fixed timestep:** a `60 Hz` simulation with an accumulator in the main
+- [x] **Fixed timestep:** a `60 Hz` simulation with an accumulator in the main
       loop; `tick` always takes the fixed `dt`, so tests stay deterministic.
-- [ ] **Bomb bodies:** position, velocity and radius; friction; rebound off solid
+- [x] **Bomb bodies:** position, velocity and radius; friction; rebound off solid
       tiles; pits swallow; water stops them (drift comes in Phase 4).
-- [ ] **Throw lands and rolls:** the lob arc hands off to bounce and roll.
-- [ ] **Kick:** walking into a grounded bomb sends it rolling.
-- [ ] **Blast shove:** a radial impulse on bombs, enemies, push blocks and Pip (one
+- [x] **Throw lands and rolls:** the lob arc hands off to bounce and roll.
+- [x] **Kick:** walking into a grounded bomb sends it rolling.
+- [x] **Blast shove:** a radial impulse on bombs, enemies, push blocks and Pip (one
       knockback model for all of them).
-- [ ] **Chains:** a shoved bomb that's hit again detonates; impact detonation for
+- [x] **Chains:** a shoved bomb that's hit again detonates; impact detonation for
       thrown Blackpowder still applies.
-- [ ] **Grace and traps:** recheck walk-through grace and doorway rules with moving
+- [x] **Grace and traps:** recheck walk-through grace and doorway rules with moving
       bombs (never trapped, never knocked out of a room).
-- [ ] **Tests:** deterministic scenarios for bounce, roll-out distance, kick, shove
+- [x] **Tests:** deterministic scenarios for bounce, roll-out distance, kick, shove
       and chains.
 - [ ] **Playtest checkpoint:** friction, bounciness and kick strength.
 

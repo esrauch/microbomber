@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FIXED_DT,
   LIFT_DELAY,
   campaignWorld,
   equipBomb,
@@ -9,8 +10,6 @@ import {
   tick,
 } from '../src/game/world';
 import { idle, tapA } from './input';
-
-const DT = 1 / 60;
 
 describe('Roll (B), Pull out (A), and single equipped bomb', () => {
   it('a tap on A drops the equipped bomb; holding A lifts it overhead, and it moves with you', () => {
@@ -22,15 +21,20 @@ describe('Roll (B), Pull out (A), and single equipped bomb', () => {
 
     const t = newState(world, 'overworld', 3, 2, 4.5, 6.5);
     t.enemies = [];
-    for (let i = 0; i * DT < LIFT_DELAY + DT; i++) tick(world, t, { ...idle, holdA: true }, DT);
+    for (let i = 0; i * FIXED_DT < LIFT_DELAY + FIXED_DT; i++) {
+      tick(world, t, { ...idle, holdA: true }, FIXED_DT);
+    }
     expect(t.bombs[0]?.carried).toBe(true);
-    for (let i = 0; i < 10; i++) tick(world, t, { ...idle, holdA: true, dx: 1 }, DT);
+    for (let i = 0; i < 10; i++) tick(world, t, { ...idle, holdA: true, dx: 1 }, FIXED_DT);
     expect(t.bombs[0]?.x).toBe(t.x);
     const fuseBefore = t.bombs[0]!.fuse;
-    tick(world, t, idle, DT); // release throws
-    expect(t.bombs[0]?.carried).toBeUndefined();
-    expect(t.bombs[0]?.flight).toBeDefined();
-    expect(t.bombs[0]!.fuse).toBeLessThan(1.5); // the fuse burned while it was held
+    tick(world, t, idle, FIXED_DT); // release throws
+    const thrown = t.bombs[0]!;
+    expect(thrown.carried).toBeFalsy();
+    expect(thrown.thrown).toBe(true);
+    expect(thrown.z).toBeGreaterThan(0);
+    expect(Math.hypot(thrown.vx, thrown.vy)).toBeGreaterThan(0);
+    expect(thrown.fuse).toBeLessThan(1.5); // the fuse burned while it was held
     expect(fuseBefore).toBeLessThan(1.5);
   });
 
@@ -38,12 +42,14 @@ describe('Roll (B), Pull out (A), and single equipped bomb', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 4.5, 6.5);
     s.enemies = [];
-    for (let i = 0; i * DT < LIFT_DELAY + DT; i++) tick(world, s, { ...idle, holdA: true }, DT);
+    for (let i = 0; i * FIXED_DT < LIFT_DELAY + FIXED_DT; i++) {
+      tick(world, s, { ...idle, holdA: true }, FIXED_DT);
+    }
     expect(s.bombs[0]?.carried).toBe(true);
 
-    tick(world, s, { dx: 1, dy: 0, holdA: true, holdB: true }, DT);
+    tick(world, s, { dx: 1, dy: 0, holdA: true, holdB: true }, FIXED_DT);
     expect(s.bombs).toHaveLength(1);
-    expect(s.bombs[0]?.carried).toBeUndefined();
+    expect(s.bombs[0]?.carried).toBeFalsy();
     expect([s.bombs[0]?.x, s.bombs[0]?.y]).toEqual([4.5, 6.5]);
     expect(s.rollTimer).toBeGreaterThan(0);
   });

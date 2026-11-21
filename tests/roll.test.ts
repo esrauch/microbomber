@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOMB_COOLDOWN,
+  FIXED_DT,
   INPUT_BUFFER_WINDOW,
   LIFT_DELAY,
   PICKUP_MAGNET_RADIUS,
@@ -11,10 +12,8 @@ import {
   ROLL_RECOVERY,
   ROOM_H,
   ROOM_W,
-  THROW_RANGE,
   type World,
   campaignWorld,
-  computeThrowTarget,
   equipBomb,
   exportSave,
   importSave,
@@ -24,9 +23,7 @@ import {
   tick,
   tileAt,
 } from '../src/game/world';
-import { idle, rollB, tapA, throwA } from './input';
-
-const DT = 1 / 60;
+import { idle, rollB, stepSeconds, tapA, throwA } from './input';
 
 /** Build a clean 11x13 sandbox room so geometry, hazards, and walls are 100% deterministic. */
 function sandboxWorld(rows: string[]): World {
@@ -59,12 +56,12 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
 
     // During recovery, normal walking works, while pressing B early (outside buffer) cannot start a roll yet
     const yAfterRoll = s.y;
-    tick(world, s, { dx: 1, dy: 0 }, 0.1);
+    for (let i = 0; i < 6; i++) tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
     expect(s.x).toBeGreaterThan(3.8);
-    expect(s.rollRecoveryTimer).toBeCloseTo(ROLL_RECOVERY - 0.1, 3);
+    expect(s.rollRecoveryTimer).toBeCloseTo(ROLL_RECOVERY - 6 * FIXED_DT, 3);
 
     // Wait out remaining recovery + bomb cooldown, then roll along a 360° diagonal stick angle
-    for (let t = 0; t < 0.7; t += DT) tick(world, s, idle, DT);
+    stepSeconds(world, s, 0.7);
     s.bombs = [];
     s.x = 3.5;
     s.y = yAfterRoll + 2.0;
@@ -151,12 +148,13 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     // 4. Outer frames (< 0.05s and > 0.20s) and recovery (rollTimer === 0, rollRecoveryTimer > 0) DO take damage
     const early = newState(world, 'overworld', 0, 0, 5.5, 6.5); // standing on '!' at (5, 6)
     equipBomb(early, null);
-    tick(world, early, { dx: 1, dy: 0, holdB: true }, 0.02); // elapsed = 0.02s (< 0.05s)
+    tick(world, early, { dx: 1, dy: 0, holdB: true }, FIXED_DT); // elapsed = 1/60s (< 0.05s)
     expect(early.hp).toBe(early.maxHp - 1);
 
     const late = newState(world, 'overworld', 0, 0, 3.65, 6.5); // reaches spike at x=5 after 0.20s!
     equipBomb(late, null);
-    tick(world, late, { dx: 1, dy: 0, holdB: true }, 0.21); // at 0.21s, x ≈ 5.33 on '!' and elapsed = 0.21 > 0.20
+    tick(world, late, { dx: 1, dy: 0, holdB: true }, FIXED_DT);
+    for (let i = 1; i < 13; i++) tick(world, late, { dx: 1, dy: 0 }, FIXED_DT); // 13/60 ≈ 0.2167s > 0.20s on '!'
     expect(late.hp).toBe(late.maxHp - 1);
 
     const rec = newState(world, 'overworld', 0, 0, 2.5, 5.5); // safe roll from 2.5 -> 4.5 on row 5
@@ -166,7 +164,7 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     // Step onto spike (5, 6) while in recovery (rollTimer === 0, rollRecoveryTimer > 0)
     rec.x = 5.5;
     rec.y = 6.5;
-    tick(world, rec, idle, DT);
+    tick(world, rec, idle, FIXED_DT);
     expect(rec.rollRecoveryTimer).toBeGreaterThan(0);
     expect(rec.hp).toBe(rec.maxHp - 1);
   });
@@ -181,8 +179,8 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(s.bombs[0]).toMatchObject({ kind: 'powder', x: 4.5, y: 6.5 });
     expect(s.x).toBeCloseTo(6.5, 2);
 
-    // Finish recovery (0.35s); bombCooldown (0.70s)still has ~0.10s left -> rolling now lays NO second bomb
-    for (let t = 0; t < ROLL_RECOVERY + 0.02; t += DT) tick(world, s, idle, DT);
+    // Finish recovery (0.35s); bombCooldown (0.70s) still has ~0.10s left -> rolling now lays NO second bomb
+    stepSeconds(world, s, ROLL_RECOVERY + 0.02);
     expect(s.rollRecoveryTimer).toBe(0);
     expect(s.bombCooldown).toBeGreaterThan(0);
     rollB(world, s, -1, 0);
@@ -196,26 +194,36 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(pure.x).toBeCloseTo(6.5, 2);
   });
 
-  it('throws bombs along exact 360° diagonal stick angles and snaps onto diagonal pedestals', () => {
+  it('throws bombs along exact 360° diagonal stick angles and bounces/rolls beside pedestals to flip switches', () => {
     const rows = OPEN_ROOM.map((r) => r.split(''));
-    rows[3]![7] = 'C'; // crystal switch diagonally NE of (5.5, 5.5)
+    rows[3]![7] = 'C'; // crystal switch diagonally NE
     const world = sandboxWorld(rows.map((r) => r.join('')));
-    const s = newState(world, 'overworld', 0, 0, 5.5, 5.5);
+    const s = newState(world, 'overworld', 0, 0, 3.5, 4.5);
 
-    // 1. Open diagonal SE throw lands ~THROW_RANGE (2.8 tiles) along exact 36.87° (0.8, 0.6) angle
+    // 1. Open diagonal SE throw launches airborne along exact 36.87° (0.8, 0.6) angle and rolls out ~2.3-3.4 tiles
     throwA(world, s, 0.8, 0.6);
-    const flight = s.bombs[0]?.flight;
-    expect(flight).toBeDefined();
-    expect(flight!.targetX - 5.5).toBeCloseTo(THROW_RANGE * 0.8, 1);
-    expect(flight!.targetY - 5.5).toBeCloseTo(THROW_RANGE * 0.6, 1);
+    const b = s.bombs[0]!;
+    expect(b.thrown).toBe(true);
+    expect(b.z).toBeGreaterThan(0);
+    const launchSpeed = Math.hypot(b.vx, b.vy);
+    expect(launchSpeed).toBeGreaterThan(0);
+    expect(b.vx / launchSpeed).toBeCloseTo(0.8, 2);
+    expect(b.vy / launchSpeed).toBeCloseTo(0.6, 2);
 
-    // 2. Diagonal NE throw toward Crystal Switch at (7, 3) snaps onto (7.5, 3.5) and flips crystal
-    const cState = newState(world, 'overworld', 0, 0, 5.5, 5.5);
-    cState.aimX = Math.SQRT1_2;
-    cState.aimY = -Math.SQRT1_2;
-    expect(computeThrowTarget(world, cState)).toEqual({ targetX: 7.5, targetY: 3.5 });
-    throwA(world, cState, 1, -1);
-    for (let t = 0; t < 0.35; t += DT) tick(world, cState, idle, DT);
+    // Step until grounded and stopped via friction (well before 1.5s fuse)
+    stepSeconds(world, s, 1.15);
+    expect(b.z).toBe(0);
+    expect(Math.hypot(b.vx, b.vy)).toBe(0);
+    const dist = Math.hypot(b.x - 3.5, b.y - 4.5);
+    expect(dist).toBeGreaterThanOrEqual(2.3);
+    expect(dist).toBeLessThanOrEqual(3.4);
+
+    // 2. Analog NE throw toward Crystal Switch at (7, 3) bounces/settles beside it and flips crystal on detonation
+    const cState = newState(world, 'overworld', 0, 0, 4.3, 4.95);
+    throwA(world, cState, 2.7, -1.35);
+    expect(cState.bombs[0]?.thrown).toBe(true);
+    expect(cState.bombs[0]!.z).toBeGreaterThan(0);
+    stepSeconds(world, cState, 1.55);
     expect(cState.crystalColor).toBe('blue');
   });
 
@@ -226,47 +234,45 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     const r = newState(world, 'overworld', 0, 0, 2.5, 6.5);
     equipBomb(r, null);
     rollB(world, r, 1, 0); // rolls to 4.5, recovery = 0.35s
-    // Advance until 0.09s left in recovery (inside 0.13s INPUT_BUFFER_WINDOW)
-    for (let i = 0; i < 60 && r.rollRecoveryTimer > 0.095; i++) tick(world, r, idle, DT);
+    // Advance until ~0.09s left in recovery (inside 0.13s INPUT_BUFFER_WINDOW)
+    for (let i = 0; i < 60 && r.rollRecoveryTimer > 0.095; i++) tick(world, r, idle, FIXED_DT);
     // Tap B once during recovery
-    tick(world, r, { dx: 1, dy: 0, holdB: true }, DT);
-    tick(world, r, { dx: 1, dy: 0 }, DT);
+    tick(world, r, { dx: 1, dy: 0, holdB: true }, FIXED_DT);
+    tick(world, r, { dx: 1, dy: 0 }, FIXED_DT);
     expect(r.rollBufferTimer).toBeGreaterThan(0);
     // Step past end of recovery with B released: buffered roll fires and carries Pip past x=6!
-    for (let t = 0; t < 0.35; t += DT) tick(world, r, { dx: 1, dy: 0 }, DT);
+    stepSeconds(world, r, 0.35, { dx: 1, dy: 0 });
     expect(r.x).toBeGreaterThan(6.2);
 
     // Pressing B too early (> 0.15s before recovery ends) expires without rolling
     const rEarly = newState(world, 'overworld', 0, 0, 2.5, 6.5);
     equipBomb(rEarly, null);
     rollB(world, rEarly, 1, 0); // x ≈ 4.5, recovery = 0.35s
-    tick(world, rEarly, { ...idle, holdB: true }, DT); // 0.33s left > 0.13s window
-    for (let t = 0; t < 0.45; t += DT) tick(world, rEarly, idle, DT);
+    tick(world, rEarly, { ...idle, holdB: true }, FIXED_DT); // 0.33s left > 0.13s window
+    stepSeconds(world, rEarly, 0.45);
     expect(rEarly.x).toBeCloseTo(4.5, 2);
 
-    // 2. Pull-out buffer (tap drop): tapping A 80ms before bombCooldown ends drops a bomb when ready!
+    // 2. Pull-out buffer (tap drop): tapping A ~80ms before bombCooldown ends drops a bomb when ready!
     const d = newState(world, 'overworld', 0, 0, 3.5, 6.5);
     tapA(world, d); // drops bomb #1 at (3.5, 6.5), bombCooldown = 0.7s
     // Walk east off the first bomb so Pip is neither underfoot nor overlapping (3, 6)
     for (let i = 0; i < 60 && d.bombCooldown > INPUT_BUFFER_WINDOW - 0.04; i++) {
-      tick(world, d, { dx: 1, dy: 0 }, DT);
+      tick(world, d, { dx: 1, dy: 0 }, FIXED_DT);
     }
     expect(d.bombCooldown).toBeGreaterThan(0);
     expect(d.bombs).toHaveLength(1);
-    tapA(world, d); // buffered tap during last ~90ms of cooldown!
+    tapA(world, d); // buffered tap during last ~85ms of cooldown!
     expect(d.bombs).toHaveLength(1); // still on cooldown right now
-    for (let t = 0; t < 0.12; t += DT) tick(world, d, idle, DT);
+    stepSeconds(world, d, 0.12);
     expect(d.bombs).toHaveLength(2); // auto-dropped as soon as cooldown hit 0!
 
-    // 3. Pull-out buffer (hold lift): pressing & holding A 90ms before bombCooldown ends lifts when ready!
+    // 3. Pull-out buffer (hold lift): pressing & holding A ~90ms before bombCooldown ends lifts when ready!
     const l = newState(world, 'overworld', 0, 0, 3.5, 6.5);
     tapA(world, l);
     for (let i = 0; i < 60 && l.bombCooldown > BOMB_COOLDOWN - (BOMB_COOLDOWN - 0.09); i++) {
-      tick(world, l, { dx: 1, dy: 0 }, DT);
+      tick(world, l, { dx: 1, dy: 0 }, FIXED_DT);
     }
-    for (let t = 0; t < LIFT_DELAY + 0.05; t += DT) {
-      tick(world, l, { ...idle, holdA: true }, DT);
-    }
+    stepSeconds(world, l, LIFT_DELAY + 0.05, { ...idle, holdA: true });
     expect(l.bombs).toHaveLength(2);
     expect(l.bombs[1]?.carried).toBe(true);
   });
@@ -279,7 +285,7 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
       { id: 'far-key', kind: 'small-key', x: 5.5 + PICKUP_MAGNET_RADIUS + 0.35, y: 6.5 },
     ];
 
-    for (let t = 0; t < 0.3; t += DT) tick(world, s, idle, DT);
+    stepSeconds(world, s, 0.3);
     expect(s.smallKeys).toBe(1);
     expect(s.collectedPickups.has('near-key')).toBe(true);
     expect(s.pickups).toHaveLength(1);

@@ -48,7 +48,19 @@ describe('movement feel', () => {
     // Crystal Crossroads (1,2): stand in the south doorway with a bomb just inside the room
     const s = newState(world, 'ember-crypt', 1, 2, 5.5, 12.4);
     s.enemies = [];
-    s.bombs.push({ id: 999, kind: 'powder', x: 5.5, y: 11.5, fuse: 0.01, graceOverlap: false });
+    s.bombs.push({
+      id: 999,
+      kind: 'powder',
+      x: 5.5,
+      y: 11.5,
+      vx: 0,
+      vy: 0,
+      z: 0,
+      vz: 0,
+      fuse: 0.01,
+      graceOverlap: false,
+      shoveCount: 0,
+    });
     let cut = false;
     for (let i = 0; i < 60; i++) cut = tick(world, s, idle, 1 / 60) || cut;
     expect(cut).toBe(false);
@@ -65,7 +77,7 @@ describe('movement feel', () => {
     expect(s.bombs).toHaveLength(1);
     throwA(world, s); // lifts the dropped bomb underfoot and throws it
     expect(s.bombs).toHaveLength(1);
-    expect(s.bombs[0]?.flight).toBeDefined();
+    expect(s.bombs[0]?.thrown).toBe(true);
     tapA(world, s);
     expect(s.bombs).toHaveLength(1);
     for (let i = 0; i < 40; i++) tick(world, s, idle, 1 / 60);
