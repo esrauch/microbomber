@@ -158,6 +158,7 @@ describe('GBC colour and multi-tile rules', () => {
         '###########',
         '###########',
       ],
+      pickups: [{ id: 'test-key', kind: 'small-key', x: 5.5, y: 6.5, spawnOnSolve: true }],
     });
     const st = newState(world, 'ember-crypt', 9, 9, 5.5, 9.5);
     // Default crystalColor is 'red', so 'R' is raised (props) and 'U' is lowered (decals)

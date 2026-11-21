@@ -82,6 +82,10 @@ export function makeSfx(): SfxPlayer {
         tone(620, 260, 0.18, 'triangle', 0.12, 0.03);
       } else if (ev === 'crystal-flip') {
         tone(587, 880, 0.14, 'sine', 0.15);
+      } else if (ev === 'portal-warp') {
+        tone(440, 880, 0.12, 'sine', 0.14, 0);
+        tone(660, 1320, 0.14, 'triangle', 0.13, 0.06);
+        tone(880, 1760, 0.18, 'sine', 0.14, 0.12);
       } else if (ev === 'torch-lit' || ev === 'armor-burn') {
         tone(440, 660, 0.14, 'triangle', 0.15);
       } else if (ev === 'torch-fizzle') {

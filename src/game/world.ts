@@ -2820,6 +2820,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
           portal.targetX,
           portal.targetY,
         );
+        if (portal.requiresWarpUnlock) {
+          s.events.push('portal-warp');
+        }
         if (portal.label) showBanner(s, portal.label, 2.0);
         return true;
       }

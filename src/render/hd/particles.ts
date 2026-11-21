@@ -202,6 +202,26 @@ export class ParticleSystem {
           10,
           30,
         );
+      } else if (ev === 'portal-warp') {
+        this.burst(
+          18,
+          px,
+          py,
+          (a, v) => ({
+            kind: 'spark',
+            vx: Math.cos(a) * v * 0.65,
+            vy: Math.sin(a) * v * 0.45 - 38,
+            life: 0.35 + r() * 0.3,
+            maxLife: 0.65,
+            size: 1.2 + r() * 1.1,
+            color: r() < 0.5 ? 0x60f0ff : 0xe8ffff,
+            gravity: -55,
+            drag: 0.25,
+            glow: true,
+          }),
+          24,
+          75,
+        );
       } else if (ev === 'bomb-splash') {
         const b = s.bombs[s.bombs.length - 1];
         const x = b ? b.x * TILE : px;

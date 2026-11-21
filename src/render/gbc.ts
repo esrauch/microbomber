@@ -410,6 +410,7 @@ export function makeGbcView(): GbcView {
   let rollLandUntil = 0;
   let fallAnimUntil = 0;
   let holdAnimUntil = 0;
+  let warpAnimUntil = 0;
   let heldKind: PickupKind = 'ember-bomb';
   let activeBlasts: BlastInstance[] = [];
   let activeScorches: Array<{ x: number; y: number; born: number }> = [];
@@ -1277,6 +1278,59 @@ export function makeGbcView(): GbcView {
       return;
     }
 
+    if (time < warpAnimUntil) {
+      const u = Math.max(0, Math.min(1, 1 - (warpAnimUntil - time) / 0.55));
+      const cx = Math.round(s.x * TILE_PX);
+      const cy = Math.round(s.y * TILE_PX);
+      const beamAlpha = Math.max(0, 1 - u);
+      const beamW = Math.max(1, Math.round((1 - u) * 5));
+      // Cyan teleport beam pillar & expanding floor rune ring
+      ctx.fillStyle = `rgba(90, 230, 255, ${(beamAlpha * 0.75).toFixed(3)})`;
+      ctx.fillRect(cx - beamW, Math.max(0, cy - 28), beamW * 2, 32);
+      ctx.fillStyle = `rgba(235, 252, 255, ${(beamAlpha * 0.95).toFixed(3)})`;
+      ctx.fillRect(
+        cx - Math.max(1, beamW - 1),
+        Math.max(0, cy - 28),
+        Math.max(1, (beamW - 1) * 2),
+        32,
+      );
+      const ringR = 3 + Math.round(u * 9);
+      ctx.fillStyle = cssRgb(OBJ_PALETTES.spectral[1]);
+      ctx.fillRect(cx - ringR, cy + 2, 2, 1);
+      ctx.fillRect(cx + ringR - 1, cy + 2, 2, 1);
+      ctx.fillRect(cx - 1, cy + 2 - Math.round(ringR * 0.45), 2, 1);
+      ctx.fillRect(cx - 1, cy + 2 + Math.round(ringR * 0.45), 2, 1);
+      if (u < 0.7 && Math.floor(time * 18) % 2 === 0) {
+        drawScaledSprite(ctx, 'SPARKLE_CELL', dx, dy - 2, 1, 1, false, 'spectral');
+      }
+      // Rapid 4-direction spin while materializing from tall thin beam into landing pose
+      const spinPhase = Math.floor(time * 28) % 4;
+      const spinSprite: ObjSpriteName =
+        spinPhase === 0
+          ? 'MOUSE_SOUTH_IDLE'
+          : spinPhase === 1
+            ? 'MOUSE_EAST_IDLE'
+            : spinPhase === 2
+              ? 'MOUSE_NORTH_IDLE'
+              : 'MOUSE_EAST_IDLE';
+      const spinFlip = spinPhase === 3;
+      const sx = 0.35 + 0.65 * easeOutBack(u);
+      const sy = 1.7 - 0.7 * easeOutCubic(u);
+      const flashPal: ObjPaletteId | undefined =
+        u < 0.45 && Math.floor(time * 24) % 2 === 0 ? 'spectral' : undefined;
+      drawScaledSprite(
+        ctx,
+        spinSprite,
+        dx,
+        dy - Math.round((1 - u) * 6),
+        sx,
+        sy,
+        spinFlip,
+        flashPal,
+      );
+      return;
+    }
+
     if (time < holdAnimUntil) {
       drawObjSprite(ctx, 'MOUSE_GET', dx, dy);
       if (Math.floor(time * 8) % 2 === 0) {
@@ -1491,6 +1545,8 @@ export function makeGbcView(): GbcView {
           syncDoorState(world, s, false);
         } else if (ev === 'pit-fall') {
           fallAnimUntil = time + 0.36;
+        } else if (ev === 'portal-warp') {
+          warpAnimUntil = time + 0.55;
         } else if (ev.startsWith('pickup-') && ev !== 'pickup-heart-drop') {
           holdAnimUntil = time + 1.05;
           heldKind = ev.replace('pickup-', '') as PickupKind;

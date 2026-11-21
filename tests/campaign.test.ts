@@ -111,6 +111,12 @@ describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
         expect(r.rows[p.y]?.[p.x], `${r.name} portal (${p.x},${p.y})`).toBe('>');
         const dest = world.rooms.get(roomKey(p.targetZone, p.targetRx, p.targetRy));
         expect(dest, `${r.name} portal target`).toBeDefined();
+        for (const dp of dest?.portals ?? []) {
+          expect(
+            Math.hypot(p.targetX - (dp.x + 0.5), p.targetY - (dp.y + 0.5)),
+            `${r.name} portal lands off ${dest?.name} portal (${dp.x},${dp.y})`,
+          ).toBeGreaterThanOrEqual(0.8);
+        }
       }
       for (const pk of r.pickups ?? []) {
         expect(pickupIds.has(pk.id), `duplicate pickup id ${pk.id}`).toBe(false);

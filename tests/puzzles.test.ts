@@ -299,12 +299,12 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(enteredVault).toBe(true);
     expect([s.rx, s.ry]).toEqual([2, 2]);
 
-    // --- 4. Vault of Sparks (2, 2): grab SW crypt-key-2, bowl % (5, 5), then bowl C (8, 5) & unlock N door ---
+    // --- 4. Vault of Sparks (2, 2): grab center crypt-key-2, bowl % (5, 5), then bowl C (8, 5) & unlock N door ---
     s.enemies = [];
-    // RRR at y=9 is flat while crystalColor === 'blue' -> walk South to (3.5, 10.5) for crypt-key-2
+    // R at (4, 6) is flat while crystalColor === 'blue' -> walk East to dead center (5.5, 6.5) for crypt-key-2
     s.x = 3.5;
-    s.y = 8.5;
-    stepSeconds(world, s, 0.65, { dx: 0, dy: 1 });
+    s.y = 6.5;
+    stepSeconds(world, s, 0.65, { dx: 1, dy: 0 });
     expect(s.smallKeys).toBe(1);
     expect(s.collectedPickups.has('crypt-key-2')).toBe(true);
 
@@ -517,9 +517,9 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.some((p) => p.id === 'crypt-boss-key')).toBe(true);
 
-    // Collect crypt-boss-key at (5.5, 7.5)
+    // Collect crypt-boss-key at dead center (5.5, 6.5)
     s.x = 5.5;
-    s.y = 7.5;
+    s.y = 6.5;
     stepSeconds(world, s, 0.2);
     expect(s.hasBossKey).toBe(true);
   });

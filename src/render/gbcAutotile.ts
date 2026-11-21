@@ -665,8 +665,11 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     }
   }
 
-  // --- 6. Centered Shrine Seal Ring on (5, 6) in Open Chambers ---
-  if (isCrypt && at(5, 6) === '.' && !room?.portals?.some((p) => p.x === 5 && p.y === 6)) {
+  // --- 6. Centered Item-Unlock Pedestal Ring on (5, 6) (omitted on boss room & non-item rooms) ---
+  const hasCenterItemUnlock =
+    room?.condition !== 'boss' &&
+    Boolean(room?.pickups?.some((p) => Math.floor(p.x) === 5 && Math.floor(p.y) === 6));
+  if (isCrypt && hasCenterItemUnlock && at(5, 6) === '.') {
     decals.push({ x: 5, y: 6, tile: BG.sealRingCenter, transparentZero: true });
   }
 
