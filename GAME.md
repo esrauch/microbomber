@@ -33,8 +33,8 @@ All controls live in a **band below the room**:
   right:
   - **B = Roll:** dodges about `2` tiles in `0.25 s` along the stick (or current
     facing when idle), with invulnerability frames during the middle `0.15 s`
-    and `0.35 s` recovery; automatically leaves the equipped bomb where the roll
-    started whenever the satchel, cooldown, and selection allow.
+    and `0.35 s` recovery. It lays no bomb; rolling while carrying a bomb sets
+    it down where the roll began.
   - **A = Pull out:**
     - **Tap** drops the equipped bomb at your feet.
     - **Hold** lifts a live bomb underfoot (or pulls out a fresh equipped bomb
@@ -42,8 +42,8 @@ All controls live in a **band below the room**:
     - **Release** throws it along the joystick's exact `360°` angle (or facing
       when idle) with a fixed lob. While carrying, a **dotted throw arc**
       previews the trajectory.
-- **START:** pauses the game and picks the single equipped bomb (or **None** for
-  pure dodge rolls without laying bombs).
+- **START:** pauses the game and picks the single equipped bomb that A pulls
+  out (or **None**).
 
 Placing or pulling a fresh bomb triggers a `0.7 s` cooldown; lifting a bomb that
 is already live underfoot does not.
@@ -141,8 +141,10 @@ puzzles and fights, and opens new overworld routes.
 
 - **Fuse and shape:** `1.5 s`, a `+` cross reaching `1` tile (upgradeable to `2`).
 - **Primary:** breaks cracked walls and cracked floor blocks.
-- **Later:** toggles red/blue crystal switches (thrown across pits or fences);
-  sets off any other bomb caught in its blast.
+- **Later:** toggles red/blue crystal switches (thrown across pits or fences).
+  A blast **shoves** any other live bomb caught in it; a bomb that has already
+  been shoved once **detonates** when a second blast hits it, so chains take
+  setting up.
 - **Combat:** `2` damage and knockback. **Impact detonation:** a *thrown*
   Blackpowder bomb goes off the moment it hits an enemy, so fights stay snappy;
   a *dropped* one keeps its fuse for puzzles and traps.
@@ -290,7 +292,7 @@ interactions) may go well beyond what even the GBA could do.
 | Area | Decision |
 |---|---|
 | **Feel priorities** | **Input forgiveness** (buffer presses for `100–150 ms`, magnetized pickups, read intent over exact timing) and **snappy motion** (squash and stretch, eased tweens on pickups, doors and blocks, anticipation frames; nothing moves linearly). |
-| **Buttons** | Two fixed verbs, replacing the B / A item slots of §2. **B = Roll:** a short, snappy dodge (about `2` tiles in `0.25 s`, i-frames for the middle `0.15 s`, `0.35 s` recovery) that leaves the equipped bomb where the roll started. **A = Pull out:** hold to lift the equipped bomb and carry it, release to throw; a quick tap drops it at your feet. **START** picks the one equipped bomb, or **none** for pure dodge rolls. |
+| **Buttons** | Two fixed verbs, replacing the B / A item slots of §2. **B = Roll:** a short, snappy dodge (about `2` tiles in `0.25 s`, i-frames for the middle `0.15 s`, `0.35 s` recovery); it lays no bomb (see the bomb-laying roll below). **A = Pull out:** hold to lift the equipped bomb and carry it, release to throw; a quick tap drops it at your feet. **START** picks the one equipped bomb, or **none**. |
 | **Throwing** | Aimed along the joystick's exact angle (360°) with a fixed lob; the bomb lands, then bounces and rolls by physics. A dotted arc previews the throw while carrying. |
 | **Bomb physics** | **Full physics:** thrown bombs bounce and roll to a stop with friction and wall rebounds; blasts shove bombs, enemies and pushable objects outward; walking into a bomb kicks it. |
 | **Puzzles** | **Designed for physics:** roll bombs down slopes into cracks, bank them off walls, ride currents. Switches and braziers trigger on contact radius, not tile. |
@@ -298,6 +300,14 @@ interactions) may go well beyond what even the GBA could do.
 | **Enemy AI** | **Systemic:** clear telegraphs and state machines (patrol, notice, chase, recover), fleeing lit fuses, stumbling when hit, and reacting to the world (bats put out flames, slimes split in fire, shielders kick bombs back). |
 | **Rendering** | **HD-2D lite on WebGL via PixiJS:** pixel art with real-time normal-mapped lighting, bloom and colour grading. **Normal maps are auto-generated** from each sprite's and tile's palette indices, except hero assets (Pip, bosses, landmark stamps), which are hand-authored. If we keep this lighting, hand-author the rest later. |
 | **Transitions** | Rooms **slide** between screens with easing and **parallax** depth layers (canopy, clouds). |
+
+### Possible future gimmick: the bomb-laying roll
+
+A roll that leaves the equipped bomb where it started was tried in Phase 1 and
+dropped as the default (2026-11-22). Keep it as a possible **unlockable** (a
+satchel upgrade or a Shrine relic) used by specific puzzles, such as laying a
+bomb mid-dodge beside a cracked wall while a hazard sweeps past, rather than as
+standard roll behaviour.
 
 ### Build order
 

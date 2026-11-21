@@ -266,7 +266,7 @@ export interface Input {
   /** Analogue movement vector (-1..1 each). */
   dx: number;
   dy: number;
-  /** B = Roll (`GAME.md` §2 & §10): dodge ~2 tiles in 0.25s + lay equipped bomb at start. */
+  /** B = Roll (`GAME.md` §2 & §10): dodge ~2 tiles in 0.25s (lays no bomb). */
   holdB?: boolean;
   /** A = Pull out (`GAME.md` §2 & §10): tap drops at feet, hold lifts & carries, release throws. */
   holdA?: boolean;
@@ -315,7 +315,7 @@ export interface State {
   maxHp: number;
   heartShards: number;
 
-  /** Unlocked bombs and the single equipped bomb (`null` = None for pure dodge rolls). */
+  /** Unlocked bombs and the single equipped bomb that A pulls out (`null` = None). */
   unlockedBombs: BombKind[];
   equipped: BombKind | null;
   maxBombs: number;

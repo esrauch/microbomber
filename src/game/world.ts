@@ -358,7 +358,7 @@ export function newState(
   return s;
 }
 
-/** START menu equip: select `kind` as the single equipped bomb, or `null` for pure dodge rolls. */
+/** START menu equip: select `kind` as the single equipped bomb, or `null` for none. */
 export function equipBomb(s: State, kind: BombKind | null): void {
   if (kind === null) {
     s.equipped = null;
@@ -1388,14 +1388,9 @@ function startRoll(world: World, s: State, input: Input, inLen: number): void {
     carried.graceOverlap = true;
     s.pullHoldTime = 0;
     s.events.push('bomb-drop');
-  } else if (
-    s.equipped !== null &&
-    canPlaceBomb(s) &&
-    !hasStoppedGroundedBombNear(s, spawnX, spawnY)
-  ) {
-    s.bombs.push({ ...newBomb(s, s.equipped, spawnX, spawnY), graceOverlap: true });
-    s.events.push('bomb-drop');
   }
+  // Rolling never lays the equipped bomb by default; a bomb-laying roll is a possible
+  // future unlock for specific puzzles (`GAME.md` §10)
 
   s.events.push('player-roll');
 }

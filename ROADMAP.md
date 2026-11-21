@@ -14,8 +14,9 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 - [x] **B = Roll:** about `2` tiles in `0.25 s` along the stick (or facing when
       idle), i-frames for the middle `0.15 s`, `0.35 s` recovery; slides along walls
       and stops at solids.
-- [x] **Roll lays a bomb:** the equipped bomb is left where the roll started (when
-      the satchel and cooldown allow).
+- [x] ~~**Roll lays a bomb:** the equipped bomb is left where the roll started.~~
+      Built, then removed as the default (2026-11-22); kept as a possible unlock
+      (see Later).
 - [x] **A = Pull out:** hold to lift and carry, release to throw, quick tap to drop
       at your feet (move today's tap/hold/release logic onto A alone).
 - [x] **Analog throw:** aim along the stick's exact angle (360°) with a fixed lob.
@@ -109,3 +110,6 @@ Two fixed verbs, tuned before physics and AI are built on top of them.
 - [ ] **Impact feedback:** decide on hit-stop, screen shake and haptics once
       physics lands.
 - [ ] **Hand-author the remaining normal maps** if we keep this lighting.
+- [ ] **Bomb-laying roll (unlockable):** a satchel upgrade or Shrine relic that
+      makes rolls leave the equipped bomb behind, with puzzles built for it
+      (`GAME.md` §10).

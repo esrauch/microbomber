@@ -380,6 +380,11 @@ const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
 
 /** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Pull out)]`. */
 const buttonHeld: [boolean, boolean] = [false, false];
+/**
+ * Presses since the last simulation step: a tap that goes down and up between two frames
+ * still reads as held for one step, so it is never lost.
+ */
+const pressLatch: [boolean, boolean] = [false, false];
 
 let menuOpen = false;
 let menuCursor: BombKind | null = null;
@@ -440,6 +445,7 @@ const makeVerbBtn = (
       // Synthetic pointer events may omit capture support.
     }
     buttonHeld[slot] = true;
+    pressLatch[slot] = true;
   });
   const release = (): void => {
     buttonHeld[slot] = false;
@@ -555,7 +561,7 @@ function renderMenu(): void {
   }
 
   const hint = document.createElement('div');
-  hint.textContent = 'Tap a bomb (or None for pure dodge rolls) · B = Roll · A = Pull out';
+  hint.textContent = 'Tap the bomb for A to pull out (or None) · B = Roll · A = Pull out';
   Object.assign(hint.style, { fontSize: '12px', color: '#cbd5c0' });
 
   const resume = menuButton('▶ Resume', false);
@@ -624,6 +630,8 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  if (B_KEYS.includes(k)) pressLatch[0] = true;
+  if (A_KEYS.includes(k)) pressLatch[1] = true;
   held.add(k);
 });
 window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
@@ -640,12 +648,15 @@ const readInput = (): Input => {
     dx = stick.dx;
     dy = stick.dy;
   }
-  return {
+  const input: Input = {
     dx,
     dy,
-    holdB: buttonHeld[0] || B_KEYS.some((k) => held.has(k)),
-    holdA: buttonHeld[1] || A_KEYS.some((k) => held.has(k)),
+    holdB: pressLatch[0] || buttonHeld[0] || B_KEYS.some((k) => held.has(k)),
+    holdA: pressLatch[1] || buttonHeld[1] || A_KEYS.some((k) => held.has(k)),
   };
+  pressLatch[0] = false;
+  pressLatch[1] = false;
+  return input;
 };
 
 // =========================================================================

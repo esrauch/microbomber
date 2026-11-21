@@ -169,29 +169,14 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(rec.hp).toBe(rec.maxHp - 1);
   });
 
-  it('lays the equipped bomb at roll start when allowed, and lays nothing when None (null) or on cooldown', () => {
+  it('never lays the equipped bomb: rolling is a pure dodge whatever is equipped', () => {
     const world = sandboxWorld(OPEN_ROOM);
     const s = newState(world, 'overworld', 0, 0, 4.5, 6.5);
-
-    // Roll lays equipped powder bomb at (4.5, 6.5) and moves Pip to (6.5, 6.5)
+    expect(s.equipped).toBe('powder');
     rollB(world, s, 1, 0);
-    expect(s.bombs).toHaveLength(1);
-    expect(s.bombs[0]).toMatchObject({ kind: 'powder', x: 4.5, y: 6.5 });
+    expect(s.bombs).toHaveLength(0);
+    expect(s.bombCooldown).toBe(0);
     expect(s.x).toBeCloseTo(6.5, 2);
-
-    // Finish recovery (0.35s); bombCooldown (0.70s) still has ~0.10s left -> rolling now lays NO second bomb
-    stepSeconds(world, s, ROLL_RECOVERY + 0.02);
-    expect(s.rollRecoveryTimer).toBe(0);
-    expect(s.bombCooldown).toBeGreaterThan(0);
-    rollB(world, s, -1, 0);
-    expect(s.bombs).toHaveLength(1);
-
-    // Equip None (null): pure dodge roll lays no bomb even when cooldown is 0
-    const pure = newState(world, 'overworld', 0, 0, 4.5, 6.5);
-    equipBomb(pure, null);
-    rollB(world, pure, 1, 0);
-    expect(pure.bombs).toHaveLength(0);
-    expect(pure.x).toBeCloseTo(6.5, 2);
   });
 
   it('throws bombs along exact 360° diagonal stick angles and bounces/rolls beside pedestals to flip switches', () => {
