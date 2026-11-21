@@ -37,6 +37,7 @@ import { ParticleSystem } from './particles';
 
 const DEFAULT_UP = 4;
 const MAX_EMISSIVE_PADS = 4;
+const MAX_SHOCKWAVES = 4;
 export const SLIDE_SECONDS = 0.32;
 
 export interface HdView {
@@ -78,6 +79,7 @@ uniform sampler2D uWall;
 uniform highp vec4 uInputSize;
 
 uniform vec2 uFrameSize;
+uniform float uTime;
 uniform vec3 uAmbient;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -89,12 +91,18 @@ uniform vec4 uLightPos[${MAX_LIGHTS}];
 uniform vec4 uLightColor[${MAX_LIGHTS}];
 uniform int uPadCount;
 uniform vec4 uEmissivePads[${MAX_EMISSIVE_PADS}];
+uniform int uShockCount;
+uniform vec4 uShockwaves[${MAX_SHOCKWAVES}];
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
 vec4 auxAt(vec2 px) {
     vec2 p = clamp(px, vec2(0.5), uFrameSize - 0.5);
     return texture(uAux, p / uFrameSize);
+}
+
+bool isWaterAux(vec4 a) {
+    return a.a > 0.5 && abs(a.b - 0.25) < 0.08;
 }
 
 // Height at native pixel px: hand-tuned when B >= 128, else albedo luminance (ink = low edge)
@@ -112,9 +120,44 @@ float wallAt(vec2 px) {
 
 void main(void)
 {
-    vec4 albedo = texture(uTexture, vTextureCoord);
-    vec2 px = vTextureCoord * uInputSize.xy;
+    vec2 rawPx = vTextureCoord * uInputSize.xy;
+    vec2 shockOffset = vec2(0.0);
+    float shockRim = 0.0;
+    for (int i = 0; i < ${MAX_SHOCKWAVES}; i++) {
+        if (i >= uShockCount) break;
+        vec4 sw = uShockwaves[i];
+        vec2 diff = rawPx - sw.xy;
+        float dist = length(diff);
+        float band = 1.0 - smoothstep(0.0, 5.5, abs(dist - sw.z));
+        if (band > 0.0 && dist > 0.5) {
+            vec2 dir = diff / dist;
+            shockOffset += dir * band * 1.5 * sw.w;
+            shockRim = max(shockRim, band * sw.w);
+        }
+    }
+    vec2 px = clamp(rawPx - shockOffset, vec2(0.5), uFrameSize - 0.5);
+    vec4 albedo = texture(uTexture, px * uInputSize.zw);
     vec4 aux = auxAt(px);
+
+    bool isWater = isWaterAux(aux);
+    float waterEmissive = 0.0;
+    if (isWater) {
+        float ripple = sin(px.y * 1.15 + uTime * 5.5 + px.x * 0.25) * 1.35;
+        float localY = mod(px.y, 16.0);
+        vec2 mPx1 = clamp(vec2(px.x + ripple, px.y - (localY * 2.0 + 6.0)), vec2(0.5), uFrameSize - 0.5);
+        vec2 mPx2 = clamp(vec2(px.x - ripple * 0.8, px.y - (localY * 2.0 + 18.0)), vec2(0.5), uFrameSize - 0.5);
+        vec4 mAux1 = auxAt(mPx1);
+        vec4 mAux2 = auxAt(mPx2);
+        vec3 reflRgb = albedo.rgb;
+        if (!isWaterAux(mAux1)) {
+            reflRgb = texture(uTexture, mPx1 * uInputSize.zw).rgb;
+            if (mAux1.a > 0.5) waterEmissive = max(waterEmissive, mAux1.g * 0.62);
+        } else if (!isWaterAux(mAux2)) {
+            reflRgb = texture(uTexture, mPx2 * uInputSize.zw).rgb;
+            if (mAux2.a > 0.5) waterEmissive = max(waterEmissive, mAux2.g * 0.5);
+        }
+        albedo.rgb = mix(albedo.rgb, reflRgb * vec3(0.7, 0.9, 1.08), 0.35);
+    }
 
     // Normals only where hand-tuned (heroes): tiles and props keep their own pixel shading,
     // so luminance noise is never re-lit into mud
@@ -130,32 +173,68 @@ void main(void)
         n = normalize(vec3((hl - hr) * 2.2, (hu - hd) * 2.2, 1.0));
     }
     vec3 surface = vec3(px, h0 * 6.0);
+    bool onWall = wallAt(px) > 0.5;
+    float waveGlint = isWater
+        ? smoothstep(0.64, 0.96, sin(px.y * 1.55 + uTime * 6.0 + sin(px.x * 0.45 + uTime * 2.4) * 2.1))
+        : 0.0;
 
-    vec3 light = uAmbient + uSunColor * max(dot(n, normalize(uSunDir)), 0.0);
+    vec3 light = uAmbient + uSunColor * max(dot(n, normalize(uSunDir)), 0.0) + uSunColor * waveGlint * 0.24;
     for (int i = 0; i < ${MAX_LIGHTS}; i++) {
         if (i >= uLightCount) break;
         vec4 lp = uLightPos[i];
         vec4 lc = uLightColor[i];
         vec3 toLight = lp.xyz - surface;
-        float att = clamp(1.0 - length(toLight.xy) / lp.w, 0.0, 1.0);
+        float dist2D = length(toLight.xy);
+        float att = clamp(1.0 - dist2D / lp.w, 0.0, 1.0);
+        if (att <= 0.0) continue;
         att *= att;
+
+        // Outward fixed-stride raymarch from lp.xy along rayDir: sample points depend ONLY on
+        // ray angle (never scaled by dist2D), so shadows are pure radial cones with zero rings
+        float shadow = 1.0;
+        if (!onWall && dist2D > 14.0) {
+            vec2 rayDir = (px - lp.xy) / dist2D;
+            vec2 lightTile = floor(lp.xy / 16.0);
+            vec2 pxTile = floor(px / 16.0);
+            for (int s = 0; s < 24; s++) {
+                float d = 12.0 + float(s) * 4.5;
+                if (d >= dist2D - 4.0) break;
+                vec2 sp = lp.xy + rayDir * d;
+                vec2 sTile = floor(sp / 16.0);
+                if (sTile != lightTile && sTile != pxTile && wallAt(sp) > 0.5) {
+                    vec2 local = abs(sp - (sTile + 0.5) * 16.0);
+                    float box = max(local.x, local.y);
+                    if (box < 7.0) {
+                        shadow = min(shadow, mix(0.2, 0.65, smoothstep(5.2, 7.0, box)));
+                        if (shadow <= 0.21) break;
+                    }
+                }
+            }
+        }
+
         float diffuse = hero ? max(dot(n, normalize(toLight)), 0.0) * 0.75 + 0.25 : 1.0;
-        light += lc.rgb * lc.a * att * diffuse;
+        vec3 contrib = lc.rgb * lc.a * att * diffuse * shadow;
+        if (isWater && shadow > 0.4) {
+            contrib += lc.rgb * lc.a * att * waveGlint * 0.48;
+        }
+        light += contrib;
     }
 
-    // Crisp, sparse shadows: a hard 2 px strip on floor right under a wall base; walls a step
-    // darker than floors; actors keep their own flat sprite blob shadows
+    // Angled directional moonlight / shrine shadows behind walls, trees, cottages, and blocks
     float shade = 1.0;
-    bool onWall = wallAt(px) > 0.5;
-    if (onWall && aux.a < 0.5) {
+    if (onWall && !hero) {
         shade = uGrade.w;
-    } else if (aux.a < 0.5) {
-        float ly = mod(px.y, 16.0);
-        if (ly < 2.0 && wallAt(vec2(px.x, px.y - ly - 1.0)) > 0.5) shade = 0.72;
+    } else if (!onWall && !hero) {
+        for (int s = 1; s <= 4; s++) {
+            if (wallAt(px + vec2(-0.68, -0.78) * float(s) * 1.25) > 0.5) {
+                shade = mix(0.58, 0.76, float(s - 1) / 3.0);
+                break;
+            }
+        }
     }
 
-    // Flames, blasts, sparks, fuse tips and unlocked warp/seal pads emit their own light
-    float emissive = aux.a > 0.5 ? aux.g : 0.0;
+    // Flames, blasts, sparks, fuse tips, reflected water flames, and unlocked warp/seal pads emit light
+    float emissive = (aux.a > 0.5 && !isWater) ? aux.g : waterEmissive;
     if (aux.a < 0.5) {
         for (int i = 0; i < ${MAX_EMISSIVE_PADS}; i++) {
             if (i >= uPadCount) break;
@@ -166,11 +245,11 @@ void main(void)
         }
     }
     shade = mix(shade, 1.0, emissive);
-    light = max(light, vec3(1.15 * emissive));
+    light = max(light, vec3(1.15 * emissive)) + vec3(1.0, 0.86, 0.55) * shockRim * 0.45;
 
     // Plain multiply keeps the art's own colours; only near-black gets a faint zone-ink lift
     vec3 c = albedo.rgb * light * shade;
-    c += uShadowInk * 0.12 * (1.0 - clamp(luma(light), 0.0, 1.0));
+    c += uShadowInk * 0.14 * (1.0 - clamp(luma(light), 0.0, 1.0));
 
     float l = luma(c);
     c = mix(vec3(l), c, uGrade.x);
@@ -187,10 +266,15 @@ uniform sampler2D uTexture;
 uniform sampler2D uAux;
 uniform highp vec4 uInputSize;
 uniform vec2 uFrameSize;
+uniform float uTime;
 uniform int uPadCount;
 uniform vec4 uEmissivePads[${MAX_EMISSIVE_PADS}];
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+bool isWaterAux(vec4 a) {
+    return a.a > 0.5 && abs(a.b - 0.25) < 0.08;
+}
 
 void main(void)
 {
@@ -198,8 +282,19 @@ void main(void)
     vec2 px = clamp(vTextureCoord * uInputSize.xy, vec2(0.5), uFrameSize - 0.5);
     vec4 aux = texture(uAux, px / uFrameSize);
 
-    // Emissive-driven bloom: only G-buffer emissives & active warp/seal runes glow
-    float em = aux.a > 0.5 && aux.g > 0.05 ? aux.g : 0.0;
+    // Emissive-driven bloom: G-buffer emissives, reflected water flames/blasts, & active warp/seal runes glow
+    bool isWater = isWaterAux(aux);
+    float em = (!isWater && aux.a > 0.5 && aux.g > 0.05) ? aux.g : 0.0;
+    if (isWater) {
+        float ripple = sin(px.y * 1.15 + uTime * 5.5 + px.x * 0.25) * 1.35;
+        float localY = mod(px.y, 16.0);
+        vec2 mPx1 = clamp(vec2(px.x + ripple, px.y - (localY * 2.0 + 6.0)), vec2(0.5), uFrameSize - 0.5);
+        vec2 mPx2 = clamp(vec2(px.x - ripple * 0.8, px.y - (localY * 2.0 + 18.0)), vec2(0.5), uFrameSize - 0.5);
+        vec4 mAux1 = texture(uAux, mPx1 / uFrameSize);
+        vec4 mAux2 = texture(uAux, mPx2 / uFrameSize);
+        if (!isWaterAux(mAux1) && mAux1.a > 0.5) em = max(em, mAux1.g * 0.6);
+        if (!isWaterAux(mAux2) && mAux2.a > 0.5) em = max(em, mAux2.g * 0.45);
+    }
     if (aux.a < 0.5) {
         for (int i = 0; i < ${MAX_EMISSIVE_PADS}; i++) {
             if (i >= uPadCount) break;
@@ -224,7 +319,6 @@ function isShadowCasterTile(t: Tile, crystalColor: 'red' | 'blue'): boolean {
     t === 'B' ||
     t === 'W' ||
     t === 'C' ||
-    t === 'T' ||
     t === 'D' ||
     t === 'K' ||
     t === 'S'
@@ -342,20 +436,23 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   canvas.id = 'game-hd';
   canvas.style.imageRendering = 'pixelated';
 
+  const wallRows = NATIVE_H / TILE_PX;
   const wallCanvas = document.createElement('canvas');
   wallCanvas.width = ROOM_W;
-  wallCanvas.height = ROOM_H;
+  wallCanvas.height = wallRows;
   const wallCtx = wallCanvas.getContext('2d');
-  const wallImg = wallCtx ? wallCtx.createImageData(ROOM_W, ROOM_H) : null;
+  const wallImg = wallCtx ? wallCtx.createImageData(ROOM_W, wallRows) : null;
 
   const albedoTex = canvasTexture(gbc.frame, 'nearest');
   const auxTex = canvasTexture(gbc.aux, 'nearest');
   const wallTex = canvasTexture(wallCanvas, 'nearest');
 
   const padArray = new Float32Array(MAX_EMISSIVE_PADS * 4);
+  const shockArray = new Float32Array(MAX_SHOCKWAVES * 4);
 
   const lightUniforms = new UniformGroup({
     uFrameSize: { value: new Float32Array([NATIVE_W, NATIVE_H]), type: 'vec2<f32>' },
+    uTime: { value: 0, type: 'f32' },
     uAmbient: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSunDir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSunColor: { value: new Float32Array(3), type: 'vec3<f32>' },
@@ -370,6 +467,12 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       value: new Float32Array(MAX_EMISSIVE_PADS * 4),
       type: 'vec4<f32>',
       size: MAX_EMISSIVE_PADS,
+    },
+    uShockCount: { value: 0, type: 'i32' },
+    uShockwaves: {
+      value: new Float32Array(MAX_SHOCKWAVES * 4),
+      type: 'vec4<f32>',
+      size: MAX_SHOCKWAVES,
     },
   });
   const lightFilter = new Filter({
@@ -389,6 +492,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
 
   const brightUniforms = new UniformGroup({
     uFrameSize: { value: new Float32Array([NATIVE_W, NATIVE_H]), type: 'vec2<f32>' },
+    uTime: { value: 0, type: 'f32' },
     uPadCount: { value: 0, type: 'i32' },
     uEmissivePads: {
       value: new Float32Array(MAX_EMISSIVE_PADS * 4),
@@ -518,17 +622,30 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       auxTex.source.update();
       syncWallMask(world, s);
 
-      // 2. Lights & active emissive floor pads, from state and fresh blast flashes
+      // 2. Lights, shockwaves & active emissive floor pads, from state and fresh blast flashes
       for (const bl of s.blasts) {
         if (!bl.shape || bl.shape === 'hub' || bl.shape === 'single') {
           flashes.push({ x: bl.x, y: bl.y, kind: bl.kind, born: time });
         }
       }
-      while (flashes.length > 0 && time - (flashes[0]?.born ?? time) > 0.4) flashes.shift();
+      while (flashes.length > 0 && time - (flashes[0]?.born ?? time) > 0.45) flashes.shift();
       const lighting = computeLighting(world, s, time, flashes);
       const padCount = collectEmissivePads(world, s, time);
 
+      shockArray.fill(0);
+      let shockCount = 0;
+      for (let i = flashes.length - 1; i >= 0 && shockCount < MAX_SHOCKWAVES; i--) {
+        const fl = flashes[i];
+        if (!fl) continue;
+        const age = time - fl.born;
+        if (age < 0 || age > 0.28) continue;
+        const k = 1 - age / 0.28;
+        shockArray.set([fl.x * TILE_PX, fl.y * TILE_PX, 4 + age * 150, k * k], shockCount * 4);
+        shockCount++;
+      }
+
       const u = lightUniforms.uniforms as {
+        uTime: number;
         uAmbient: Float32Array;
         uSunDir: Float32Array;
         uSunColor: Float32Array;
@@ -540,15 +657,18 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         uLightColor: Float32Array;
         uPadCount: number;
         uEmissivePads: Float32Array;
+        uShockCount: number;
+        uShockwaves: Float32Array;
       };
+      u.uTime = time;
       u.uAmbient.set(lighting.ambient);
       u.uSunDir.set(lighting.sunDir);
       u.uSunColor.set(lighting.sunColor);
       u.uShadowInk.set(lighting.shadowInk);
       const crypt = s.zone === 'ember-crypt';
-      // saturation, contrast (neutral), tint mix, wall shade
-      u.uGrade.set(crypt ? [1.04, 1.0, 0.35, 0.74] : [1.06, 1.0, 0.35, 1.0]);
-      u.uTint.set(crypt ? [0.95, 0.92, 1.08] : [1.05, 1.0, 0.92]);
+      // saturation, contrast, tint mix, wall shade
+      u.uGrade.set(crypt ? [1.06, 1.03, 0.35, 0.72] : [1.08, 1.03, 0.3, 0.82]);
+      u.uTint.set(crypt ? [0.95, 0.92, 1.08] : [0.94, 0.98, 1.08]);
       u.uLightCount = lighting.lights.length;
       lighting.lights.forEach((l, i) => {
         u.uLightPos.set([l.x, l.y, l.z, l.radius], i * 4);
@@ -556,12 +676,16 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       });
       u.uPadCount = padCount;
       u.uEmissivePads.set(padArray);
+      u.uShockCount = shockCount;
+      u.uShockwaves.set(shockArray);
       lightUniforms.update();
 
       const bu = brightUniforms.uniforms as {
+        uTime: number;
         uPadCount: number;
         uEmissivePads: Float32Array;
       };
+      bu.uTime = time;
       bu.uPadCount = padCount;
       bu.uEmissivePads.set(padArray);
       brightUniforms.update();
@@ -572,12 +696,17 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       renderer.render({ container: brightScene, target: brightRT, clear: true });
       renderer.render({ container: blurScene, target: bloomRT, clear: true });
 
-      // 4. Particles in integer-scaled screen space
+      // 4. Particles in integer-scaled screen space (sparks bounce off solid wall tiles)
       if (!slide) {
         particles.spawnFromFrame(s, s.events, s.blasts);
         particles.emitAmbient(s, dt);
       }
-      particles.update(dt);
+      particles.update(dt, (px, py) => {
+        const tx = Math.floor(px / TILE_PX);
+        const ty = Math.floor(py / TILE_PX);
+        if (tx < 0 || tx >= ROOM_W || ty < 0 || ty >= ROOM_H) return true;
+        return (wallImg?.data[(ty * ROOM_W + tx) * 4] ?? 0) > 128;
+      });
       solidParticles.clear();
       glowParticles.clear();
       for (const p of particles.particles) {

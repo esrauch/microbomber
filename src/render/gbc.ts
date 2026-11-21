@@ -394,6 +394,7 @@ export function makeGbcView(): GbcView {
   let holdAnimUntil = 0;
   let heldKind: PickupKind = 'ember-bomb';
   let activeBlasts: BlastInstance[] = [];
+  let activeScorches: Array<{ x: number; y: number; born: number }> = [];
   let activeMicroVfx: MicroVfxInstance[] = [];
   const bombLandUntil = new Map<number, number>();
   const bombPrevKin = new Map<number, BombKinSnapshot>();
@@ -607,12 +608,16 @@ export function makeGbcView(): GbcView {
     sy = 1,
     tiltRad = 0,
   ): void {
-    const idx =
-      b.fuse > 0.55
-        ? Math.floor(time * 10) % 2
-        : b.fuse > 0.2
-          ? 1 + (Math.floor(time * 16) % 2)
-          : 2 + (Math.floor(time * 24) % 2);
+    const planarSpeed = Math.hypot(b.vx, b.vy);
+    let idx: number;
+    if (planarSpeed > 0.35 && b.z <= 0.08) {
+      const phase = bombRollPhase.get(b.id) ?? 0;
+      const dirSign = b.vx + b.vy >= 0 ? 1 : -1;
+      idx = ((Math.floor(phase * 1.35 * dirSign) % 4) + 4) % 4;
+    } else {
+      const rate = b.fuse > 0.7 ? 8 : b.fuse > 0.35 ? 14 : 22;
+      idx = Math.floor(time * rate + b.id) % 4;
+    }
     const powderFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
       'POWDER_1',
       'POWDER_2',
@@ -785,20 +790,30 @@ export function makeGbcView(): GbcView {
     }
   }
 
-  function drawNpc(ctx: CanvasRenderingContext2D, npc: NpcSpec, time: number): void {
+  function drawNpc(
+    ctx: CanvasRenderingContext2D,
+    npc: NpcSpec,
+    pipX: number,
+    pipY: number,
+    time: number,
+  ): void {
     const dx = Math.round(npc.x * TILE_PX - 8);
     if (npc.id === 'spire-plaque') {
       drawObjSprite(ctx, 'NPC_PLAQUE', dx, Math.round(npc.y * TILE_PX - 11));
       return;
     }
-    const bob = Math.floor(time * 2.2) % 2;
+    const phase = Math.floor(time * 2.6 + npc.x * 1.7) % 3;
+    const bob = phase === 1 ? 1 : 0;
     const dy = Math.round(npc.y * TILE_PX - 12) + bob;
+    const activePose = phase === 2;
+    const nearPip = Math.hypot(pipX - npc.x, pipY - npc.y) < 4.2;
+    const flipX = nearPip && pipX < npc.x - 0.25;
     if (npc.id === 'fern') {
-      drawObjSprite(ctx, 'NPC_FERN', dx, dy);
+      drawScaledSprite(ctx, activePose ? 'NPC_FERN_2' : 'NPC_FERN', dx, dy, 1, 1, flipX);
     } else if (npc.id === 'hal') {
-      drawObjSprite(ctx, 'NPC_HAL', dx, dy);
+      drawScaledSprite(ctx, activePose ? 'NPC_HAL_2' : 'NPC_HAL', dx, dy, 1, 1, flipX);
     } else {
-      drawObjSprite(ctx, 'NPC_BRAM', dx, dy);
+      drawScaledSprite(ctx, activePose ? 'NPC_BRAM_2' : 'NPC_BRAM', dx, dy, 1, 1, flipX);
     }
   }
 
@@ -1048,44 +1063,65 @@ export function makeGbcView(): GbcView {
     if (e.kind === 'slime') {
       const isMini = Boolean(e.splitGen && e.splitGen >= 1);
       const scale = isMini ? 0.74 : 1;
-      const f = Math.floor(time * (isMini ? 9 : 6) * rateMul + e.id) % 3;
-      const name: ObjSpriteName = f === 0 ? 'SLIME_1' : f === 1 ? 'SLIME_2' : 'SLIME_3';
+      const f = Math.floor(time * (isMini ? 10 : 7.5) * rateMul + e.id) % 4;
+      const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'SLIME_1',
+        'SLIME_4',
+        'SLIME_2',
+        'SLIME_3',
+      ];
+      const hopY = f === 2 ? -2 : f === 0 ? -1 : 0;
+      const noticeJiggle = noticing ? Math.round(Math.sin(time * 36 + e.id) * 1) : 0;
       drawScaledSprite(
         ctx,
-        name,
-        Math.round(e.x * TILE_PX - 8) + wobbleX,
-        Math.round(e.y * TILE_PX - 9),
+        frames[f] ?? 'SLIME_1',
+        Math.round(e.x * TILE_PX - 8) + wobbleX + noticeJiggle,
+        Math.round(e.y * TILE_PX - 9) + hopY,
         sx * scale,
         sy * scale,
         false,
         flashPal,
         tiltRad,
       );
-      headTopY = Math.round(e.y * TILE_PX - (isMini ? 7 : 9));
+      headTopY = Math.round(e.y * TILE_PX - (isMini ? 7 : 9)) + hopY;
     } else if (e.kind === 'bat') {
-      const flap = Math.floor(time * 12 * rateMul + e.id) % 2;
-      const bob = Math.round(Math.sin(time * 8 + e.id) * 1.5);
+      const flap = Math.floor(time * 11 * rateMul + e.id) % 4;
+      const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'BAT_1',
+        'BAT_3',
+        'BAT_2',
+        'BAT_4',
+      ];
+      const lift = flap === 1 ? -2 : flap === 0 ? -1 : flap === 2 ? 1 : 0;
+      const bank = Math.max(-0.22, Math.min(0.22, e.vx * 0.08));
       const dx = Math.round(e.x * TILE_PX - 8);
-      const dy = Math.round(e.y * TILE_PX - 11 + bob);
+      const dy = Math.round(e.y * TILE_PX - 11 + lift);
       drawScaledSprite(
         ctx,
-        flap === 0 ? 'BAT_1' : 'BAT_2',
+        frames[flap] ?? 'BAT_1',
         dx + wobbleX,
         dy,
         sx,
         sy,
         false,
         flashPal,
-        tiltRad,
+        tiltRad + bank,
       );
       headTopY = dy;
     } else if (e.kind === 'shielder') {
-      const step = Math.floor(time * 6 * rateMul + e.id) % 2;
+      const cadence = e.armored ? 7.5 : 13.5;
+      const step = Math.floor(time * cadence * rateMul + e.id) % 4;
+      const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'SHIELDER_1',
+        'SHIELDER_2',
+        'SHIELDER_3',
+        'SHIELDER_4',
+      ];
       const dx = Math.round(e.x * TILE_PX - 8);
       const dy = Math.round(e.y * TILE_PX - 10);
       drawScaledSprite(
         ctx,
-        step === 0 ? 'SHIELDER_1' : 'SHIELDER_2',
+        frames[step] ?? 'SHIELDER_1',
         dx + wobbleX,
         dy,
         sx,
@@ -1118,31 +1154,51 @@ export function makeGbcView(): GbcView {
       const bob = Math.round(Math.sin(time * 5) * 2);
       const dx = Math.round(e.x * TILE_PX - 12);
       const dy = Math.round(e.y * TILE_PX - 14) + bob;
-      drawScaledSprite(
-        ctx,
-        e.armored ? 'WICKGEIST_DARK' : 'WICKGEIST_LIT',
-        dx + wobbleX,
-        dy,
-        sx,
-        sy,
-        false,
-        flashPal,
-        tiltRad,
-      );
+      const phase = Math.floor(time * 7 * rateMul + e.id) % 4;
+      const darkFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'WICKGEIST_DARK',
+        'WICKGEIST_DARK_2',
+        'WICKGEIST_DARK_3',
+        'WICKGEIST_DARK_4',
+      ];
+      const litFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'WICKGEIST_LIT',
+        'WICKGEIST_LIT_2',
+        'WICKGEIST_LIT_3',
+        'WICKGEIST_LIT_4',
+      ];
+      const name: ObjSpriteName = windup
+        ? e.armored
+          ? 'WICKGEIST_DARK_CAST'
+          : 'WICKGEIST_LIT_CAST'
+        : e.armored
+          ? (darkFrames[phase] ?? 'WICKGEIST_DARK')
+          : (litFrames[phase] ?? 'WICKGEIST_LIT');
+      drawScaledSprite(ctx, name, dx + wobbleX, dy, sx, sy, false, flashPal, tiltRad);
       headTopY = dy;
     } else if (e.kind === 'cinderhull') {
       // Full 32x32 (2x2 tile) Oracle Shrine Boss!
-      const beat = Math.floor(time * (e.armored ? 4 : 8) * rateMul) % 2;
+      const beat = Math.floor(time * (e.armored ? 5.5 : 9.5) * rateMul) % 4;
       const dx = Math.round(e.x * TILE_PX - 16);
       const dy = Math.round(e.y * TILE_PX - 15);
+      const armoredFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'CINDERHULL_ARMORED_1',
+        'CINDERHULL_ARMORED_2',
+        'CINDERHULL_ARMORED_3',
+        'CINDERHULL_ARMORED_4',
+      ];
+      const exposedFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'CINDERHULL_EXPOSED_1',
+        'CINDERHULL_EXPOSED_2',
+        'CINDERHULL_EXPOSED_3',
+        'CINDERHULL_EXPOSED_4',
+      ];
       const name: ObjSpriteName = e.armored
-        ? beat === 0
-          ? 'CINDERHULL_ARMORED_1'
-          : 'CINDERHULL_ARMORED_2'
-        : beat === 0
-          ? 'CINDERHULL_EXPOSED_1'
-          : 'CINDERHULL_EXPOSED_2';
-      const warnRegrow = !e.armored && e.exposedTimer > 0 && e.exposedTimer < 1.2 && beat === 1;
+        ? windup
+          ? 'CINDERHULL_ARMORED_WINDUP'
+          : (armoredFrames[beat] ?? 'CINDERHULL_ARMORED_1')
+        : (exposedFrames[beat] ?? 'CINDERHULL_EXPOSED_1');
+      const warnRegrow = !e.armored && e.exposedTimer > 0 && e.exposedTimer < 1.2 && beat % 2 === 1;
       drawScaledSprite(
         ctx,
         name,
@@ -1298,6 +1354,7 @@ export function makeGbcView(): GbcView {
 
       if (roomChanged) {
         activeBlasts = [];
+        activeScorches = [];
         activeMicroVfx = [];
         bombLandUntil.clear();
         bombPrevKin.clear();
@@ -1542,8 +1599,13 @@ export function makeGbcView(): GbcView {
           shape: b.shape ?? 'single',
           born: time,
         });
+        if (!b.shape || b.shape === 'hub' || b.shape === 'single') {
+          activeScorches.push({ x: b.x, y: b.y, born: time });
+          if (activeScorches.length > 16) activeScorches.shift();
+        }
       }
       activeBlasts = activeBlasts.filter((b) => time - b.born < 0.28);
+      activeScorches = activeScorches.filter((sc) => time - sc.born < 3.5);
 
       // 1. Pass 1 & 2: Static terrain + animated interior water, warp runes & retracting doors
       mainCtx.imageSmoothingEnabled = false;
@@ -1553,12 +1615,25 @@ export function makeGbcView(): GbcView {
       const waterFrame = Math.floor(time * 2.6) % 3;
       const waterTile =
         waterFrame === 0 ? BG.waterAnim0 : waterFrame === 1 ? BG.waterAnim1 : BG.waterAnim2;
+      auxCtx.fillStyle = 'rgba(0, 0, 64, 1)';
       for (const [wx, wy] of plan.interiorWater) {
         mainCtx.drawImage(
           getPlacedBg(s.zone, { x: wx, y: wy, tile: waterTile }),
           wx * TILE_PX,
           wy * TILE_PX,
         );
+        auxCtx.fillRect(wx * TILE_PX, wy * TILE_PX, TILE_PX, TILE_PX);
+      }
+
+      // Fading floor scorch craters from bomb detonations (drawn on ground below actors)
+      for (const sc of activeScorches) {
+        const age = Math.max(0, time - sc.born);
+        const alpha = Math.max(0, Math.min(0.55, (1 - age / 3.5) * 0.55));
+        const scx = Math.round(sc.x * TILE_PX);
+        const scy = Math.round(sc.y * TILE_PX);
+        mainCtx.fillStyle = `rgba(14, 12, 20, ${alpha.toFixed(3)})`;
+        mainCtx.fillRect(scx - 5, scy - 2, 10, 4);
+        mainCtx.fillRect(scx - 3, scy - 4, 6, 8);
       }
       const warpPhase = Math.floor(time * 3) % 2;
       for (const wp of plan.warpPads) {
@@ -1648,17 +1723,21 @@ export function makeGbcView(): GbcView {
           const hover = 0.24 - Math.sin(time * 5) * 0.08;
           drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 6, 8.5, hover);
         } else if (e.kind === 'bat') {
-          const flapH = 0.34 - Math.sin(time * 8 + e.id) * 0.08;
+          const flap = Math.floor(time * 11 * (e.aiState === 'flee' ? 2.4 : 1) + e.id) % 4;
+          const flapH = 0.34 + (flap === 1 ? 0.08 : flap === 0 ? 0.04 : flap === 2 ? -0.05 : 0);
           drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 5, 5, flapH);
         } else if (e.kind === 'slime') {
           const isMini = Boolean(e.splitGen && e.splitGen >= 1);
+          const f =
+            Math.floor(time * (isMini ? 10 : 7.5) * (e.aiState === 'flee' ? 2.4 : 1) + e.id) % 4;
+          const hopH = f === 2 ? 0.14 : f === 0 ? 0.06 : 0;
           drawContactShadow(
             mainCtx,
             s.zone,
             e.x * TILE_PX,
             e.y * TILE_PX + (isMini ? 4 : 5),
             isMini ? 4.2 : 6,
-            0,
+            hopH,
           );
         } else {
           drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 5, 6, 0);
@@ -1714,7 +1793,7 @@ export function makeGbcView(): GbcView {
         rawActors.push({
           footY: actorFootY('npc', npc.y),
           orderTie: tieSeq++,
-          draw: () => drawNpc(mainCtx, npc, time),
+          draw: () => drawNpc(mainCtx, npc, s.x, s.y, time),
         });
       }
 
@@ -1897,11 +1976,18 @@ export function makeGbcView(): GbcView {
       }
       drawWindAndGusts(mainCtx, s.zone, room?.wind, s.gusts, time);
 
-      // 5. Enemy projectiles
+      // 5. Enemy projectiles (4-frame spinning soul-fire / ember orb)
+      const projFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+        'PROJ_1',
+        'PROJ_2',
+        'PROJ_3',
+        'PROJ_4',
+      ];
       for (const pr of s.projectiles) {
+        const pIdx = Math.floor(time * 16 + pr.x * 2) % 4;
         drawObjSprite(
           mainCtx,
-          'PROJ_1',
+          projFrames[pIdx] ?? 'PROJ_1',
           Math.round(pr.x * TILE_PX - 4),
           Math.round(pr.y * TILE_PX - 4),
         );

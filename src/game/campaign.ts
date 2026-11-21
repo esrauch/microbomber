@@ -24,18 +24,23 @@ const ROOM_LIST: RoomSpec[] = [
       '####:::####',
       'YY.::::####',
       'YY.::::..YY',
-      '::::::..~YY',
+      '::::::.T~YY',
       '::::::..~YY',
       '::::::..~YY',
       'YY..===.~YY',
       'YY......~YY',
-      'YY.......YY',
+      'YYT....T.YY',
       'YYYYYYYYYY#',
       'YYYYYYYYYY#',
     ],
     stamps: [
       { id: 'bram-workshop', x: 1, y: 1 },
       { id: 'rusted-smithy', x: 7, y: 2 },
+    ],
+    torches: [
+      { x: 7, y: 5, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 7, y: 10, initiallyLit: true },
     ],
     npcs: [
       {
@@ -69,7 +74,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       '###########',
       '###########',
-      'YY.....~~YY',
+      'YYT...T~~YY',
       'YY...:.~~YY',
       'YY...:.~~YY',
       '::::::..2YY',
@@ -77,9 +82,15 @@ const ROOM_LIST: RoomSpec[] = [
       '::::::..2YY',
       'YY..:...2YY',
       'YY..:...2YY',
-      'YY..:::..YY',
+      'YYT.:::.TYY',
       '####:::YYYY',
       '####:::YYYY',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 6, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
     ],
     npcs: [
       {
@@ -104,7 +115,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       '####:::####',
       '####:::####',
-      '#~~.:::..~#',
+      '#~~T:::T.~#',
       '#~~~___~~~#',
       '#~~~___~~~#',
       '#~..:::...:',
@@ -112,9 +123,15 @@ const ROOM_LIST: RoomSpec[] = [
       '#~..:::...:',
       '#~~~___~~~#',
       '#~~~___~~~#',
-      '#~~.:::..~#',
+      '#~~T:::T.~#',
       'YYYY:::YYYY',
       'YYYY:::YYYY',
+    ],
+    torches: [
+      { x: 3, y: 2, initiallyLit: true },
+      { x: 7, y: 2, initiallyLit: true },
+      { x: 3, y: 10, initiallyLit: true },
+      { x: 7, y: 10, initiallyLit: true },
     ],
     enemies: [
       { kind: 'slime', x: 5.5, y: 4.5 },
@@ -139,7 +156,7 @@ const ROOM_LIST: RoomSpec[] = [
       '##..===..##',
       '##..:::..##',
       '##.#:::#.##',
-      '##..:::..##',
+      '##T.:::.T##',
       '####:::####',
       '####:::####',
     ],
@@ -150,6 +167,8 @@ const ROOM_LIST: RoomSpec[] = [
     torches: [
       { x: 3, y: 3 },
       { x: 7, y: 3 },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
     ],
     npcs: [
       {
@@ -174,7 +193,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       'YYYY:::YYYY',
       'YYYY:::YYYY',
-      'YY..:::..YY',
+      'YYT.:::.TYY',
       'YY.BB,,:.YY',
       'YY.B...:.YY',
       'YY.BB::::::',
@@ -182,9 +201,15 @@ const ROOM_LIST: RoomSpec[] = [
       'YY..W::::::',
       'YY..:::..YY',
       'YY.W:::..YY',
-      'YY..:::..YY',
+      'YYT.:::.TYY',
       'YYYY:::YYYY',
       'YYYY:::YYYY',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10 },
     ],
     pickups: [
       {
@@ -204,7 +229,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       'YYYY:::YYYY',
       'YYYY:::YYYY',
-      'YY..:::..YY',
+      'YYT.:::.TYY',
       'YY..===..YY',
       'YY..:::..##',
       'YY..:::::%.',
@@ -212,9 +237,15 @@ const ROOM_LIST: RoomSpec[] = [
       'YY..:::::%.',
       'YY..:::..##',
       'YY..===..YY',
-      'YY.......YY',
+      'YYT.....TYY',
       'YYYYYYYYYY#',
       'YYYYYYYYYY#',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10 },
     ],
     enemies: [{ kind: 'slime', x: 5.5, y: 8.5 }],
   },
@@ -228,7 +259,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       'YYYYYYYYYY#',
       'YYYYYYYYYY#',
-      'YY...,,BBYY',
+      'YYT..,,BBYY',
       'YY....,B.YY',
       'YY..W.,BBYY',
       '::::::,..YY',
@@ -236,9 +267,14 @@ const ROOM_LIST: RoomSpec[] = [
       '::::::...YY',
       'YY...W,..YY',
       'YY..:::..YY',
-      'YY..:::..YY',
+      'YYT.:::.TYY',
       'YYYY:::YYYY',
       'YYYYSSSYYYY',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10 },
     ],
     enemies: [
       { kind: 'slime', x: 5.5, y: 4.5 },
@@ -276,7 +312,7 @@ const ROOM_LIST: RoomSpec[] = [
     rows: [
       '####:::####',
       '####:::####',
-      '##..:::..##',
+      '##T.:::.T##',
       '##..^^^..##',
       '##..^^^.%##',
       '##:::::..##',
@@ -284,9 +320,14 @@ const ROOM_LIST: RoomSpec[] = [
       '##:::::%.##',
       '##..^^_####',
       '##..^^_..##',
-      '##....:::##',
+      '##T...:::##',
       '####:::####',
       '####:::####',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
     ],
     enemies: [
       { kind: 'bat', x: 4.5, y: 4.5 },
@@ -318,7 +359,7 @@ const ROOM_LIST: RoomSpec[] = [
       '##..:::..##',
       '##..===..##',
       '##.......##',
-      '##.......##',
+      '##T.....T##',
       '###########',
       '###########',
     ],
@@ -326,6 +367,8 @@ const ROOM_LIST: RoomSpec[] = [
     torches: [
       { x: 4, y: 5, initiallyLit: true },
       { x: 6, y: 5, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
     ],
     portals: [
       {

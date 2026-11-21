@@ -48,18 +48,25 @@ describe('HD-2D lighting model', () => {
     expect(crypt.shadowInk).toEqual(cryptInk);
   });
 
-  it('adds a flickering light for each lit brazier and fades blast flashes out', () => {
+  it('adds a flickering light for each lit brazier plus Pip tail spark, dips ambient on blast flash, and fades flashes out', () => {
     const world = campaignWorld();
     const s = newState(world, 'ember-crypt', 1, 3); // Crypt Foyer: two braziers start lit
     const lit = s.torches.filter((t) => t.lit).length;
     expect(lit).toBeGreaterThan(0);
-    expect(computeLighting(world, s, 0, []).lights).toHaveLength(lit);
+    const baseLighting = computeLighting(world, s, 0, []);
+    // lit braziers + 1 personal tail-spark light for Pip
+    expect(baseLighting.lights).toHaveLength(lit + 1);
 
     const flash = { x: 5.5, y: 6.5, kind: 'powder' as const, born: 1 };
+    const flashLighting = computeLighting(world, s, 1.0, [flash]);
+    // Active bomb explosion flash dips base ambient so radial blast shadows pop across the room
+    expect(brightness(flashLighting.ambient)).toBeLessThan(brightness(baseLighting.ambient));
     const at = (t: number): number =>
       computeLighting(world, s, t, [flash]).lights.reduce((a, l) => a + l.intensity, 0);
     expect(at(1.0)).toBeGreaterThan(at(1.0 + FLASH_SECONDS * 0.5));
-    expect(computeLighting(world, s, 1 + FLASH_SECONDS + 0.01, [flash]).lights).toHaveLength(lit);
+    expect(computeLighting(world, s, 1 + FLASH_SECONDS + 0.01, [flash]).lights).toHaveLength(
+      lit + 1,
+    );
   });
 
   it('keeps at most MAX_LIGHTS lights, preferring those nearest Pip', () => {
@@ -116,13 +123,20 @@ describe('HD-2D particles', () => {
 });
 
 describe('HD-2D sprite G-buffer', () => {
-  it('classifies heroes, emissives and plain sprites', () => {
+  it('classifies heroes, emissives and plain sprites across 4-frame and windup/cast sets', () => {
     expect(auxKind('MOUSE_SOUTH_IDLE')).toBe('hero');
     expect(auxKind('CINDERHULL_ARMORED_1')).toBe('hero');
+    expect(auxKind('CINDERHULL_ARMORED_WINDUP')).toBe('hero');
+    expect(auxKind('CINDERHULL_EXPOSED_4')).toBe('hero');
     expect(auxKind('WICKGEIST_DARK')).toBe('hero');
+    expect(auxKind('WICKGEIST_DARK_CAST')).toBe('hero');
+    expect(auxKind('WICKGEIST_LIT_4')).toBe('hero');
     expect(auxKind('BLAST_HUB_1')).toBe('emissive');
     expect(auxKind('FIRE_2')).toBe('emissive');
-    expect(auxKind('SLIME_1')).toBe('plain');
+    expect(auxKind('PROJ_4')).toBe('emissive');
+    expect(auxKind('SLIME_4')).toBe('plain');
+    expect(auxKind('BAT_3')).toBe('plain');
+    expect(auxKind('SHIELDER_4')).toBe('plain');
     expect(auxKind('POWDER_1')).toBe('plain');
   });
 

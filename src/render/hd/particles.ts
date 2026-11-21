@@ -264,7 +264,7 @@ export class ParticleSystem {
     }
   }
 
-  update(dt: number): void {
+  update(dt: number, isWallAt?: (px: number, py: number) => boolean): void {
     let w = 0;
     for (const p of this.particles) {
       p.life -= dt;
@@ -272,8 +272,23 @@ export class ParticleSystem {
       const keep = Math.pow(p.drag, dt);
       p.vx *= keep;
       p.vy = p.vy * keep + p.gravity * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      const nx = p.x + p.vx * dt;
+      const ny = p.y + p.vy * dt;
+      if (p.kind === 'spark' && isWallAt) {
+        if (isWallAt(nx, p.y)) {
+          p.vx = -p.vx * 0.62;
+        } else {
+          p.x = nx;
+        }
+        if (isWallAt(p.x, ny)) {
+          p.vy = -p.vy * 0.62;
+        } else {
+          p.y = ny;
+        }
+      } else {
+        p.x = nx;
+        p.y = ny;
+      }
       this.particles[w++] = p;
     }
     this.particles.length = w;
