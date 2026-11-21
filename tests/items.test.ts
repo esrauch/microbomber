@@ -21,7 +21,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
     expect(east.bombs).toHaveLength(1);
     const eb = east.bombs[0]!;
     expect(eb.kind).toBe('powder');
-    expect(eb.x).toBeGreaterThan(5.3 + 0.5);
+    expect(eb.x).toBeGreaterThan(5.3 + 0.3);
     expect(eb.y).toBe(6.5); // snapped to the lane centre
     expect(eb.graceOverlap).toBe(false); // clear of Pip, so walking forward kicks it
 
@@ -29,7 +29,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
     north.enemies = [];
     tapA(world, north); // default aim is north
     expect(north.bombs[0]!.x).toBe(5.5);
-    expect(north.bombs[0]!.y).toBeLessThan(6.6 - 0.5);
+    expect(north.bombs[0]!.y).toBeLessThan(6.6 - 0.3);
   });
 
   it('walking into a bomb kicks it straight along the dominant axis only', () => {

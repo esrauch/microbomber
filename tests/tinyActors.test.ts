@@ -1,24 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { OBJ, type ObjSpriteName } from '../src/render/gbcArt';
+import { OBJ } from '../src/render/gbcArt';
 import { auxKind, bakeAuxData } from '../src/render/gbcAux';
-import { tinyActorSprite } from '../src/render/tinyActors';
 
-describe('tiny-actor mode (fuse mouse and tiny bombs)', () => {
-  it('draws every Pip pose as the mouse and every bomb as its tiny sprite', () => {
-    for (const name of Object.keys(OBJ) as ObjSpriteName[]) {
-      if (/^PIP_/.test(name)) expect(tinyActorSprite(name), name).toMatch(/^MOUSE_/);
-      if (/^(POWDER|EMBER)_\d$/.test(name)) expect(tinyActorSprite(name), name).toMatch(/_TINY_/);
-    }
-    expect(tinyActorSprite('PIP_EAST_PUSH_2')).toBe('MOUSE_EAST_RUN_2');
-    expect(tinyActorSprite('PIP_NORTH_CARRY_1')).toBe('MOUSE_NORTH_IDLE');
-    expect(tinyActorSprite('PIP_SOUTH_THROW')).toBe('MOUSE_SOUTH_THROW');
-    expect(tinyActorSprite('SLIME_1')).toBe('SLIME_1');
-  });
-
-  it('has a four-frame gallop and a crouch into it in every facing', () => {
+describe('fuse mouse hero and compact bombs', () => {
+  it('defines all fuse mouse poses and compact 10x10 bomb frames', () => {
     for (const dir of ['SOUTH', 'NORTH', 'EAST']) {
+      for (const pose of ['IDLE', 'IDLE_B', 'DROP', 'LIFT', 'THROW']) {
+        expect(`MOUSE_${dir}_${pose}` in OBJ).toBe(true);
+      }
       for (let f = 1; f <= 4; f++) expect(`MOUSE_${dir}_RUN_${f}` in OBJ).toBe(true);
-      expect(`MOUSE_${dir}_DROP` in OBJ).toBe(true);
+    }
+    for (const name of [
+      'MOUSE_ROLL_1',
+      'MOUSE_ROLL_2',
+      'MOUSE_GET',
+      'MOUSE_FALL_1',
+      'MOUSE_FALL_2',
+      'MOUSE_FALL_3',
+    ]) {
+      expect(name in OBJ).toBe(true);
+    }
+    for (let f = 1; f <= 4; f++) {
+      expect(`POWDER_${f}` in OBJ).toBe(true);
+      expect(`EMBER_${f}` in OBJ).toBe(true);
     }
   });
 

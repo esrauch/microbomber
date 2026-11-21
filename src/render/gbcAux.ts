@@ -31,7 +31,6 @@ export const EMISSIVE_PREFIXES = [
 
 export function auxKind(name: string): AuxKind {
   if (
-    name.startsWith('PIP_') ||
     name.startsWith('MOUSE_') ||
     name.startsWith('CINDERHULL_') ||
     name.startsWith('WICKGEIST_')
@@ -48,14 +47,9 @@ function isBombWithGlowingCore(name: string): boolean {
 
 /**
  * Hand-tuned height per palette index ('1'..'6') for each hero, so lighting reads their
- * forms: Pip's hood sits proud of the face and tunic, the ink outline sinks to an edge.
+ * forms: the fuse mouse's spark and ears sit proud of the fawn fur, and the ink outline sinks to an edge.
  */
-const HERO_HEIGHTS: Record<
-  'pip' | 'mouse' | 'cinderArmored' | 'cinderExposed' | 'wickgeist',
-  number[]
-> = {
-  // peach skin, amber hood, cobalt tunic, brown, deep blue, ink
-  pip: [0.72, 0.92, 0.62, 0.48, 0.4, 0.12],
+const HERO_HEIGHTS: Record<'mouse' | 'cinderArmored' | 'cinderExposed' | 'wickgeist', number[]> = {
   // spark, pink ears & paws, fawn fur, brown shade, white belly, ink
   mouse: [0.95, 0.85, 0.62, 0.45, 0.7, 0.12],
   // specular, lime thorn tips, emerald vine, deep moss, red eye, ink
@@ -70,8 +64,7 @@ function heightTable(name: string): number[] {
   if (name.startsWith('CINDERHULL_ARMORED')) return HERO_HEIGHTS.cinderArmored;
   if (name.startsWith('CINDERHULL_')) return HERO_HEIGHTS.cinderExposed;
   if (name.startsWith('WICKGEIST_')) return HERO_HEIGHTS.wickgeist;
-  if (name.startsWith('MOUSE_')) return HERO_HEIGHTS.mouse;
-  return HERO_HEIGHTS.pip;
+  return HERO_HEIGHTS.mouse;
 }
 
 /**

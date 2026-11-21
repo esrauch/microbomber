@@ -299,7 +299,7 @@ SAMPLE_ROOMS.forEach((spec, idx) => {
       drawProofObj(
         rx0 + Math.round(s.x * 16 - 8),
         ry0 + Math.round(s.y * 16 - 10),
-        'PIP_SOUTH_IDLE',
+        'MOUSE_SOUTH_IDLE',
       ),
   });
   actors.sort((a, b) => a.footY - b.footY);

@@ -29,7 +29,7 @@ export function isRgb555(c: Rgb): boolean {
 const INK = rgb555(24, 20, 32);
 
 export const OBJ_PALETTE_IDS = [
-  'pip',
+  'mouse',
   'powder',
   'fire',
   'green',
@@ -37,23 +37,20 @@ export const OBJ_PALETTE_IDS = [
   'spectral',
   'villager',
   'crimson',
-  'mouse',
 ] as const;
 export type ObjPaletteId = (typeof OBJ_PALETTE_IDS)[number];
 
 export type ObjPalette = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
 
-/**
- * Sprite palettes of 6 RGB555 colours each. Pip and the fuse mouse are alternate heroes, never
- * on screen together, so at most 8 are loaded at once (indices '1'..'6'; '.' is transparent). */
+/** 8 sprite palettes of 6 RGB555 colours each (indices '1'..'6'; '.' is transparent). */
 export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
-  pip: [
-    rgb555(248, 208, 160), // 1: peach skin & lens glint
-    rgb555(224, 120, 24), // 2: amber hood
-    rgb555(48, 128, 232), // 3: cobalt tunic & goggle lenses
-    rgb555(144, 80, 32), // 4: brown hood shade, belt, boots, straps
-    rgb555(24, 56, 136), // 5: deep blue tunic shade
-    INK, // 6: ink silhouette
+  mouse: [
+    rgb555(248, 224, 72), // 1: live fuse spark
+    rgb555(248, 152, 160), // 2: pink ears, paws, nose
+    rgb555(216, 184, 144), // 3: fawn fur (warm, so he stands off cool crypt floors)
+    rgb555(152, 112, 80), // 4: brown shade & fuse cord
+    rgb555(232, 232, 240), // 5: white belly / white-hot spark
+    INK, // 6: ink outline
   ],
   powder: [
     rgb555(248, 248, 240), // 1: white-hot spark & specular
@@ -109,14 +106,6 @@ export const OBJ_PALETTES: Record<ObjPaletteId, ObjPalette> = {
     rgb555(248, 136, 144), // 3: rose highlight
     rgb555(232, 40, 48), // 4: ruby heart red
     rgb555(136, 16, 32), // 5: deep garnet shadow
-    INK, // 6: ink outline
-  ],
-  mouse: [
-    rgb555(248, 224, 72), // 1: live fuse spark
-    rgb555(248, 152, 160), // 2: pink ears, paws, nose
-    rgb555(216, 184, 144), // 3: fawn fur (warm, so he stands off cool crypt floors)
-    rgb555(152, 112, 80), // 4: brown shade & fuse cord
-    rgb555(232, 232, 240), // 5: white belly / white-hot spark
     INK, // 6: ink outline
   ],
 };

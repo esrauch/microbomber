@@ -17,7 +17,6 @@ import {
   importSave,
   newState,
   roomKey,
-  setActorScale,
   showBanner,
   tick,
 } from './game/world';
@@ -225,8 +224,7 @@ Object.assign(settingsModal.style, {
 });
 const muteBtn = document.createElement('button');
 const resetSaveBtn = document.createElement('button');
-const tinyBtn = document.createElement('button');
-for (const btn of [muteBtn, resetSaveBtn, tinyBtn]) {
+for (const btn of [muteBtn, resetSaveBtn]) {
   Object.assign(btn.style, {
     padding: '6px 8px',
     borderRadius: '0',
@@ -248,27 +246,6 @@ muteBtn.innerHTML = soundBadgeHtml(false);
 muteBtn.addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   muteBtn.innerHTML = soundBadgeHtml(sfx.muted);
-});
-// Experiment: Pip and bombs at half size in an unchanged world (?tiny=1 or the settings toggle)
-const TINY_KEY = 'microbomber.tiny';
-let tiny = new URLSearchParams(location.search).get('tiny') === '1';
-try {
-  tiny ||= localStorage.getItem(TINY_KEY) === '1';
-} catch {
-  // ignore
-}
-const tinyLabel = (): string => `TINY PIP (EXPERIMENT): ${tiny ? 'ON' : 'OFF'}`;
-setActorScale(tiny ? 0.5 : 1);
-tinyBtn.textContent = tinyLabel();
-tinyBtn.addEventListener('click', () => {
-  tiny = !tiny;
-  setActorScale(tiny ? 0.5 : 1);
-  tinyBtn.textContent = tinyLabel();
-  try {
-    localStorage.setItem(TINY_KEY, tiny ? '1' : '0');
-  } catch {
-    // ignore
-  }
 });
 const RESET_LABEL = '↺ NEW GAME (RESET SAVE)';
 resetSaveBtn.textContent = RESET_LABEL;
@@ -308,7 +285,7 @@ Object.assign(buildStamp.style, {
   paddingTop: '5px',
 });
 buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
-settingsModal.append(muteBtn, tinyBtn, resetSaveBtn, buildStamp);
+settingsModal.append(muteBtn, resetSaveBtn, buildStamp);
 stageEl.append(settingsModal);
 
 gearBtn.addEventListener('click', () => {

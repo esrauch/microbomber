@@ -80,7 +80,7 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     // Diagonal roll into the north wall (y = 0) slides east while stopping flush against y = 1.28
     const s = newState(world, 'overworld', 0, 0, 3.5, 1.4);
     rollB(world, s, Math.SQRT1_2, -Math.SQRT1_2);
-    expect(s.y).toBeCloseTo(1.28, 2);
+    expect(s.y).toBeCloseTo(1.14, 2);
     expect(s.x).toBeGreaterThan(4.6);
 
     // Rolling directly toward a pit ('^') stops at the pit edge with 0 fall damage

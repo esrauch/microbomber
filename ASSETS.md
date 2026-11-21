@@ -90,28 +90,19 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 
 ## 3. Sprites, VFX & UI Icons (`OBJ`, up to `6` RGB555 Colours Each)
 
-### 3.0 Fuse Mouse (tiny-actor hero, experiment)
+### 3.1 Pip (the Fuse Mouse)
 
-In tiny-actor mode (Settings toggle or `?tiny=1`) Pip is drawn as the **fuse mouse**, whose tail
-is a fuse with a glowing spark (emissive in the G-buffer, like bomb fuses).
+Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in the G-buffer, like bomb fuses).
 - **Poses (`MOUSE_*`, S/N/E, west = east flipped):** upright idle facing the viewer (with spark
   flicker and blink), a 4-frame **four-legged gallop**, a crouch shown for 0.08 s when he starts
   or stops running, lift/throw, item get and a 3-frame fall. Pushing is a slow gallop.
 - **Palette (`'mouse'`):** spark yellow, pink ears/paws, fawn fur, brown shade and fuse cord, white
-  belly / white-hot spark, ink. Pip and the mouse are never on screen together, so at most 8
-  sprite palettes are loaded at once.
-- **Hitbox:** the centred half-size circle; the art (~11 px upright, ~15 px side gallop) overhangs it.
-
-### 3.1 Pip (`16 × 16`, Oracle proportions)
-- **Silhouette:** a long **floppy amber hood point** is the hero feature, the way Link's cap is. It always flops to one side (screen-left from the front, screen-right from the back, behind the head in profile) and sways on each step and in a slow idle breath.
-- **Palette (`'pip'`):** peach skin, amber hood, cobalt tunic, brown (hood shade, belt, boots, goggle rims, satchel), deep blue (tunic shade), ink. **Selective outline:** ink only on the silhouette; interior edges use the darker fill.
-- **Face:** brass-rimmed goggles pushed up on the hood brow (cobalt lenses with a peach glint), eyes shown below.
-- **Facings:** south, north, east; **west is east flipped**.
-- **Frames:** 4-beat walk with a `1px` head bob (`Idle, WalkL, Idle, WalkR`) plus `IdleB` hood sway; **full carry**: `Lift` crouch (also used for drop), 2-frame carry-walk per facing, `Throw` release; 2-frame `Push` lean per facing; `Get` item fanfare; 3-frame shrinking `Fall` spin. **No hurt frame:** a hit is the i-frame blink only.
+  belly / white-hot spark, ink.
+- **Hitbox:** the centred half-size circle (`r = 0.14`); the art (~11 px upright, ~15 px side gallop) overhangs it.
 
 ### 3.2 Bombs & Connected Blast VFX
-- **Blackpowder Bomb (`16 × 16`):** Riveted dark-slate iron body, specular steel rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).
-- **Ember Bomb (`16 × 16`):** Brass-necked ruby alchemical flask with swirling golden liquid flame (`Swirl 1, Swirl 2, Incandescent Swell, Flash`).
+- **Blackpowder Bomb (`10 × 10` body in `16 × 16` cell):** Round dark-slate iron body, big specular rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).
+- **Ember Bomb (`10 × 10` body in `16 × 16` cell):** Brass-necked ruby alchemical flask with swirling golden liquid flame (`Swirl 1, Swirl 2, Incandescent Swell, Flash`).
 - **Connected `+` Cross Explosion (`Blackpowder`):**
   - `blastHub`, `blastArmH`, `blastArmV`, `blastCapN / S / E / W` across `4` frames (`White-Gold Core → Billowing Flame → Soot Ring → Dispersing Puffs`) so `1`–`2` tile `+` blasts form one continuous fiery cross instead of disconnected circles; impact/single-tile blasts use a `4`-frame radial starburst.
 - **Ember Hearth Patch (`16 × 16`):** `4`-frame crackling ember bed + dancing flame tongues.

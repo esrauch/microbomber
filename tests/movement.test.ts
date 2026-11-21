@@ -7,7 +7,7 @@ describe('movement feel', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 3.5, 4.5);
     for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx: -1 }, 0.05);
-    expect(s.x).toBeCloseTo(2.28, 2);
+    expect(s.x).toBeCloseTo(2.14, 2);
   });
 
   it('tracks continuous 360° aim above deadzone, ignores a lifting thumb, and keeps cardinalFacing for blocks', () => {

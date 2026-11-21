@@ -49,7 +49,7 @@ const OPEN_ROOM = Array.from({ length: ROOM_H }, (_, y) =>
 describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast shove, chains, and safety', () => {
   it('exports Phase 2 physics constants and produces bit-identical trajectories at FIXED_DT', () => {
     expect(FIXED_DT).toBe(1 / 60);
-    expect(BOMB_RADIUS).toBe(0.24);
+    expect(BOMB_RADIUS).toBe(0.12);
     expect(BOMB_FRICTION).toBeGreaterThan(0);
     expect(BOMB_WALL_BOUNCE).toBeGreaterThan(0);
     expect(KICK_SPEED).toBeGreaterThan(0);
@@ -138,8 +138,8 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     for (let y = 3; y <= 9; y++) rows[y]![7] = '#';
     const world = sandboxWorld(rows.map((r) => r.join('')));
 
-    // 1. Kick east from (4.5, 8.5) into the west face of x = 7: it rebounds due west
-    const s = newState(world, 'overworld', 0, 0, 4.5, 8.5);
+    // 1. Kick east from (5.0, 8.5) into the west face of x = 7: it rebounds due west
+    const s = newState(world, 'overworld', 0, 0, 5.0, 8.5);
     kickA(world, s, 1, 0);
     const b = s.bombs[0]!;
     expect(b.vx).toBeGreaterThan(0);
@@ -162,7 +162,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
 
     expect(sawBounce).toBe(true);
     expect(sawWallBank).toBe(true);
-    expect(b.x).toBeLessThan(6.77);
+    expect(b.x).toBeLessThan(7 - BOMB_RADIUS);
     expect(b.y).toBe(8.5);
 
     // 2. Head-on kick north at the y = 0 stone wall flips vy from negative to positive

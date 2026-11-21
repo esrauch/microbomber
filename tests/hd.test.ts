@@ -117,7 +117,7 @@ describe('HD-2D particles', () => {
 
 describe('HD-2D sprite G-buffer', () => {
   it('classifies heroes, emissives and plain sprites', () => {
-    expect(auxKind('PIP_SOUTH_IDLE')).toBe('hero');
+    expect(auxKind('MOUSE_SOUTH_IDLE')).toBe('hero');
     expect(auxKind('CINDERHULL_ARMORED_1')).toBe('hero');
     expect(auxKind('WICKGEIST_DARK')).toBe('hero');
     expect(auxKind('BLAST_HUB_1')).toBe('emissive');
@@ -126,16 +126,16 @@ describe('HD-2D sprite G-buffer', () => {
     expect(auxKind('POWDER_1')).toBe('plain');
   });
 
-  it('gives Pip’s hood more height than the tunic and the ink outline the least', () => {
-    const at = (idx: number): number => heroHeight('PIP_SOUTH_IDLE', idx, 8, 6, 16, 16);
-    expect(at(2)).toBeGreaterThan(at(3)); // amber hood above cobalt tunic
-    expect(at(3)).toBeGreaterThan(at(6)); // tunic above ink
+  it('gives the fuse mouse ears more height than the fur and the ink outline the least', () => {
+    const at = (idx: number): number => heroHeight('MOUSE_SOUTH_IDLE', idx, 8, 6, 16, 16);
+    expect(at(2)).toBeGreaterThan(at(3)); // pink ears above fawn fur
+    expect(at(3)).toBeGreaterThan(at(6)); // fur above ink
     // The dome rounds the figure: the same colour sits higher at the centre than the edge
-    expect(heroHeight('PIP_SOUTH_IDLE', 3, 8, 8, 16, 16)).toBeGreaterThan(
-      heroHeight('PIP_SOUTH_IDLE', 3, 0, 8, 16, 16),
+    expect(heroHeight('MOUSE_SOUTH_IDLE', 3, 8, 8, 16, 16)).toBeGreaterThan(
+      heroHeight('MOUSE_SOUTH_IDLE', 3, 0, 8, 16, 16),
     );
     for (let idx = 1; idx <= 6; idx++) {
-      const h = heroHeight('PIP_SOUTH_IDLE', idx, 0, 0, 16, 16);
+      const h = heroHeight('MOUSE_SOUTH_IDLE', idx, 0, 0, 16, 16);
       expect(h).toBeGreaterThanOrEqual(0);
       expect(h).toBeLessThanOrEqual(1);
     }
@@ -173,9 +173,9 @@ describe('HD-2D sprite G-buffer', () => {
       }
     }
 
-    // Plain actors and heroes have zero emissive bloom
+    // Plain actors have zero emissive bloom; the fuse mouse glows only at its tail spark
     expect(maxEmissive(bakeAuxData('SLIME_1').data)).toBe(0);
-    expect(maxEmissive(bakeAuxData('PIP_SOUTH_IDLE').data)).toBe(0);
+    expect(maxEmissive(bakeAuxData('MOUSE_SOUTH_IDLE').data)).toBe(220);
 
     // Active warp pads and lit Spire seal sockets bake emissive rune masks
     expect(maxEmissive(bakeTileEmissiveAuxData('warp').data)).toBe(230);

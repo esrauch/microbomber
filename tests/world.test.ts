@@ -20,7 +20,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 3.5, 4.5);
     stepSeconds(world, s, 1.6, { ...idle, dx: -1 });
-    expect(s.x).toBeGreaterThan(2.25);
+    expect(s.x).toBeGreaterThan(2.12);
 
     // Stand slightly off-centre below the 1-tile doorway at x=5 in Crystal Crossroads (1, 2)
     enterRoom(world, s, 'ember-crypt', 1, 2, 5.28, 10.8);

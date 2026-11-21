@@ -23,8 +23,7 @@ import {
 
 describe('GBC colour and multi-tile rules', () => {
   it('has at most 8 sprite palettes of 6 colours, and 8 background palettes of 4 per zone', () => {
-    // Pip and the fuse mouse are alternate heroes, so one of them is never loaded
-    expect(OBJ_PALETTE_IDS.filter((id) => id !== 'mouse').length).toBeLessThanOrEqual(8);
+    expect(OBJ_PALETTE_IDS.length).toBeLessThanOrEqual(8);
     for (const id of OBJ_PALETTE_IDS) expect(OBJ_PALETTES[id]).toHaveLength(6);
     expect(BG_PALETTE_IDS.length).toBeLessThanOrEqual(8);
     for (const zone of Object.values(BG_PALETTES)) {

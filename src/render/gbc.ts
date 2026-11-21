@@ -8,7 +8,6 @@
  */
 import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, WindGust, ZoneId } from '../game/types';
 import {
-  ACTOR_SCALE,
   ROLL_DURATION,
   ROOM_H,
   ROOM_W,
@@ -20,7 +19,6 @@ import {
   windVectorAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
-import { tinyActorSprite } from './tinyActors';
 import { bakeAux } from './gbcAux';
 import { CROWN_H, CROWN_VARIANTS, CROWN_W } from './thicketCrowns';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
@@ -594,10 +592,7 @@ export function makeGbcView(): GbcView {
     drawScaledSprite(ctx, pickupMap[kind], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
-  /** Tiny-actor mode: the fuse mouse stands in for Pip, and bombs use their tiny sprites. */
   const MOUSE_GALLOP = ['RUN_1', 'RUN_2', 'RUN_3', 'RUN_4'] as const;
-  const actorArt = (name: ObjSpriteName): ObjSpriteName =>
-    ACTOR_SCALE < 1 ? tinyActorSprite(name) : name;
 
   function drawBomb(
     ctx: CanvasRenderingContext2D,
@@ -628,17 +623,7 @@ export function makeGbcView(): GbcView {
       'EMBER_4',
     ];
     const list = b.kind === 'ember' ? emberFrames : powderFrames;
-    drawScaledSprite(
-      ctx,
-      actorArt(list[idx] ?? list[0]),
-      dx,
-      dy,
-      sx,
-      sy,
-      false,
-      undefined,
-      tiltRad,
-    );
+    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
   function computeBombDeform(b: Bomb, time: number): { sx: number; sy: number; tiltRad: number } {
@@ -1177,9 +1162,8 @@ export function makeGbcView(): GbcView {
     }
   }
 
-  /** Pip's contact shadow; the fuse mouse's is small, and long under the side gallop. */
+  /** Pip's contact shadow; small when upright, and long under the side gallop. */
   function pipShadowRadius(s: State): number {
-    if (ACTOR_SCALE >= 1) return 5.8;
     const sideGallop = walkCycle > 0 && s.rollTimer <= 0 && Math.abs(s.aimX) > Math.abs(s.aimY);
     return sideGallop ? 6.2 : 4.1;
   }
@@ -1201,14 +1185,14 @@ export function makeGbcView(): GbcView {
     if (time < fallAnimUntil) {
       const rem = fallAnimUntil - time;
       const fall: ObjSpriteName =
-        rem > 0.24 ? 'PIP_FALL_1' : rem > 0.12 ? 'PIP_FALL_2' : 'PIP_FALL_3';
-      drawObjSprite(ctx, actorArt(fall), dx, dy);
+        rem > 0.24 ? 'MOUSE_FALL_1' : rem > 0.12 ? 'MOUSE_FALL_2' : 'MOUSE_FALL_3';
+      drawObjSprite(ctx, fall, dx, dy);
       return;
     }
 
     if (time < holdAnimUntil) {
-      drawObjSprite(ctx, actorArt('PIP_GET'), dx, dy);
-      drawPickup(ctx, heldKind, dx, dy - (ACTOR_SCALE < 1 ? 7 : 12), time);
+      drawObjSprite(ctx, 'MOUSE_GET', dx, dy);
+      drawPickup(ctx, heldKind, dx, dy - 7, time);
       return;
     }
 
@@ -1218,12 +1202,11 @@ export function makeGbcView(): GbcView {
         Math.abs(s.rollDirX) > Math.abs(s.rollDirY) ? 'EAST' : s.rollDirY < 0 ? 'NORTH' : 'SOUTH';
       const rFlip = rDir === 'EAST' && s.rollDirX < 0;
       const phase = Math.min(3, Math.floor(u * 4));
-      const rollSprite: ObjSpriteName =
-        phase % 2 === 0 ? `PIP_${rDir}_ROLL_1` : `PIP_${rDir}_ROLL_2`;
+      const rollSprite: ObjSpriteName = phase % 2 === 0 ? 'MOUSE_ROLL_1' : 'MOUSE_ROLL_2';
       const hopPx = Math.round(4 * 2 * u * (1 - u));
       const shimmerPal: ObjPaletteId | undefined =
         u >= 0.2 && u <= 0.8 && Math.floor(time * 30) % 3 === 0 ? 'spectral' : undefined;
-      drawObjSprite(ctx, actorArt(rollSprite), dx, dy - hopPx, rFlip, shimmerPal);
+      drawObjSprite(ctx, rollSprite, dx, dy - hopPx, rFlip, shimmerPal);
       return;
     }
 
@@ -1240,48 +1223,38 @@ export function makeGbcView(): GbcView {
     }
 
     const draw = (name: ObjSpriteName, sx = baseSx, sy = baseSy): void =>
-      drawScaledSprite(ctx, actorArt(name), dx, dy, sx, sy, flip);
-    const stepIdx = Math.floor(walkCycle) % 4; // 4-beat: idle, step L, idle, step R
+      drawScaledSprite(ctx, name, dx, dy, sx, sy, flip);
+    const stepIdx = Math.floor(walkCycle) % 4;
     const moving = walkCycle > 0;
 
     if (time < crouchAnimUntil) {
-      draw(`PIP_${dir}_LIFT`, 1.08, 0.92);
+      draw(`MOUSE_${dir}_LIFT`, 1.08, 0.92);
       return;
     }
     if (time < throwAnimUntil) {
-      draw(`PIP_${dir}_THROW`);
+      draw(`MOUSE_${dir}_THROW`);
       return;
     }
     if (s.blocks.some((b) => b.pushCharge > 0.04)) {
-      draw(stepIdx < 2 ? `PIP_${dir}_PUSH_1` : `PIP_${dir}_PUSH_2`);
+      draw(stepIdx < 2 ? `MOUSE_${dir}_RUN_1` : `MOUSE_${dir}_RUN_2`);
       return;
     }
-    if (ACTOR_SCALE < 1 && moving !== mouseWasMoving) {
+    if (moving !== mouseWasMoving) {
       // Starting or stopping: crouch for a beat between standing and the gallop
       mouseWasMoving = moving;
       mouseCrouchUntil = time + 0.08;
     }
-    if (ACTOR_SCALE < 1 && time < mouseCrouchUntil) {
+    if (time < mouseCrouchUntil) {
       draw(`MOUSE_${dir}_DROP`);
       return;
     }
-    if (moving && ACTOR_SCALE < 1) {
+    if (moving) {
       // The fuse mouse gallops on all four legs: one frame per beat
       draw(`MOUSE_${dir}_${MOUSE_GALLOP[stepIdx] ?? 'RUN_1'}`);
       return;
     }
-    if (moving) {
-      draw(
-        stepIdx === 1
-          ? `PIP_${dir}_WALK_L`
-          : stepIdx === 3
-            ? `PIP_${dir}_WALK_R`
-            : `PIP_${dir}_IDLE`,
-      );
-      return;
-    }
-    // Standing still: the hood point sways every second or so
-    draw(time % 1.3 > 1.0 ? `PIP_${dir}_IDLE_B` : `PIP_${dir}_IDLE`);
+    // Standing still: tail spark flickers and eyes blink
+    draw(time % 1.3 > 1.0 ? `MOUSE_${dir}_IDLE_B` : `MOUSE_${dir}_IDLE`);
   }
 
   function drawBlastSegment(ctx: CanvasRenderingContext2D, bl: BlastInstance, age: number): void {
@@ -1657,14 +1630,7 @@ export function makeGbcView(): GbcView {
           b.z <= 0.05 &&
           isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
         if (!onWater) {
-          drawContactShadow(
-            mainCtx,
-            s.zone,
-            b.x * TILE_PX,
-            b.y * TILE_PX + 5,
-            5.5 * (ACTOR_SCALE < 1 ? 0.7 : 1),
-            b.z,
-          );
+          drawContactShadow(mainCtx, s.zone, b.x * TILE_PX, b.y * TILE_PX + 5, 5.5 * 0.7, b.z);
         }
       }
       for (const e of s.enemies) {
