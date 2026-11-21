@@ -1,17 +1,71 @@
-/** microbomber: a flip-screen adventure where your only tool is bombs. */
+/**
+ * microbomber: Vertical Slice entry point (`GAME.md`).
+ * Portrait layout: Top Status + Minimap -> 2.5D Room Stage -> Dedicated Control Band.
+ */
 import * as THREE from 'three';
 import buildInfo from 'virtual:build-info';
-import { type Input, ROOM_H, ROOM_W, newState, testWorld, tick } from './game/world';
+import type { BombKind } from './game/types';
+import {
+  type Input,
+  ROOM_H,
+  ROOM_W,
+  type State,
+  campaignWorld,
+  currentRoom,
+  exportSave,
+  importSave,
+  newState,
+  roomKey,
+  showBanner,
+  tick,
+} from './game/world';
 import { makeCameraRig } from './render/camera';
 import { makeRoomView } from './render/scene';
 import { mountJoystick } from './ui/joystick';
+import { makeSfx } from './ui/sfx';
 
+const SAVE_KEY = 'microbomber.save.v1';
+
+const topbar = document.querySelector<HTMLElement>('#topbar');
+const stage = document.querySelector<HTMLElement>('#stage');
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
-const hud = document.querySelector<HTMLDivElement>('#hud');
-if (!canvas || !hud) throw new Error('index.html is missing #game or #hud');
+const controls = document.querySelector<HTMLElement>('#controls');
+if (!topbar || !stage || !canvas || !controls) {
+  throw new Error('index.html is missing required shell elements');
+}
 
-const world = testWorld();
-const state = newState(0, 0, 4.5, 7.5);
+const world = campaignWorld();
+const sfx = makeSfx();
+
+function loadInitialState(): State {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      const restored = importSave(world, JSON.parse(raw));
+      if (restored) return restored;
+    }
+  } catch {
+    // Ignore malformed or unavailable storage.
+  }
+  const fresh = newState(world);
+  showBanner(
+    fresh,
+    'The Ironblight Spire rusted every blade on Cinderholm! Walk to Bram or drop a bomb (💣) on cracked stone.',
+    5.5,
+  );
+  return fresh;
+}
+
+function persistState(s: State): void {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(exportSave(s)));
+  } catch {
+    // Ignore storage quota errors.
+  }
+}
+
+let state = loadInitialState();
+
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const view = makeRoomView();
@@ -19,53 +73,360 @@ view.rebuild(world, state);
 const rig = makeCameraRig({ width: ROOM_W, depth: ROOM_H });
 
 const resize = (): void => {
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-  rig.resize(canvas.clientWidth, canvas.clientHeight);
+  const w = stage.clientWidth || 360;
+  const h = stage.clientHeight || 480;
+  renderer.setSize(w, h, false);
+  rig.resize(w, h);
 };
 window.addEventListener('resize', resize);
-resize();
-hud.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
 
-// A black overlay for the cut between rooms (a quick fade, never a scroll).
+// =========================================================================
+// Top HUD: Hearts, Keys, Room Title/Objective, Auto-Drawn Minimap, Settings
+// =========================================================================
+const statusLeft = document.createElement('div');
+Object.assign(statusLeft.style, {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '3px',
+  minWidth: '0',
+});
+
+const heartsRow = document.createElement('div');
+Object.assign(heartsRow.style, {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontSize: '15px',
+  fontWeight: '800',
+  lineHeight: '1.1',
+});
+
+const roomMetaRow = document.createElement('div');
+Object.assign(roomMetaRow.style, {
+  fontSize: '11.5px',
+  color: '#cbd5c0',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+statusLeft.append(heartsRow, roomMetaRow);
+
+const statusRight = document.createElement('div');
+Object.assign(statusRight.style, {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  flexShrink: '0',
+});
+
+const minimapEl = document.createElement('div');
+Object.assign(minimapEl.style, {
+  display: 'grid',
+  gap: '2px',
+  padding: '3px',
+  background: '#111612',
+  border: '1px solid #38463a',
+  borderRadius: '6px',
+});
+
+const gearBtn = document.createElement('button');
+gearBtn.textContent = '⚙️';
+gearBtn.title = 'Settings & Reset';
+Object.assign(gearBtn.style, {
+  width: '30px',
+  height: '30px',
+  borderRadius: '8px',
+  border: '1px solid #425244',
+  background: '#253026',
+  color: '#f4eedc',
+  fontSize: '15px',
+  cursor: 'pointer',
+  padding: '0',
+});
+statusRight.append(minimapEl, gearBtn);
+topbar.append(statusLeft, statusRight);
+
+// Settings popover
+const settingsModal = document.createElement('div');
+Object.assign(settingsModal.style, {
+  position: 'absolute',
+  top: '8px',
+  right: '8px',
+  zIndex: '30',
+  display: 'none',
+  flexDirection: 'column',
+  gap: '8px',
+  padding: '12px',
+  borderRadius: '10px',
+  background: 'rgba(22, 28, 23, 0.96)',
+  border: '1.5px solid #556957',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+  fontSize: '13px',
+  minWidth: '190px',
+});
+const muteBtn = document.createElement('button');
+const resetSaveBtn = document.createElement('button');
+for (const btn of [muteBtn, resetSaveBtn]) {
+  Object.assign(btn.style, {
+    padding: '7px 10px',
+    borderRadius: '7px',
+    border: '1px solid #4a5d4c',
+    background: '#2a362b',
+    color: '#f4eedc',
+    fontWeight: '700',
+    fontSize: '12.5px',
+    cursor: 'pointer',
+    textAlign: 'left',
+  });
+}
+muteBtn.textContent = '🔊 Sound: On';
+muteBtn.addEventListener('click', () => {
+  sfx.muted = !sfx.muted;
+  muteBtn.textContent = sfx.muted ? '🔇 Sound: Off' : '🔊 Sound: On';
+});
+resetSaveBtn.textContent = '↺ New Game (Reset Save)';
+resetSaveBtn.addEventListener('click', () => {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // ignore
+  }
+  state = newState(world);
+  view.rebuild(world, state);
+  settingsModal.style.display = 'none';
+  syncHud(true);
+});
+const buildStamp = document.createElement('div');
+Object.assign(buildStamp.style, {
+  fontSize: '11px',
+  color: '#9aa899',
+  borderTop: '1px solid #334034',
+  paddingTop: '6px',
+});
+buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
+settingsModal.append(muteBtn, resetSaveBtn, buildStamp);
+stage.append(settingsModal);
+
+gearBtn.addEventListener('click', () => {
+  settingsModal.style.display = settingsModal.style.display === 'none' ? 'flex' : 'none';
+});
+
+// =========================================================================
+// Stage Overlays: Boss HP Bar, Storybook Banner, Flip-Screen Fade
+// =========================================================================
+const bossBarWrap = document.createElement('div');
+Object.assign(bossBarWrap.style, {
+  position: 'absolute',
+  top: '8px',
+  left: '12px',
+  right: '12px',
+  display: 'none',
+  flexDirection: 'column',
+  gap: '3px',
+  padding: '5px 9px',
+  borderRadius: '8px',
+  background: 'rgba(20, 16, 26, 0.85)',
+  border: '1px solid #7c2d12',
+  pointerEvents: 'none',
+  zIndex: '10',
+});
+const bossTitleEl = document.createElement('div');
+Object.assign(bossTitleEl.style, {
+  fontSize: '11.5px',
+  fontWeight: '800',
+  color: '#fbd38d',
+  display: 'flex',
+  justifyContent: 'space-between',
+});
+const bossTrack = document.createElement('div');
+Object.assign(bossTrack.style, {
+  height: '7px',
+  borderRadius: '999px',
+  background: '#2d2438',
+  overflow: 'hidden',
+});
+const bossFill = document.createElement('div');
+Object.assign(bossFill.style, {
+  height: '100%',
+  width: '100%',
+  background: 'linear-gradient(90deg, #e53e3e, #f97316)',
+  transition: 'width 0.12s ease',
+});
+bossTrack.append(bossFill);
+bossBarWrap.append(bossTitleEl, bossTrack);
+stage.append(bossBarWrap);
+
+const bannerEl = document.createElement('div');
+Object.assign(bannerEl.style, {
+  position: 'absolute',
+  left: '10px',
+  right: '10px',
+  bottom: '10px',
+  padding: '8px 12px',
+  borderRadius: '10px',
+  background: 'rgba(20, 25, 21, 0.92)',
+  border: '1.5px solid #d69e2e',
+  color: '#fefcbf',
+  fontSize: '12.5px',
+  fontWeight: '600',
+  lineHeight: '1.35',
+  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)',
+  pointerEvents: 'none',
+  display: 'none',
+  zIndex: '12',
+});
+stage.append(bannerEl);
+
 const fade = document.createElement('div');
 Object.assign(fade.style, {
-  position: 'fixed',
+  position: 'absolute',
   inset: '0',
   background: '#000',
   opacity: '0',
   pointerEvents: 'none',
-  transition: 'opacity 90ms linear',
+  transition: 'opacity 85ms linear',
+  zIndex: '20',
 });
-document.body.append(fade);
+stage.append(fade);
 
-// Input: arrows/WASD and Space; on touch, a virtual joystick and a bomb button.
+// =========================================================================
+// Dedicated Control Band (`GAME.md` §2): Joystick + Quick-Swap + Drop & Throw
+// =========================================================================
+const joystick = mountJoystick(controls);
+
+const rightCluster = document.createElement('div');
+Object.assign(rightCluster.style, {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: '8px',
+});
+
+const quickSwapRow = document.createElement('div');
+Object.assign(quickSwapRow.style, {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+});
+
+const satchelPips = document.createElement('div');
+Object.assign(satchelPips.style, {
+  fontSize: '11.5px',
+  fontWeight: '800',
+  color: '#cbd5c0',
+  marginRight: '4px',
+  letterSpacing: '2px',
+});
+
+const bombBtns = new Map<BombKind, HTMLButtonElement>();
+const BOMB_META: Record<BombKind, { icon: string; label: string; color: string }> = {
+  powder: { icon: '💣', label: 'Powder', color: '#fbbf24' },
+  ember: { icon: '🔥', label: 'Ember', color: '#f97316' },
+};
+
+let queuedDrop = false;
+let queuedThrow = false;
+let queuedSelect: BombKind | undefined;
+
+for (const kind of ['powder', 'ember'] as const) {
+  const meta = BOMB_META[kind];
+  const btn = document.createElement('button');
+  btn.textContent = `${meta.icon} ${meta.label}`;
+  Object.assign(btn.style, {
+    height: '30px',
+    padding: '0 10px',
+    borderRadius: '999px',
+    border: '2px solid #4a5568',
+    background: '#1e2620',
+    color: '#e2e8f0',
+    fontSize: '12px',
+    fontWeight: '800',
+    cursor: 'pointer',
+    touchAction: 'none',
+  });
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    queuedSelect = kind;
+  });
+  bombBtns.set(kind, btn);
+  quickSwapRow.append(btn);
+}
+quickSwapRow.prepend(satchelPips);
+
+const actionRow = document.createElement('div');
+Object.assign(actionRow.style, {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+});
+
+const makeActionBtn = (
+  icon: string,
+  caption: string,
+  borderCol: string,
+  bgCol: string,
+  onPress: () => void,
+): HTMLButtonElement => {
+  const b = document.createElement('button');
+  b.innerHTML = `<span style="font-size:24px;line-height:1">${icon}</span><span style="font-size:11px;font-weight:800;letter-spacing:0.03em">${caption}</span>`;
+  Object.assign(b.style, {
+    width: '74px',
+    height: '74px',
+    borderRadius: '50%',
+    border: `3px solid ${borderCol}`,
+    background: bgCol,
+    color: '#fff9eb',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px',
+    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.45)',
+    cursor: 'pointer',
+    touchAction: 'none',
+  });
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    onPress();
+  });
+  return b;
+};
+
+const dropBtn = makeActionBtn('💣', 'DROP', '#f6e05e', 'rgba(45, 38, 24, 0.85)', () => {
+  queuedDrop = true;
+});
+const throwBtn = makeActionBtn('🎯', 'THROW', '#63b3ed', 'rgba(24, 40, 56, 0.85)', () => {
+  queuedThrow = true;
+});
+actionRow.append(dropBtn, throwBtn);
+
+rightCluster.append(quickSwapRow, actionRow);
+controls.append(rightCluster);
+
+// Keyboard support (WASD / Arrows, Space = Drop, E / Shift / Enter = Throw, 1 / 2 / Tab = Swap)
 const held = new Set<string>();
-let bombQueued = false;
 window.addEventListener('keydown', (e) => {
-  held.add(e.key.toLowerCase());
-  if (e.key === ' ') bombQueued = true;
+  const k = e.key.toLowerCase();
+  held.add(k);
+  if (e.key === ' ') {
+    e.preventDefault();
+    queuedDrop = true;
+  } else if (k === 'e' || k === 'j' || k === 'enter' || k === 'shift') {
+    e.preventDefault();
+    queuedThrow = true;
+  } else if (k === '1') {
+    queuedSelect = 'powder';
+  } else if (k === '2') {
+    queuedSelect = 'ember';
+  } else if (k === 'tab' || k === 'q') {
+    e.preventDefault();
+    if (state.unlockedBombs.length > 1) {
+      const idx = state.unlockedBombs.indexOf(state.selectedBomb);
+      queuedSelect = state.unlockedBombs[(idx + 1) % state.unlockedBombs.length];
+    }
+  }
 });
 window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
-const joystick = mountJoystick(document.body);
-const bombButton = document.createElement('button');
-bombButton.textContent = '💣';
-Object.assign(bombButton.style, {
-  position: 'fixed',
-  right: '16px',
-  bottom: 'calc(16px + env(safe-area-inset-bottom))',
-  width: '72px',
-  height: '72px',
-  borderRadius: '50%',
-  border: '3px solid #f4e3b0',
-  background: 'rgba(40, 30, 20, 0.6)',
-  fontSize: '34px',
-  touchAction: 'none',
-});
-bombButton.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  bombQueued = true;
-});
-document.body.append(bombButton);
 
 const readInput = (): Input => {
   let dx = 0;
@@ -79,32 +440,185 @@ const readInput = (): Input => {
     dx = stick.dx;
     dy = stick.dy;
   }
-  const bomb = bombQueued;
-  bombQueued = false;
-  return { dx, dy, bomb };
+  const out: Input = {
+    dx,
+    dy,
+    drop: queuedDrop,
+    throwBomb: queuedThrow,
+    ...(queuedSelect ? { selectBomb: queuedSelect } : {}),
+  };
+  queuedDrop = false;
+  queuedThrow = false;
+  queuedSelect = undefined;
+  return out;
 };
+
+// =========================================================================
+// HUD Synchronization (diffed so DOM only updates when values change)
+// =========================================================================
+let prevHudSig = '';
+
+function syncHud(force = false): void {
+  const room = currentRoom(world, state);
+  const readyBombs = Math.max(0, state.maxBombs - state.bombs.length);
+  const boss = state.enemies.find((e) => e.kind === 'wickgeist' || e.kind === 'cinderhull');
+  const sig = [
+    state.zone,
+    state.rx,
+    state.ry,
+    state.hp,
+    state.maxHp,
+    state.heartShards,
+    state.smallKeys,
+    state.hasBossKey,
+    state.selectedBomb,
+    state.unlockedBombs.join(','),
+    readyBombs,
+    state.maxBombs,
+    state.cores.join(','),
+    state.bannerText ?? '',
+    boss ? `${boss.kind}:${boss.hp}:${boss.armored ? 1 : 0}` : '',
+    state.visitedRooms.size,
+  ].join('|');
+
+  if (!force && sig === prevHudSig) return;
+  prevHudSig = sig;
+
+  // Hearts + Keys + Cores
+  const totalHearts = Math.floor(state.maxHp / 2);
+  let heartsHtml = '';
+  for (let i = 0; i < totalHearts; i++) {
+    const rem = state.hp - i * 2;
+    heartsHtml += rem >= 2 ? '❤️' : rem === 1 ? '💔' : '🖤';
+  }
+  const extras: string[] = [];
+  if (state.heartShards % 2 === 1) extras.push('🩷½');
+  if (state.smallKeys > 0) extras.push(`🗝️×${state.smallKeys}`);
+  if (state.hasBossKey) extras.push('🗝️★');
+  if (state.cores.includes('cinder')) extras.push('🔥Core');
+  heartsRow.textContent = extras.length ? `${heartsHtml}  ${extras.join(' ')}` : heartsHtml;
+
+  const zonePrefix = state.zone === 'ember-crypt' ? 'Ember Crypt' : 'Cinderholm';
+  const obj = room?.objective ? ` · ${room.objective}` : '';
+  roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
+
+  // Auto-drawn minimap (`GAME.md` §5)
+  minimapEl.replaceChildren();
+  const cols = state.zone === 'ember-crypt' ? 3 : 4;
+  const rows = state.zone === 'ember-crypt' ? 4 : 6;
+  const minX = state.zone === 'ember-crypt' ? 0 : 2;
+  minimapEl.style.gridTemplateColumns = `repeat(${cols}, 7px)`;
+  for (let my = 0; my < rows; my++) {
+    for (let mx = minX; mx < minX + cols; mx++) {
+      const rk = roomKey(state.zone, mx, my);
+      const exists = world.rooms.has(rk);
+      const visited = state.visitedRooms.has(rk);
+      const isCur = state.rx === mx && state.ry === my;
+      const cell = document.createElement('div');
+      Object.assign(cell.style, {
+        width: '7px',
+        height: '7px',
+        borderRadius: '1.5px',
+        background: isCur
+          ? '#fbbf24'
+          : visited
+            ? state.zone === 'ember-crypt'
+              ? '#9f7aea'
+              : '#68d391'
+            : exists
+              ? '#273129'
+              : 'transparent',
+      });
+      minimapEl.append(cell);
+    }
+  }
+
+  // Quick-swap bomb buttons & satchel pips
+  satchelPips.textContent =
+    '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
+  for (const [kind, btn] of bombBtns) {
+    const unlocked = state.unlockedBombs.includes(kind);
+    btn.style.display = unlocked ? 'inline-flex' : 'none';
+    btn.style.alignItems = 'center';
+    const active = state.selectedBomb === kind;
+    const col = BOMB_META[kind].color;
+    btn.style.borderColor = active ? col : '#4a5568';
+    btn.style.background = active ? 'rgba(66, 52, 28, 0.92)' : '#1e2620';
+    btn.style.color = active ? '#fffaf0' : '#a0aec0';
+  }
+  const dropIcon = dropBtn.querySelector('span');
+  if (dropIcon) dropIcon.textContent = BOMB_META[state.selectedBomb].icon;
+
+  // Boss HP bar
+  if (boss) {
+    bossBarWrap.style.display = 'flex';
+    const bName = boss.kind === 'cinderhull' ? 'CINDERHULL · Shrine Boss' : 'WICKGEIST · Phantom';
+    const shieldTag = boss.armored
+      ? boss.kind === 'cinderhull'
+        ? '🌿 Thorn Armor (Use Ember!)'
+        : '🌑 In Shadow (Light Brazier!)'
+      : '✨ Exposed!';
+    bossTitleEl.innerHTML = `<span>${bName}</span><span>${shieldTag}</span>`;
+    bossFill.style.width = `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
+  } else {
+    bossBarWrap.style.display = 'none';
+  }
+
+  // Storybook Banner
+  if (state.bannerText) {
+    bannerEl.style.display = 'block';
+    bannerEl.textContent = state.bannerText;
+  } else {
+    bannerEl.style.display = 'none';
+  }
+}
+
+// Initial layout & HUD render
+resize();
+syncHud(true);
+
+const REBUILD_EVENTS = new Set([
+  'tile-break',
+  'tile-burn',
+  'crystal-flip',
+  'door-unlock',
+  'room-solved',
+  'player-respawn',
+  'core-slotted',
+]);
 
 let last = performance.now();
 let cutting = false;
+
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+
   if (!cutting) {
-    const brokeBefore = state.broken.size;
     const moved = tick(world, state, readInput(), dt);
+    for (const ev of state.events) {
+      sfx.play(ev);
+    }
+    const needsRebuild = state.events.some((ev) => REBUILD_EVENTS.has(ev));
+    const gotPickup = state.events.some((ev) => ev.startsWith('pickup-') || ev === 'room-solved');
+
     if (moved) {
-      // Cut to the new room: fade out, swap, fade in. The game waits meanwhile.
+      persistState(state);
       cutting = true;
       fade.style.opacity = '1';
       window.setTimeout(() => {
         view.rebuild(world, state);
+        syncHud(true);
         fade.style.opacity = '0';
         cutting = false;
-      }, 90);
-    } else if (state.broken.size !== brokeBefore) {
-      view.rebuild(world, state);
+      }, 85);
+    } else {
+      if (needsRebuild) view.rebuild(world, state);
+      if (gotPickup) persistState(state);
     }
   }
-  view.sync(state, now / 1000);
+
+  syncHud();
+  view.sync(world, state, now / 1000);
   renderer.render(view.scene, rig.camera);
 });

@@ -6,40 +6,81 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#1b2418" />
-    <title>microbomber</title>
+    <meta name="theme-color" content="#141a14" />
+    <title>microbomber · The Rust of Cinderholm</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
       html,
       body {
         margin: 0;
+        width: 100%;
         height: 100%;
         overflow: hidden;
-        background: #1b2418;
+        background: #121712;
+        color: #f4eedc;
         touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
         font-family:
           system-ui,
           -apple-system,
           sans-serif;
       }
-      #game {
-        display: block;
+      #app {
+        display: flex;
+        flex-direction: column;
         width: 100vw;
         height: 100dvh;
+        max-width: 560px;
+        margin: 0 auto;
+        background: #161d16;
+        box-shadow: 0 0 32px rgba(0, 0, 0, 0.65);
       }
-      #hud {
-        position: fixed;
-        left: 8px;
-        bottom: 8px;
-        color: #d9e4cf;
-        font-size: 12px;
-        opacity: 0.7;
-        pointer-events: none;
+      #topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
+        background: #1c241d;
+        border-bottom: 2px solid #2f3b30;
+        flex-shrink: 0;
+      }
+      #stage {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        overflow: hidden;
+        background: #182018;
+      }
+      #game {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, #212922 0%, #171d18 100%);
+        border-top: 2px solid #354336;
+        flex-shrink: 0;
       }
     </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
-    <div id="hud"></div>
+    <div id="app">
+      <header id="topbar"></header>
+      <main id="stage">
+        <canvas id="game"></canvas>
+      </main>
+      <footer id="controls"></footer>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
