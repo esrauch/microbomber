@@ -531,6 +531,12 @@ startBtn.addEventListener('pointerdown', (e) => {
   toggleMenu();
 });
 
+// Long presses on the item buttons must not open the context menu (Android) or start a
+// text selection (iOS), which would steal the touch and leave a button stuck held
+for (const type of ['contextmenu', 'selectstart'] as const) {
+  window.addEventListener(type, (e) => e.preventDefault());
+}
+
 // Keyboard: WASD / Arrows move, J / Space = B, K / E = A (hold to lift, release to throw),
 // Enter / Esc / P = START. In the menu, left/right pick an item and J / K equip it.
 const held = new Set<string>();
