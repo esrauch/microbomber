@@ -592,6 +592,246 @@ wrong bomb fizzles into his shield and costs time, not hearts.
 
 ---
 
+## 999. The Developer Dungeon (not part of the game)
+
+A test rig, not a Shrine. **Every room isolates one mechanic** so we can tune
+physics, bomb timings and readability in a clean space: no keys, no doors that
+depend on other rooms, nothing carried between rooms. Many rooms are written to
+**become** a real room later (the **Becomes** column names it); others are
+**toys** for feeling out how mechanics interact. It is **not counted** in the
+size budget above.
+
+### Rules of the rig
+
+- **Self-contained:** leaving a room resets it. No small keys, no crystal colour
+  or burned tiles carried over, no shared state. A **reset pad** (a warp tile
+  `>` back to the Lobby) sits by every door.
+- **Everything unlocked:** all five bombs, `4` live bombs, Bomb reach `2`, and a
+  toggle for infinite hearts. A room never needs an item to *reach* it.
+- **No enemies** unless the enemy *is* the mechanic (impact, splitting,
+  shields, punting, freezing, charging).
+- **Readable numbers:** a dev overlay shows hitboxes, velocity arrows, fuse
+  timers, blast outlines and grid coordinates on the floor. Each room lists the
+  **tuning knobs** it exercises (constants in `src/game/world.ts`, or planned
+  ones), and the dev build shows them as live sliders on that room's screen.
+- **Markers:** **1×** = solvable with one placed bomb (the cleanest timing
+  measurements); 🎯 = a puzzle meant to become a real room; 🧸 = a toy (no
+  win condition, just play); 📏 = a measuring rig.
+
+### Getting in (and the Easter egg)
+
+- **Dev builds:** `?dev=999` in the URL, or the settings panel's build stamp
+  tapped five times, warps to the Lobby.
+- **Easter egg (optional, after the credits):** a soot-black mousehole behind
+  the Coal Chute in Grandma's Basement. Entering shows a banner, not a voice
+  (Grandma stays the only one who speaks):
+
+  > **DUNGEON 999.** This is the developer dungeon, where the bombs were tuned.
+  > There's nothing to win in here. Honestly. Go outside.
+
+### Layout
+
+A **Lobby** in the middle, and one straight wing per bomb plus a combination
+wing and a toy wing. Rooms connect only by plain doorways back to their wing's
+corridor.
+
+```text
+            [Toys]   [Combos]
+               \       /
+   [Bomb] — [ LOBBY: Measuring Hall ] — [Fire]
+               /   |   \
+          [Wind] [Ice] [Rock]
+```
+
+**Lobby, the Measuring Hall** 📏: an empty `7 × 9` floor ruled in tiles, with
+numbered marks every tile from the centre. Stand on the centre mark and use any
+verb: the overlay reports roll distance, throw distance and arc height, kick and
+shove travel, blast reach, knockback, blast-jump distance and gust push, each
+against its constant. **Knobs:** `ROLL_DISTANCE`, `ROLL_DURATION`, `KICK_SPEED`,
+`THROW_LOB_VZ`, `BOMB_GRAVITY`, `BOMB_FRICTION`, `SHOVE_BOMB_SPEED`.
+
+### Part A: one bomb kind per room
+
+#### Movement (no bomb)
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A0.1 Roll Ruler** 📏 | Roll reach and i-frames | Spike strips `1`, `2` and `3` tiles wide; roll across each. The `3` should be too far. Spike *timing* traps for the i-frame window. | `ROLL_DISTANCE`, `ROLL_IFRAME_START/END`, `ROLL_RECOVERY` | Basement **Root Pantry** |
+| **A0.2 Buffer Lane** 📏 | Input forgiveness | A doorway that slams on a beat; tap roll or pull just before you can. Checks the buffered press still fires. | `INPUT_BUFFER_WINDOW` | 🧸 |
+
+#### Bomb (the starter)
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A1.1 Crack Gallery** 📏 1× | Blast reach | Cracked walls at `1`, `2` and `3` tiles from a fixed pad. Reach `1` breaks one; reach `2` breaks two; nothing breaks the third. | blast reach, `BLAST_CONTACT_PADDING` | 🧸 |
+| **A1.2 Over the Fence** 🎯 1× | Drop vs throw | A crystal behind a low fence (`=`). Dropping can't reach; a throw lobs over. | `THROW_LOB_VZ`, `KICK_SPEED` | Basement **Coal Chute** |
+| **A1.3 Bank Shot** 🎯 1× | Wall bounce | A crystal round a corner. Throw at the wall so the bomb bounces round into it. | `BOMB_WALL_BOUNCE`, `BOMB_FRICTION` | Ice Cave **Vault of Sparks** |
+| **A1.4 Chute Run** 🎯 1× | Slopes vs the fuse | Drop a bomb on the first chute tile; it rolls east, turns south, and must reach the crystal before its fuse ends (`11` tiles, tight on purpose). The crystal lowers the red barrier in the door. See the map below. | `SLOPE_ACCEL`, `SLOPE_MAX_SPEED`, `BOMB_FUSE` | Rock Quarry **Gravel Chutes** |
+| **A1.5 Pit Lip** 🎯 1× | Grounded vs airborne | A crystal across a `2`-tile pit. A dropped or rolled bomb falls in; a throw carries over. | `BOMB_GRAVITY`, pit swallow rule | 🧸 |
+| **A1.6 River Ferry** 🎯 1× | Water currents | Set a bomb on a current (`3`, east); it drifts downstream and must arrive at a cracked wall before it goes off. | `CURRENT_SPEED`, `BOMB_FUSE` | Wind Cliffs **Undertow** |
+| **A1.7 Block Nudge** 🎯 1× | Blast shoves blocks | A block one tile from a floor button; one blast behind it shoves it on. A second block shows a shove *into a wall* (nothing). | block shove distance | Fire Mountain **Ingot Press** (pre-glaze) |
+| **A1.8 Two Bombs, One Blast** 🎯 | Shove chains | Two bombs in a line: the first blast shoves the second (once-shoved) into a crystal; its own blast must still land. Shows the shove-then-detonate rule. | `SHOVE_BOMB_SPEED`, chain rule | Ice Cave **Crystal Crossroads** |
+| **A1.9 Held Door** 🎯 1× | Weight on a button | A shutter that stays open only while something weighs its button. A bomb on the button holds it for one fuse; walk through in time. | `BUTTON_CONTACT_RADIUS`, `BOMB_FUSE` | Basement **Cellar Stairs** |
+| **A1.10 Crate Plus** 🎯 1× | The `+` blast shape | Five crates in a `+`; the one bomb in the middle clears all five. A second layout needs reach `2`. | blast shape | 🧸 |
+| **A1.11 Knockback Ledge** 📏 | Self-blast knockback and splashback | Stand beside your own bomb next to a pit, a spike strip and open floor. Measures the `1`-tile push and the quarter-heart splashback. | knockback, splashback damage | 🧸 |
+| **A1.12 Impact Pin** 🎯 1× | Impact detonation (enemy) | One slime patrolling behind a fence; a thrown bomb that touches it goes off on contact. | impact radius, `KICK_SPEED` | 🧸 |
+
+#### Fire
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A2.1 One Brazier** 🎯 1× | Lighting | One brazier behind a fence; throw a Fire Bomb in range. | `FIRE_FUSE`, brazier light radius | Ice Cave **Alchemist Reliquary** |
+| **A2.2 Timed Pair** 🎯 | Timed braziers | Two braziers at opposite walls that each burn for `N` seconds; light both before the first goes out. | `timedSeconds`, travel time | Ice Cave **Frozen Hall** |
+| **A2.3 Ordered Three** 🎯 | Ordered braziers | Light I → II → III; a wrong one fizzles all. | order reset | Ice Cave **Hall of Three Flames** |
+| **A2.4 Fuse Lines** 📏 1× | Fire spread and its cap | Three lines of dry grass, `4`, `5` and `6` tiles long, each ending at a brazier (map below). Light each line's far end: fire must travel the line and light the brazier. At `MAX_FIRE_GENERATION = 6` the `6`-line should *just* make it. | `FIRE_SPREAD_INTERVAL`, `MAX_FIRE_GENERATION` | Overworld **Meadow Fields** |
+| **A2.5 Firebreak** 🎯 | What stops fire | A grass field with a crate you must *not* burn (it hides the button). Shallow water and stone are the breaks; plan a burn that stops short. | spread rules, `;` douses | 🧸 |
+| **A2.6 Melt Line** 🎯 1× | Ice blocks and brambles | A row of ice blocks and brambles; one Fire Bomb, placed right, clears the row by spreading. | burn / melt spread | Ice Cave **Entry Hall** |
+| **A2.7 Dark Room** 📏 | Light from fire | A dark room; a Fire Bomb's patch lights the room for `2.5 s`. Tune how far you can see and how long. | `FIRE_DURATION`, light radius | Ice Cave **Lantern Hall** |
+| **A2.8 Shield Strip** 🎯 | Burning shields (enemy) | One shielder; bombs bounce off its wooden shield until Fire burns it away. | shield rule | Ice Cave **Frozen Hall** |
+| **A2.9 Split Test** 🧸 | Fire splits slimes (enemy) | One big slime; Fire splits it, Bomb doesn't. | split rule | 🧸 |
+| **A2.10 Wet Fuse** 📏 | Fire in shallow water | Throw Fire Bombs onto floor, shallows and deep water; check which burn, fizzle or sink. | `;` douse rule | 🧸 |
+
+#### Wind (planned)
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A3.1 Jump Ruler** 📏 | Blast-jump reach | Gaps of `1`, `2`, `3` tiles and a one-tier ledge; jump each from beside a Wind Bomb. `2` and the ledge should work; `3` should not. | jump distance and height, Wind fuse `0.8 s` | 🧸 |
+| **A3.2 Sand Switch** 🎯 1× | Sand piles | A sand pile on a floor switch. A Bomb scatters it and it slumps back; one Wind Bomb clears it for good. | sand slump time | Rock Quarry **Lift Room** |
+| **A3.3 Terrace Up** 🎯 | Terraces | Drop down two ledges, then get back up with blast-jumps. | ledge rules | Rock Quarry **Lookout Steps** |
+| **A3.4 Fling** 🎯 | Launching a live bomb | A cracked wall across a `3`-tile chasm. Set a Bomb on the edge, pop Wind behind it. | launch distance, gust force | Rock Quarry **Gravel Seam** |
+| **A3.5 Early Pop** 📏 | Popping early | A moving target on a track; press A again to pop the Wind Bomb at the right moment. | early-pop input window | 🧸 |
+| **A3.6 Vane Gate** 🎯 1× | Wind-vane switches | A gate opened by spinning one vane. | vane spin threshold | Wind Cliffs **Vane Hall** |
+| **A3.7 Punt** 🎯 | Pushing enemies (enemy) | Slimes on a ledge above a pit; punt them in. | enemy push distance | 🧸 |
+
+#### Ice (planned)
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A4.1 Pond Bridge** 🎯 1× | Freezing water | A `3 × 3` freeze makes a path across a pond; it lasts until you leave. | freeze area | Wind Cliffs **Spray Steps** |
+| **A4.2 Crust Walk** 🎯 | Crusting lava | A lava field crossed one crust at a time. | crust area | Fire Mountain **Mountain Gate** |
+| **A4.3 Glaze Lane** 🎯 1× | Glazed crust | Crust a lava lane, throw a bomb onto it; it slides the whole lane into a crystal. | glaze friction | Fire Mountain **Lower Forge** |
+| **A4.4 Slide Stop** 🎯 | Blocks on glaze | Shove a block onto glaze; it slides until it hits the wall beside a button. | glaze friction, shove distance | Fire Mountain **Ingot Press** |
+| **A4.5 Jet Off** 🎯 1× | Putting out fire | A corridor of flame jets on a beat; Ice puts one out for good. | jet beat, snuff radius | Fire Mountain **Jet Gallery** |
+| **A4.6 Ice Weight** 🎯 | Freezing an enemy (enemy) | Freeze a slime into a pushable ice block and shove it onto a button. | freeze time `4 s` | 🧸 |
+| **A4.7 Still Water** 📏 | Freezing a current | A bomb drifting on a current; freeze the current to stop it on target. | freeze vs `CURRENT_SPEED` | 🧸 |
+
+#### Rock (planned)
+
+| Room | Tests | Setup and solve | Knobs | Becomes |
+|---|---|---|---|---|
+| **A5.1 Stepping Stone** 🎯 1× | Filling a gap | A one-tile channel; drop Rock in and walk across. | block size | Wind Cliffs **Echo Cave** |
+| **A5.2 Dead Weight** 🎯 1× | A block on a button | A button that must stay down; a Rock block holds it for good (a bomb only for one fuse; compare with A1.9). | — | 🧸 |
+| **A5.3 Windbreak** 🎯 | Calm air | A gust vent sweeps the room; a Rock block makes calm air where a bomb can sit. | gust force, calm area | Wind Cliffs **Gust Gallery** |
+| **A5.4 Beam Shield** 🎯 | Blocking a beam | An eye-beam turret sweeps across a door; a Rock block shadows you through. | beam sweep speed | Wind Cliffs **Ruined Watchtower** |
+| **A5.5 Backstop** 🎯 1× | Stopping a rolling bomb | A chute carries bombs past a button; a Rock block at the end stops one on it. | `SLOPE_MAX_SPEED` | 🧸 |
+| **A5.6 One At A Time** 📏 | The one-block rule | Two buttons, one Rock block: making a second crumbles the first. Feel out whether the rule reads. | block limit | 🧸 |
+| **A5.7 Charger** 🎯 | Dazing a charge (enemy) | A charging enemy; raise Rock in its path, then bomb it dazed. | daze time | Iron Tower **Knight's Hall** |
+
+### Part B: combinations of bombs
+
+Every room needs **two or more bomb kinds**, and each pairing appears at least
+once, so the "only the obvious interactions" rule (`GAME.md` §4) is tested as
+a whole.
+
+| Room | Bombs | Setup and solve | Becomes |
+|---|---|---|---|
+| **B1 Crate Cache** 🎯 | Bomb + Fire | A crate hides a cracked wall; burn the crate (Fire), then break the wall (Bomb). | 🧸 |
+| **B2 Fire Fling** 🎯 | Fire + Wind | A brazier across a chasm: set a Fire Bomb on the edge, pop Wind behind it. | Fire Mountain **Bellows Room** |
+| **B3 Sunken Switch** 🎯 | Ice + Fire | Freeze a pond, shove a block across, melt the tile under it so it sinks onto a submerged button. | Fire Mountain **Slag Pool** |
+| **B4 Pillar Hop** 🎯 | Rock + Wind | A `4`-tile chasm: raise a Rock pillar mid-chasm, blast-jump onto it and off again. | Iron Tower **Rubble Chasm** |
+| **B5 Glaze Backstop** 🎯 | Ice + Rock | A sliding block on glaze overshoots its button; a Rock block makes it stop on it. | Iron Tower **Glaze Works** |
+| **B6 Spray Climb** 🎯 | Ice + Wind | Freeze sea spray into a ledge, then blast-jump up from it. | Wind Cliffs **Spray Steps** |
+| **B7 Shielded Flame** 🎯 | Fire + Rock | A brazier sits in a gust that blows out flames; windbreak first, then light it. | Iron Tower **Frozen Gust** |
+| **B8 Gust Delivery** 🎯 | Bomb + Wind | Let a vent's gust carry a live Bomb round a corner to a cracked wall. | Wind Cliffs **Sea Cave Mouth** |
+| **B9 Shatter** 🎯 | Bomb + Rock | A Rock block you placed now blocks the exit; a Bomb shatters it. | 🧸 |
+| **B10 Ice Smash** 🎯 | Bomb + Ice | Freeze a slime, shove it into a crystal; the blast that shatters it toggles the crystal. | 🧸 |
+| **B11 Steam Door** 🎯 | Fire + Ice | A frozen door and a lit brazier both block the way: melt one, snuff the other. | 🧸 |
+| **B12 Four Sockets** 🎯 | All four elements | One door, four sockets: set each off with its own bomb. | Iron Tower **Last Door** |
+| **B13 Sorcerer Rehearsal** 🧸 | All four | A dummy that cycles Fire, Wind, Ice, Rock on a fixed beat; answer each with its counter. Tune the windows and tells without the full boss. | Iron Tower **Sorcerer's Roof** |
+
+### Toys
+
+| Room | What it's for |
+|---|---|
+| **Bowling Alley** 🧸 | A long chute ending in ten crates set as pins; kick bombs down it. Tunes slope speed, bounce and blast feel. |
+| **Pinball Table** 🧸 | Slopes, walls and fences arranged like a table; throw and watch bombs carom. Tunes bounce and friction. |
+| **Firework Field** 🧸 | A big field of dry grass; drop Fire anywhere. Shows the spread rate and the generation cap at a glance. |
+| **Wind Tunnel** 🧸 | Four vents in a square; set bombs, blocks and sand anywhere and watch them drift. Tunes gust force. |
+| **Skating Rink** 🧸 | All glaze; throw bombs and shove blocks and watch them slide. Tunes glaze friction. |
+| **Stress Hall** 🧸 | `4` live bombs, chain reactions, fire, particles at their cap (`600`); the frame-rate check on a phone. |
+| **Lighting Lab** 🧸 | A dark room holding one of every light (brazier, fire patch, fuse spark, lantern, warp pad) next to water. Tunes radii, intensity and reflections. |
+
+### Two rooms as tile maps
+
+**A1.4 Chute Run.** Stand at `(2,2)` and drop a Bomb onto the first chute tile:
+it rolls `4` tiles east, then `7` south into the crystal `C`, whose blast drops
+the red barrier `R` in the south door.
+
+```text
+#####.#####
+#####.#####
+##.eeees.##
+##=====s.##
+##.....s.##
+##.....s.##
+##.....s.##
+##.....s.##
+##.....s.##
+##.....C.##
+##.......##
+#####R#####
+#####.#####
+```
+
+**A2.4 Fuse Lines.** Three grass lines (`4`, `5`, `6` tiles), each ending at a
+brazier `T` on the west wall, fenced off from the lane in row `6`. Stand in the
+lane, throw a Fire Bomb over the fence onto each line's east end, and watch which
+braziers light.
+
+```text
+###########
+###########
+##T,,,,..##
+##=======##
+##T,,,,,.##
+##=======##
+...........
+##=======##
+##T,,,,,,##
+##=======##
+##.......##
+#####.#####
+#####.#####
+```
+
+### Mechanic coverage
+
+Every mechanic has a room, and every room has one mechanic:
+
+| Mechanic | Rooms |
+|---|---|
+| Roll, i-frames, input buffer | A0.1, A0.2, Lobby |
+| Drop, throw, bounce, friction, gravity | A1.2, A1.3, A1.5, Lobby, Pinball |
+| Blast reach and shape, cracked walls, crates | A1.1, A1.10 |
+| Crystal switches and barriers | A1.2, A1.4, A1.8 |
+| Slopes and chutes | A1.4, A5.5, Bowling |
+| Pits, water, currents | A1.5, A1.6, A4.7 |
+| Shoving blocks and bombs, chains | A1.7, A1.8, A4.4 |
+| Buttons, held doors, weights | A1.9, A5.2, A5.6 |
+| Self knockback and splashback | A1.11 |
+| Impact detonation | A1.12 |
+| Braziers (lit, timed, ordered) | A2.1, A2.2, A2.3 |
+| Fire spread, firebreaks, ice and brambles | A2.4, A2.5, A2.6, Firework Field |
+| Dark rooms and light | A2.7, Lighting Lab |
+| Enemy rules (shield, split, punt, freeze, charge) | A2.8, A2.9, A3.7, A4.6, A5.7 |
+| Blast-jump, terraces, fling, early pop | A3.1, A3.3, A3.4, A3.5 |
+| Sand piles, vanes, gusts, windbreaks | A3.2, A3.6, A5.3, Wind Tunnel |
+| Freezing water and lava, glaze, snuffing jets | A4.1, A4.2, A4.3, A4.5, Skating Rink |
+| Rock: stepping stones, beams, backstops, the one-block rule | A5.1, A5.4, A5.5, A5.6 |
+| Every pair of bombs, and all four | B1–B13 |
+| Performance | Stress Hall |
+
+
 ## Build order
 
 0. **Grandma's Basement (Dungeon Zero):** Mouse House interior (`Room 0`) and
