@@ -173,7 +173,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.bombs).toHaveLength(1);
     expect(s.torches.some((t) => t.lit)).toBe(false);
     expect(isRoomLit(world, s)).toBe(false);
-    stepSeconds(world, s, 1.15);
+    stepSeconds(world, s, FIRE_FUSE - 0.15);
     expect(s.torches.some((t) => t.lit)).toBe(true);
     expect(isRoomLit(world, s)).toBe(true);
 
@@ -193,7 +193,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         equipBomb(s, 'fire');
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
         kickA(world, s, s.aimX, s.aimY);
-        stepSeconds(world, s, 1.45);
+        stepSeconds(world, s, FIRE_FUSE + 0.15);
         equipBomb(s, 'bomb');
       }
       const target = s.enemies[0];

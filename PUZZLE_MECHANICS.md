@@ -123,7 +123,7 @@ Compositions are written as Rube Goldberg chains:
 | **Platform, cycling** | moves on a fixed loop across pits/lava | — | ✅ | Ride it across pits, or set a live bomb / metal block on it and let it deliver. **Rule: never used in Wind Cliffs**—combining cross-gusts with moving platforms over pits is pure frustration; keep moving platforms in calm-air rooms. |
 | **Platform, triggered** | moves when a signal arrives, then stays or returns | any source | ✅ | A sink: "light the brazier and the ferry platform slides across". **Never used in Wind Cliffs** (same anti-frustration rule). |
 | **Fan / gust vent** | a steady wind lane in one direction | always on, or switched on/off | ✅ | Carries bombs, sand and light props; Pip walks normally. A **Rock block** creates calm air in its lee. |
-| **Wind Bomb (`3 × 3` gust + `2.5 s` whirlwind)** | instant `3 × 3` push + `2.5 s` centre vortex (or early A-pop) | — | ✅ | Instant pop blast-jumps Pip `2` tiles / up `1` tier, clears sand and slides frozen cubes; the **`2.5 s` lingering whirlwind** catapults any Bomb thrown/dropped into it `3–4` tiles downwind across wide chasms. |
+| **Wind Bomb (`3 × 3` gust + `5 s` whirlwind)** | instant `3 × 3` push + `5 s` centre vortex (or early A-pop) | — | ✅ | Instant pop blast-jumps Pip `2` tiles / up `1` tier, clears sand and slides frozen cubes; the **`5 s` lingering whirlwind** catapults any Bomb thrown/dropped into it `3–4` tiles downwind across wide chasms. |
 | **Vertical drop shaft** | harmlessly drops Pip, crates, spheres or bombs to `(x, y)` on the floor below | `%` floor plug (optional) | ✅ | Distinct from a Pit (`^`): Rock Quarry's `Rim Crossing` hub shaft and `Upper Terrace` drop. |
 | **Blowhole** | a gust straight up, between floors | — | ✅ | Wind Cliffs' room 6: throw a bomb into the vent on `1F` to flip a switch on `2F` before you ever climb there. |
 | **Lift** | carries Pip (and objects on its platform) between floors | a switch (often sand-buried or magnetic) | ✅ | Rock Quarry's cargo lift (`1F ↔ 2F`) and Iron Tower's central spine. |
@@ -136,7 +136,7 @@ Compositions are written as Rube Goldberg chains:
 | **Push block (`P`, stone)** | **Bomb blasts** shove it `1` tile (slides on glaze) | ✅ | *Zelda 1*'s push block, moved by explosions rather than walking. Non-magnetic, anchored against wind. |
 | **Metal block & Iron sphere** | **Magnet Bomb** pulls it `1–2` tiles toward itself while ticking; Bomb blast shoves it; sphere rolls down chutes & slides on glaze | ✅ | *Seasons*' Magnetic Gloves + *Breath of the Wild*'s metal cubes/balls, actuated by a placed **Magnet Bomb**: pull an iron sphere off a pedestal onto a chute, or drag a metal block across a `1`-tile rail gap onto a floor button. |
 | **Rock block** | made by a Rock Bomb (`1` active at a time); shattered by Bomb; **anchored against wind, currents & magnets** | ✅ | *A Link to the Past*'s Cane of Somaria block, as a bomb: a weight, a glaze backstop, a `1`-tile stepping stone, a windbreak, a current dam, a dive-stopper. Making a second crumbles the first. |
-| **Brass Beetle (Clockwork Creature)** | marches toward a chirping **Squeak Bomb**; dazed `2.5 s` by Squeak pop; frozen `4 s` into a sliding ice cube by **Ice** | ✅ | Replaces erratic slimes/bats: a wind-up beetle with twitching brass antennae. Lure it onto a distant floor button behind a fence with a **Squeak Bomb**, or freeze it mid-march with **Ice** and kick/gust the ice cube onto a switch. |
+| **Brass Beetle (Clockwork Creature)** | marches toward a chirping **Squeak Bomb**; dazed `5 s` by Squeak pop; frozen `8 s` into a sliding ice cube by **Ice** | ✅ | Replaces erratic slimes/bats: a wind-up beetle with twitching brass antennae. Lure it onto a distant floor button behind a fence with a **Squeak Bomb**, or freeze it mid-march with **Ice** and kick/gust the ice cube onto a switch. |
 | **Mimic Statue (Armos)** | copies each tile step Pip takes (`N/S/E/W`) if its own way is free, or marches toward a **Squeak Bomb** | ✅ | *Oracle* Crown Dungeon / Explorer's Crypt mimic statues: guide it onto a twin button across a fence, or break synchronization by luring it with a Squeak Bomb while Pip walks free. |
 | **Rail Tortoise / Iron Roller** | marches back and forth along a fixed track; **Magnet Bomb** pulls/stalls its iron shell; **Rock** blocks and reverses it | ✅ | A mobile iron shield and moving backstop on a predictable beat. |
 | **Pack-Otter (Fuse-Carrier)** | snatches a bomb dropped by its runnel and carries it through a mousehole/pipe to a far chamber | ✅ | Crescent Cove's mischievous otters turned into a Rube Goldberg delivery partner. |
@@ -146,7 +146,7 @@ Compositions are written as Rube Goldberg chains:
 
 Every bomb has a sharp, non-overlapping primary job in the Rube Goldberg kit:
 
-| Target | 0. Bomb | 1. Fire | 2. Squeak (`2.5 s` lure) | 3. Wind (`0.8 s` + vortex) | 4. Magnet (`1.5 s` pull) | 5. Ice (`3 × 3`) | 6. Rock (`1.0 s`) |
+| Target | 0. Bomb | 1. Fire | 2. Squeak (`5 s` lure) | 3. Wind (`1.6 s` + vortex) | 4. Magnet (`3 s` pull) | 5. Ice (`3 × 3`) | 6. Rock (`2 s`) |
 |---|---|---|---|---|---|---|---|
 | **Cracked `%` wall/floor** | **Breaks** | — | — | — *(catapults Bomb)* | — *(pulls Bomb in)* | — | — |
 | **Wooden crate `W` / Rope** | **Breaks crate** | **Burns crate & rope** | — | — | — | — | — |
@@ -160,11 +160,11 @@ Every bomb has a sharp, non-overlapping primary job in the Rube Goldberg kit:
 | **Stone Push block `P`** | **Shoves `1` tile** | — | — | — | — | — | Backstop |
 | **Metal block / Iron sphere** | **Shoves `1` tile** | — | — | — | **Pulls `1–2` tiles toward bomb** | Slides on glaze | Backstop |
 | **Rock block** | **Shatters** | — | — | Blocked (windbreak!) | — | — | **Spawns** (crumbles old) |
-| **Clockwork Creature** | Shoves / triggers | — | **Lures (`2.5 s`) & dazes (`2.5 s`)** | Punts / slides frozen | Pulls Iron Tortoise | **Freezes `4 s` into ice cube** | Blocks path / reverses |
+| **Clockwork Creature** | Shoves / triggers | — | **Lures (`5 s`) & dazes (`5 s`)** | Punts / slides frozen | Pulls Iron Tortoise | **Freezes `8 s` into ice cube** | Blocks path / reverses |
 
 > **Open questions (for Dungeon 999 prototyping):**
 > 1. **Magnet Bomb pull timing:** Should the Magnet Bomb pull aligned metal
->    blocks / iron spheres / live iron Bombs **continuously** while its `1.5 s`
+>    blocks / iron spheres / live iron Bombs **continuously** while its `3 s`
 >    fuse ticks (letting you pull a rolling bomb sideways mid-chute!), or in two
 >    discrete `1`-tile tugs (on land + on pop)? Continuous pull with visible
 >    magnetic field arcs feels much more physical and Rube Goldberg.
@@ -173,7 +173,7 @@ Every bomb has a sharp, non-overlapping primary job in the Rube Goldberg kit:
 >    *(Letting only Pip and the mouse-shaped Squeak Bomb pass through mouseholes
 >    is a great thematic fit!)*
 > 3. **Moving a frozen creature (`Dev A4.6`):** Confirm in Dungeon 999 that once
->    **Ice** freezes a Brass Beetle into a `4 s` ice cube, Pip can **walk/roll-kick**
+>    **Ice** freezes a Brass Beetle into an `8 s` ice cube, Pip can **walk/roll-kick**
 >    it (sliding it across floor/glaze onto a button), while `Bomb` or `Fire`
 >    shatters/thaws it.
 
@@ -187,7 +187,7 @@ Every bomb has a sharp, non-overlapping primary job in the Rube Goldberg kit:
 | **Iron Polarity switch (`N/S`)** | flips magnetic rails, iron gates, or crane magnets | **Magnet Bomb** polarity pulse | ✅ | Gives the Magnet Bomb its own dedicated circuit switch that blasts can't brute-force. |
 | **Brazier / torch (`T`)** | lit ↔ out; can be **timed** or **ordered** (`I → II → III`) | Fire lights; Ice puts out; gust lanes block | ✅ | *Oracle* torches lit with Fire or by a burning `,` grass fuse line arriving on a delay. |
 | **Fuse line (`,`)** | burns from one end to the other, then fires its end | Fire at either end | ✅ | The visible timing wire of a Rube Goldberg room: light a long powder/grass trail, then run or set up the next stage while the spark travels. |
-| **Wind vane** | spins while in a gust or `2.5 s` whirlwind | gust vents, Wind Bomb | ✅ | A switch only moving air can press (`Wind Cliffs Vane Hall`, `Iron Tower Gate`). |
+| **Wind vane** | spins while in a gust or `5 s` whirlwind | gust vents, Wind Bomb | ✅ | A switch only moving air can press (`Wind Cliffs Vane Hall`, `Iron Tower Gate`). |
 | **Toggle lever / latching switch** | each strike flips on ↔ off | blast or sphere impact | 🤔 | If needed beyond `Crystal switch` (`C`) and `Polarity switch`, render as a distinct iron **lever**, never a second floor button. |
 
 ### Logic (between sources and sinks)
@@ -219,7 +219,7 @@ Every bomb has a sharp, non-overlapping primary job in the Rube Goldberg kit:
 
 | Primitive | Status | Notes |
 |---|:-:|---|
-| **Dark room** | ✅ | Lit by braziers or a burning `2.5 s` Fire patch (`Pip`'s moon-ivory lantern keeps immediate footing visible). The Ice Cave's Wraith is translucent and immune in the dark until lured into or caught by brazier light. |
+| **Dark room** | ✅ | Lit by braziers or a burning `5 s` Fire patch (`Pip`'s moon-ivory lantern keeps immediate footing visible). The Ice Cave's Wraith is translucent and immune in the dark until lured into or caught by brazier light. |
 | **Light sources** | ✅ | Braziers, fire patches, fuse sparks, magnetic arcs, blast flashes, warp pads, Pip's lantern; the HD-2D lighting shader gives each a real shadow-casting pool of light. |
 
 ## Rube Goldberg Compositions

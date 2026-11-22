@@ -76,8 +76,8 @@ chamber (`1 × 2` or `2 × 1`) to open the exit altar.
 | ID | Shrine & Overworld `(x,y)` | Button Gate | Bomb Unlocked | Size | Trial Name & Rube Goldberg Solve |
 |:-:|---|:-:|---|:-:|---|
 | **R1** | **Hearth Vault** `(4,6)` *(Bramble Woods)* | **`2` Buttons** | **Fire Bomb** | `1 × 2` | *"The Travelling Spark"* — Part 1: throw Fire over a fence to light a `,` grass fuse line that burns around a corner to a brazier. Part 2: burn a hanging cage's rope so an iron weight drops onto a floor switch while a second fuse line lights a timed brazier in tandem. |
-| **R2** | **Chime Grotto** `(4,7)` *(Frost Hollow)* | **`5` Buttons** | **Squeak Bomb** | `2 × 1` | *"Follow the Chirp"* — Part 1: throw a Squeak Bomb over a balustrade to lure a Brass Beetle off a blocker tile onto a floor button, holding it with the `2.5 s` daze puff. Part 2: alternate two Squeak Bombs along an L-corridor to guide a Mimic Statue through a maze onto a permanent latch plate. |
-| **R3** | **Bellows Sanctum** `(2,4)` *(Quarry Hills)* | **`10` Buttons** | **Wind Bomb** | `1 × 2` | *"Eye of the Gale"* — Part 1: blast-jump up terraced ledges and blow a sand pile off a floor button. Part 2: pop a Wind Bomb on a chasm lip to leave a **`2.5 s` whirlwind vortex**, then throw a plain Bomb into the vortex to catapult it `4` tiles across the pit into a crystal switch. |
+| **R2** | **Chime Grotto** `(4,7)` *(Frost Hollow)* | **`5` Buttons** | **Squeak Bomb** | `2 × 1` | *"Follow the Chirp"* — Part 1: throw a Squeak Bomb over a balustrade to lure a Brass Beetle off a blocker tile onto a floor button, holding it with the `5 s` daze puff. Part 2: alternate two Squeak Bombs along an L-corridor to guide a Mimic Statue through a maze onto a permanent latch plate. |
+| **R3** | **Bellows Sanctum** `(2,4)` *(Quarry Hills)* | **`10` Buttons** | **Wind Bomb** | `1 × 2` | *"Eye of the Gale"* — Part 1: blast-jump up terraced ledges and blow a sand pile off a floor button. Part 2: pop a Wind Bomb on a chasm lip to leave a **`5 s` whirlwind vortex**, then throw a plain Bomb into the vortex to catapult it `4` tiles across the pit into a crystal switch. |
 | **R4** | **Lodestone Vault** `(1,5)` *(Quarry Hills)* | **`15` Buttons** | **Magnet Bomb** | `2 × 1` | *"Pull of the Rail"* — Part 1: roll a Bomb down a stone chute and place a Magnet Bomb behind a fence to pull the rolling bomb sideways mid-chute into a cracked `%` wall. Part 2: throw a Magnet Bomb onto a curved magnetic rail so its moving field drags an iron sphere across a parallel trench onto a socket. |
 | **R5** | **Rime Well** `(8,4)` *(River Valley)* | **`21` Buttons** | **Ice Bomb** | `1 × 2` | *"Stop the Stream"* — Part 1: set a Bomb floating down a fast water current, then throw an Ice Bomb to freeze the current mid-drift so the bomb stops and detonates right beside a shore crystal. Part 2: crust a lava pool into slick **glaze**, freeze a Brass Beetle into an ice cube, and kick-slide it across the glaze onto a switch. |
 | **R6** | **Cairn Sanctum** `(1,2)` *(Wind Cliffs)* | **`28` Buttons** | **Rock Bomb** | `2 × 1` | *"The Portable Wall"* — Part 1: drop a Rock block as a curling backstop on a glazed lane so a blast-shoved block stops dead on a center button. Part 2: place a Rock windbreak inside a howling gust lane so a Fire Bomb can light a brazier in its calm lee without blowing away. |
@@ -118,7 +118,7 @@ single-room Rube Goldberg puzzle box (`1 × 1` to `2 × 2` scrolling).
 
 | ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
 |:-:|:-:|---|---|:-:|---|
-| **T13** | `(2,3)` Gravel Flats | *"Whirlwind Artillery"* | Bomb + Wind | `1 × 2` | Pop a Wind Bomb on a high terrace to create a `2.5 s` whirlwind vortex, then throw two Bombs into it at different angles to blast two distant `%` pillars across a `4`-tile chasm. |
+| **T13** | `(2,3)` Gravel Flats | *"Whirlwind Artillery"* | Bomb + Wind | `1 × 2` | Pop a Wind Bomb on a high terrace to create a `5 s` whirlwind vortex, then throw two Bombs into it at different angles to blast two distant `%` pillars across a `4`-tile chasm. |
 | **T14** | `(0,4)` Dust Bowl | *"Buried Circuit"* | Fire + Wind | `2 × 1` | Blow three sand piles clear with Wind to expose a buried `,` powder fuse trail linking three timed braziers, then ignite the center of the trail with one Fire Bomb so all three light at once. |
 | **T15** | `(2,5)` Sand Dunes | *"Updraft Delivery"* | Squeak + Wind | `1 × 2` | Catapult a Squeak Bomb across a `4`-tile pit via a Wind whirlwind so it lands inside a distant pen and lures a Brass Beetle onto the bridge release switch. |
 | **T16** | `(0,6)` Deep Seam | *"Hop the Flip"* | Bomb + Wind | `1 × 2` | Drop a Bomb on a slow chute toward crystal `C`, blast-jump up two terrace tiers with Wind while the bomb rolls, and cross the upper `U` barrier right as `C` flips below. |
@@ -197,7 +197,7 @@ harmlessly off its shell, and it refuses to step onto the room's central furnace
 grate on its own.
 - **Solve (2 cycles):** Throw a **Squeak Bomb** onto the central furnace grate
   to lure the Golem's clockwork core over the vents (dazing it in place for
-  `2.5 s`), ignite the furnace grate with a **Fire Bomb** to melt its glacier
+  `5 s`), ignite the furnace grate with a **Fire Bomb** to melt its glacier
   armour off, and drop a **Bomb** to crack its bare core.
 
 #### Boss: Ice Wraith (Room 10)
@@ -217,7 +217,7 @@ immune while the room is dark.
 
 **Macro gimmick:** you enter on the quarry **rim (`2F`)** above a great central
 **drop shaft (`5 → 8`)** looking down into the **pit (`1F`)**. In Act 1 you drop
-down terraces and shafts into the pit; **Wind** (blast-jumps + `2.5 s`
+down terraces and shafts into the pit; **Wind** (blast-jumps + `5 s`
 whirlwinds) and **Magnet** (magnetic crane rails + iron spheres) power the cargo
 lift back up in Act 2.
 
@@ -236,7 +236,7 @@ y2  [ 2] == [ 1] == [ 3]^        y2   .     [14] == [15]^
 |:-:|---|---|---|
 | 1 | Quarry Gate | `2F (1,2)` | Terraces step down from the entrance; a sand-buried switch beside the east shutter waits for **Wind** to open the shortcut from 3. |
 | 2 | Sand Hall | `2F (0,2)` | Burn scaffold ropes with **Fire** and pull an iron counterweight with **Magnet** to unseal **Small Key 1**; blowing the west sand wall clear with **Wind** reveals the quarry's **Grandma's Button**. |
-| 3 | Pulley Top | `2F (2,2)` | Where 15's cargo lift arrives on `2F`. Pop a **Wind Bomb** on the south lip to leave a `2.5 s` whirlwind, then throw a **Magnet Bomb** into it so it catapults across a `3`-tile pit onto a mag-rail and pulls the shutter latch open. |
+| 3 | Pulley Top | `2F (2,2)` | Where 15's cargo lift arrives on `2F`. Pop a **Wind Bomb** on the south lip to leave a `5 s` whirlwind, then throw a **Magnet Bomb** into it so it catapults across a `3`-tile pit onto a mag-rail and pulls the shutter latch open. |
 | 4 | Upper Terrace | `2F (0,1)` | Unlocked by **L1**. Blast-jump up a terrace with **Wind**, pull an iron sphere off a ledge with **Magnet** onto a chute so it smashes a cracked floor plug (`%`), and drop through the new shaft to 9. |
 | 5 | Rim Crossing (hub) | `2F (1,1)` | A walkway ringing the central drop shaft down to 8; east is a `2`-tile gap crossable by **Wind** blast-jump once the east crane rail is aligned from below. |
 | 6 | Lookout Steps | `2F (2,1)` | Four terraces stepping up north to the **Boss Door (`K`)**; clear sand off each landing with **Wind** while pulling an iron shield-block along a vertical mag-rail with **Magnet** to block falling boulders. |
@@ -246,7 +246,7 @@ y2  [ 2] == [ 1] == [ 3]^        y2   .     [14] == [15]^
 | 10 | Sand Cellar | `1F (0,0)` | A dark cellar: blow sand off two magnetic floor sockets with **Wind**, pull iron braziers onto them with **Magnet**, and light both with **Fire** for **Small Key 2**. |
 | 11 | Quarry Face | `1F (1,0)` | An optional 3-tier cliff puzzle combining a **Wind** whirlwind catapult and a **Magnet** rail to open a shortcut back to 5. |
 | 12 | Scaffold Stack | `1F (2,1)` | Unlocked by **L2**. Burn scaffold supports with **Fire** to drop an iron sphere onto a rail, pull it onto a button with **Magnet** for **Small Key 3**, and flip crystal `C` to lower the blue barrier in 8 (exposing **L3**). |
-| 13 | Gravel Seam | `1F (2,0)` | Blast-jump the north chasm from 12 with **Wind**, catapult a Bomb via a `2.5 s` whirlwind into a `%` wall, and pulse an iron polarity switch with **Magnet** for the **Boss Key**. |
+| 13 | Gravel Seam | `1F (2,0)` | Blast-jump the north chasm from 12 with **Wind**, catapult a Bomb via a `5 s` whirlwind into a `%` wall, and pulse an iron polarity switch with **Magnet** for the **Boss Key**. |
 | 14 | Foreman's Den | `1F (1,2)` | Unlocked by **L3**. A prelude crane-rail puzzle where you align the gantry tracks leading east into the Miniboss hall. |
 | 15 | Lift Room | `1F (2,2)` | **Miniboss Living Gate: Mole Foreman** (below). Solved with **Magnet + Wind + Bomb**; unlocks the **midpoint warp pad** and starts the cargo lift up to 3. |
 
@@ -314,7 +314,7 @@ Prowls a lava-ringed quench basin wreathed in white-hot flame that vaporizes
 ordinary Bombs before they can touch it.
 - **Solve (2 cycles):** Crust the lava lane in front of it into slick **glaze**
   with an **Ice Bomb**, catch the salamander in an **Ice Bomb** nova to quench
-  its white-hot aura for `4 s`, and throw/slide a **Bomb** across the glazed
+  its white-hot aura for `8 s`, and throw/slide a **Bomb** across the glazed
   crust straight into its cooled scales.
 
 #### Boss: Lava Drake (Room 19)
@@ -448,7 +448,7 @@ then hit him with a plain **Bomb** while stunned:
 | **Wind** | Gale barrier that blows bombs away | **Rock Bomb** | Spawns an anchored stone windbreak; a Bomb dropped in its lee detonates beside him |
 | **Magnet** | Orbiting iron spheres that deflect blasts | **Magnet Bomb** | Pulls his own iron spheres out of orbit and slams them back into his barrier |
 | **Ice** | Glazes the roof so bombs slide past him | **Fire Bomb** | Melts the glaze and shatters his frost ward |
-| **Rock** | Surrounds himself with stone ramparts | **Wind Bomb** | Leave a `2.5 s` whirlwind vortex to catapult a Bomb right over his ramparts into his sanctum |
+| **Rock** | Surrounds himself with stone ramparts | **Wind Bomb** | Leave a `5 s` whirlwind vortex to catapult a Bomb right over his ramparts into his sanctum |
 
 ---
 
@@ -523,7 +523,7 @@ Building real rooms forced four engine decisions, now in the game:
 | **8** | **Catch It in the Gale** `(4, 0)` | Fire + Rock | `R6`, `T28` | In the east gale every bomb drifts until something stops it. A Rock block downwind of each brazier catches the Fire Bomb under it. | Fire under a brazier on its own blows past. |
 | **9** | **Eye of the Gale** `(1, 1)` | Bomb + Wind | `R3`, `T13` | A Wind Bomb blast-jumps Pip over the fence onto the lip. A second one's whirlwind catapults a thrown Bomb over the chasm into the crystal, which lowers the double `R` to the plate. | A plain throw from the lip falls into the chasm. |
 | **10** | **Follow the Chirp** `(2, 1)` | Squeak | `R2`, `T08` | A Squeak Bomb lures the Brass Beetle from only `4.5` tiles, so it takes a relay: one chirp to the middle, one on the plate. | A chirp on the plate alone is out of earshot. |
-| **11** | **Tortoise Time** `(3, 1)` | Ice | Tier 6 trial | The patrolling Iron Tortoise holds the switch for about a second per crossing, too short to run six gates. Freeze it on the switch for `4 s`. | Waiting at the gates for a crossing. |
+| **11** | **Tortoise Time** `(3, 1)` | Ice | Tier 6 trial | The patrolling Iron Tortoise holds the switch for about a second per crossing, too short to run six gates. Freeze it on the switch for `8 s`. | Waiting at the gates for a crossing. |
 
 ### 4. How the rig keeps rooms honest
 

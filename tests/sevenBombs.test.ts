@@ -85,9 +85,9 @@ describe('Seven-bomb mechanics in the proving-ground rooms', () => {
     expect(topTorch()).toBe(true);
   });
 
-  it('A3 (1, 0): Wind Bomb (0.8s fuse) blast-jumps Pip across a 2-tile gap and leaves a 2.5s whirlwind vortex that catapults a thrown Bomb across a 3-tile chasm', () => {
+  it('A3 (1, 0): Wind Bomb (1.6s fuse) blast-jumps Pip across a 2-tile gap and leaves a 5s whirlwind vortex that catapults a thrown Bomb across a 3-tile chasm', () => {
     const s = newState(world, 'dungeon-999', 1, 0, 3.5, 3.5);
-    expect(BOMB_FUSES.wind).toBe(0.8);
+    expect(BOMB_FUSES.wind).toBe(1.6);
     equipBomb(s, 'wind');
     s.fx = 1;
     s.fy = 0;
@@ -114,10 +114,10 @@ describe('Seven-bomb mechanics in the proving-ground rooms', () => {
     expect(s.x).toBeGreaterThan(6.0);
     expect(isButtonPressed(world, s, 7, 3)).toBe(false);
 
-    // Verify a 2.5s lingering whirlwind vortex was spawned
+    // Verify a 5s lingering whirlwind vortex was spawned
     const vortex = s.gusts.find((g) => g.vortex);
     expect(vortex).toBeDefined();
-    expect(vortex!.remaining).toBeGreaterThan(2.0);
+    expect(vortex!.remaining).toBeGreaterThan(4.5);
 
     // 2. Spawn a whirlwind vortex at (3.5, 8.5) facing East across the 3-tile chasm (x=4..6, y=8)
     s.gusts = [];
@@ -169,14 +169,14 @@ describe('Seven-bomb mechanics in the proving-ground rooms', () => {
       vy: 0,
       z: 0,
       vz: 0,
-      fuse: 2.2,
+      fuse: 4.4,
       graceOverlap: false,
       shoveCount: 0,
     });
-    stepSeconds(world, s, 0.85);
+    stepSeconds(world, s, 1.7);
     const drifting = s.bombs[0]!;
     expect(drifting.x).toBeGreaterThan(5.2);
-    expect(drifting.vx).toBeGreaterThan(1.0);
+    expect(drifting.vx).toBeGreaterThan(0.5);
 
     // Detonate an Ice Bomb on (Math.floor(drifting.x), 4) to freeze the 3x3 water current patch
     const freezeCx = Math.floor(drifting.x);

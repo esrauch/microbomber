@@ -43,7 +43,7 @@ export type {
 export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
 export const SPEED = 3.15; // tiles / second
 export const BOMB_FUSE = 3.0; // seconds
-export const FIRE_FUSE = 1.3; // seconds
+export const FIRE_FUSE = 2.6; // seconds
 export const ALL_BOMBS: readonly BombKind[] = [
   'bomb',
   'fire',
@@ -56,15 +56,19 @@ export const ALL_BOMBS: readonly BombKind[] = [
 export const BOMB_FUSES: Record<BombKind, number> = {
   bomb: BOMB_FUSE,
   fire: FIRE_FUSE,
-  squeak: 2.5,
-  wind: 0.8,
-  magnet: 1.5,
-  ice: 1.3,
-  rock: 1.0,
+  squeak: 5.0,
+  wind: 1.6,
+  magnet: 3.0,
+  ice: 2.6,
+  rock: 2.0,
 };
+// Lingering effects run long so a room is about planning, not reflexes
+export const SQUEAK_DAZE = 5.0; // seconds a Squeak pop dazes nearby creatures
+export const WHIRLWIND_DURATION = 5.0; // seconds a Wind Bomb's whirlwind lingers
+export const FREEZE_DURATION = 8.0; // seconds an Ice Bomb keeps a creature frozen
 /** Heart Pieces (quarters) that make one more heart. */
 export const HEART_PIECES_PER_HEART = 4;
-export const FIRE_DURATION = 2.5; // seconds a Fire hearth patch burns
+export const FIRE_DURATION = 5.0; // seconds a Fire hearth patch burns
 export const BOMB_COOLDOWN = 0.7; // seconds between placing new bombs
 export const ROLL_DURATION = 0.25; // seconds in dodge roll
 export const ROLL_DISTANCE = 2.0; // tiles covered per dodge roll
@@ -86,8 +90,8 @@ export const BUTTON_CONTACT_RADIUS = 0.58; // centre-to-centre contact radius fo
 export const BLAST_CONTACT_PADDING = 0.68; // reach + BLAST_CONTACT_PADDING continuous blast trigger radius
 
 export const MAX_FIRE_GENERATION = 6;
-export const FIRE_SPREAD_INTERVAL = 0.36;
-export const CURRENT_SPEED = 2.8;
+export const FIRE_SPREAD_INTERVAL = 0.72;
+export const CURRENT_SPEED = 1.4; // tiles / s: half speed, so a doubled fuse floats as far
 export const ENEMY_NOTICE_RADIUS = 5.2;
 export const ENEMY_FLEE_RADIUS = 2.1;
 
@@ -1420,9 +1424,9 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
         Math.hypot(e.x - (cx + 0.5), e.y - (cy + 0.5)) <= 1.85
       ) {
-        e.stumbleTimer = 2.5;
+        e.stumbleTimer = SQUEAK_DAZE;
         e.aiState = 'recover';
-        e.stateTimer = 2.5;
+        e.stateTimer = SQUEAK_DAZE;
         e.vx = 0;
         e.vy = 0;
         e.homeX = e.x;
@@ -1516,7 +1520,16 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         s.events.push('wind-jump');
       }
     }
-    spawnWindGust(s, cx + 0.5, cy + 0.5, facing.dx * 3.2, facing.dy * 3.2, 1.2, 2.5, true);
+    spawnWindGust(
+      s,
+      cx + 0.5,
+      cy + 0.5,
+      facing.dx * 3.2,
+      facing.dy * 3.2,
+      1.2,
+      WHIRLWIND_DURATION,
+      true,
+    );
     return [];
   }
 
@@ -1587,7 +1600,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
         (Math.abs(e.x - (cx + 0.5)) <= 1.65 && Math.abs(e.y - (cy + 0.5)) <= 1.65)
       ) {
-        e.frozenTimer = 4.0;
+        e.frozenTimer = FREEZE_DURATION;
         e.vx = 0;
         e.vy = 0;
         s.events.push('enemy-freeze');
@@ -1723,7 +1736,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     }
   }
 
-  // Fire leaves a 2.5 s burning hearth patch on its centre tile if walkable
+  // Fire leaves a burning hearth patch (FIRE_DURATION) on its centre tile if walkable
   if (bomb.kind === 'fire') {
     const centreTile = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
     if (
@@ -2982,7 +2995,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
-  // 4. Update burning Fire patches (`2.5 s`), bounded tile-by-tile fire spread & brazier ignition
+  // 4. Update burning Fire patches (FIRE_DURATION), bounded tile-by-tile fire spread & brazier ignition
   for (const f of [...s.fires]) {
     const fcx = Math.round(f.x);
     const fcy = Math.round(f.y);

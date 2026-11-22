@@ -3,6 +3,8 @@ import { DUNGEON_999_ENTRIES, DUNGEON_999_ROOMS } from '../src/game/dungeon999';
 import {
   ALL_BOMBS,
   BOMB_FUSE,
+  BOMB_FUSES,
+  WHIRLWIND_DURATION,
   type State,
   campaignWorld,
   currentRoom,
@@ -78,7 +80,7 @@ describe('Dungeon 999: the trial rooms', () => {
     standAt(s, 2, 8, 0, -1);
     s.y = 8.2;
     useBomb(world, s, 'ice', 'drop', 0, -1);
-    wait(world, s, 1.6);
+    wait(world, s, BOMB_FUSES.ice + 0.3);
     expect(s.frozenTiles?.size).toBeGreaterThan(0);
     enterRoom(world, s, 'dungeon-999', 0, 0, 5.5, 6.5);
     enterRoom(world, s, 'dungeon-999', rx, ry, 5.5, 9.5);
@@ -220,11 +222,11 @@ describe('Dungeon 999: the trial rooms', () => {
       walkPath(world, s, [[8, 8]]);
       wait(world, s, headStart);
       useBomb(world, s, 'fire', 'throw', 0, -1);
-      wait(world, s, 4);
+      wait(world, s, 12);
       return s;
     };
     it('solves when the long fuse gets a head start', () => {
-      expect(run(1.5).roomSolved).toBe(true);
+      expect(run(3).roomSolved).toBe(true);
     });
     it('fails when both fuses are lit back to back: II catches first and the braziers sputter', () => {
       expect(run(0).roomSolved).toBe(false);
@@ -239,21 +241,21 @@ describe('Dungeon 999: the trial rooms', () => {
         [8, 4],
       ]);
       useBomb(world, s, 'magnet', 'throw', -1, 0);
-      wait(world, s, 1.7);
+      wait(world, s, BOMB_FUSES.magnet + 0.2);
       expect(s.blocks.map((b) => [b.x, b.y])).toEqual([[6, 4]]);
       walkPath(world, s, [
         [8, 8],
         [6, 8],
       ]);
       useBomb(world, s, 'magnet', 'throw', 0, -1);
-      wait(world, s, 1.7);
+      wait(world, s, BOMB_FUSES.magnet + 0.2);
       expect(s.roomSolved).toBe(true);
     });
     it('cannot go the short way: the pit stops a pull south', () => {
       const s = enter(5);
       walkPath(world, s, [[4, 8]]);
       useBomb(world, s, 'magnet', 'throw', 0, -1);
-      wait(world, s, 1.7);
+      wait(world, s, BOMB_FUSES.magnet + 0.2);
       expect(s.blocks.map((b) => [b.x, b.y])).toEqual([[4, 4]]);
     });
   });
@@ -302,20 +304,20 @@ describe('Dungeon 999: the trial rooms', () => {
       standAt(s, 2, 8, 0, -1);
       s.y = 8.2;
       useBomb(world, s, 'ice', 'drop', 0, -1);
-      wait(world, s, 1.6);
+      wait(world, s, BOMB_FUSES.ice + 0.3);
       walkPath(world, s, [
-        [5, 7],
-        [5, 6],
+        [6, 7],
+        [7, 7],
+        [7, 6],
       ]);
       s.y = 6.2;
       useBomb(world, s, 'ice', 'drop', 0, -1);
-      wait(world, s, 1.6);
+      wait(world, s, BOMB_FUSES.ice + 0.3);
       const path: [number, number][] = [
         [4, 6],
-        [3, 6],
-        [3, 5],
-        [3, 4],
-        [3, 3],
+        [4, 5],
+        [4, 4],
+        [4, 3],
         [2, 2],
       ];
       expect(walkPath(world, s, path, 4)).toBe(true);
@@ -328,29 +330,29 @@ describe('Dungeon 999: the trial rooms', () => {
       const s = enter(8);
       walkPath(world, s, [[5, 3]]);
       useBomb(world, s, 'fire', 'drop', 0, -1);
-      wait(world, s, 1.6);
+      wait(world, s, BOMB_FUSES.fire + 0.3);
       expect(s.torches.some((t) => t.lit)).toBe(false);
     });
     it('solves with a Rock block downwind of each brazier to catch the Fire Bomb', () => {
       const s = enter(8);
       walkPath(world, s, [[3, 3]]);
       useBomb(world, s, 'rock', 'drop', 1, 0);
-      wait(world, s, 1.1);
+      wait(world, s, BOMB_FUSES.rock + 0.1);
       walkPath(world, s, [
         [5, 4],
         [5, 3],
       ]);
       useBomb(world, s, 'fire', 'drop', 0, -1);
-      wait(world, s, 1.6);
+      wait(world, s, BOMB_FUSES.fire + 0.3);
       walkPath(world, s, [[3, 9]]);
       useBomb(world, s, 'rock', 'drop', 1, 0);
-      wait(world, s, 1.1);
+      wait(world, s, BOMB_FUSES.rock + 0.1);
       walkPath(world, s, [
         [5, 8],
         [5, 9],
       ]);
       useBomb(world, s, 'fire', 'drop', 0, 1);
-      wait(world, s, 1.6);
+      wait(world, s, BOMB_FUSES.fire + 0.3);
       expect(s.roomSolved).toBe(true);
     });
   });
@@ -360,7 +362,7 @@ describe('Dungeon 999: the trial rooms', () => {
       walkPath(world, s, [[6, 9]]);
       s.y = 9.2;
       useBomb(world, s, 'wind', 'drop', 0, -1);
-      wait(world, s, 1);
+      wait(world, s, BOMB_FUSES.wind + 0.2);
       expect([Math.floor(s.x), Math.floor(s.y)]).toEqual([6, 7]);
     };
     it('solves by jumping the fence, then catapulting a Bomb off a whirlwind into the crystal', () => {
@@ -369,7 +371,7 @@ describe('Dungeon 999: the trial rooms', () => {
       useBomb(world, s, 'wind', 'drop', 0, -1);
       walkPath(world, s, [[8, 7]]);
       tick(world, s, { dx: 0, dy: -1 });
-      wait(world, s, 0.6);
+      wait(world, s, BOMB_FUSES.wind);
       useBomb(world, s, 'bomb', 'throw', -1, 0);
       wait(world, s, BOMB_FUSE + 0.2);
       expect(s.crystalColor).toBe('blue');
@@ -389,7 +391,7 @@ describe('Dungeon 999: the trial rooms', () => {
     it('a plain throw from the lip falls into the chasm', () => {
       const s = enter(9);
       jumpTheFence(s);
-      wait(world, s, 2.5);
+      wait(world, s, WHIRLWIND_DURATION);
       useBomb(world, s, 'bomb', 'throw', 0, -1);
       wait(world, s, BOMB_FUSE + 0.2);
       expect(s.crystalColor).toBe('red');
@@ -400,7 +402,7 @@ describe('Dungeon 999: the trial rooms', () => {
     const chirp = (s: State, col: number): void => {
       walkPath(world, s, [[col, 8]]);
       useBomb(world, s, 'squeak', 'throw', 0, -1);
-      wait(world, s, 2.8);
+      wait(world, s, BOMB_FUSES.squeak + 0.3);
     };
     it('solves with a relay: one chirp to the middle, one at the plate', () => {
       const s = enter(10);
@@ -439,12 +441,13 @@ describe('Dungeon 999: the trial rooms', () => {
       const s = enter(11);
       const tortoise = s.enemies[0]!;
       walkPath(world, s, [[5, 4]]);
-      for (let i = 0; i < 1200 && !(tortoise.fx > 0 && tortoise.x >= 4.1); i++) {
+      // Throw as it heads back west, about one Ice fuse's walk short of the switch
+      for (let i = 0; i < 3000 && !(tortoise.fx < 0 && tortoise.x <= 8.25); i++) {
         wait(world, s, 1 / 60);
       }
       useBomb(world, s, 'ice', 'throw', 0, -1);
       walkPath(world, s, [[7, 4]]);
-      wait(world, s, 0.9);
+      wait(world, s, BOMB_FUSES.ice - 0.4);
       expect(s.gatesOpen).toBe(true);
       const corridor: [number, number][] = [
         [8, 4],

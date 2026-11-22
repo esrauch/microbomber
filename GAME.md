@@ -136,7 +136,7 @@ gives Pip a `1`-tile knockback hop.
 
 ### 1. Fire Bomb (Relic Shrine 1 — `2` Buttons): it ignites & melts
 
-- **Fuse and shape:** `1.3 s`, a `1`-tile burst that leaves a **`2.5 s` burning
+- **Fuse and shape:** `2.6 s`, a `1`-tile burst that leaves a **`5 s` burning
   hearth patch** on its centre tile.
 - **Primary:** lights torches and braziers (`T`: permanent, timed, or ordered
   `I → II → III`) and ignites dry-grass / powder fuse lines (`,`), which burn
@@ -147,25 +147,25 @@ gives Pip a `1`-tile knockback hop.
 
 ### 2. Squeak Bomb / Lure Bomb (Relic Shrine 2 — `5` Buttons): it lures & dazes
 
-- **Fuse and shape:** `2.5 s` wind-up clockwork chirp, ending in a **harmless
+- **Fuse and shape:** `5 s` wind-up clockwork chirp, ending in a **harmless
   confetti & acoustic stun puff** (`1.5`-tile radius; breaks nothing).
-- **Primary: clockwork lure.** While ticking (`2.5 s`), its mechanical mouse
+- **Primary: clockwork lure.** While ticking (`5 s`), its mechanical mouse
   chirp pulls **Clockwork Creatures** (Brass Beetles, waking Mimic Statues,
   Pack-Otters) and **Bosses** toward its tile—guiding them onto floor buttons
   (`O`), across ice chutes, into drop shafts, or under suspended cages.
-- **Interactions:** when it pops at `2.5 s`, any creature within `1.5` tiles is
-  **dazed in place for `2.5 s`** (holding down any button it stands on or leaving
+- **Interactions:** when it pops at `5 s`, any creature within `1.5` tiles is
+  **dazed in place for `5 s`** (holding down any button it stands on or leaving
   a miniboss open to a follow-up Bomb).
 
 ### 3. Wind Bomb (Relic Shrine 3 — `10` Buttons): it launches & catapults
 
-- **Fuse and shape:** `0.8 s` (or pop early by pressing `A` again); emits a
-  `3 × 3` gust that breaks nothing and leaves a **`2.5 s` spinning whirlwind
+- **Fuse and shape:** `1.6 s` (or pop early by pressing `A` again); emits a
+  `3 × 3` gust that breaks nothing and leaves a **`5 s` spinning whirlwind
   vortex** on its centre tile.
 - **Primary: blast-jump & whirlwind catapult.**
   - Standing on or beside a Wind Bomb when it pops **blast-jumps Pip `2` tiles**
     across pits/water or **up `1`-tier terrace ledges**.
-  - Any Bomb, Fire, Squeak, or Magnet Bomb thrown or dropped into the **`2.5 s`
+  - Any Bomb, Fire, Squeak, or Magnet Bomb thrown or dropped into the **`5 s`
     lingering whirlwind vortex** is catapulted `3–4` tiles downwind across wide
     chasms.
 - **Interactions:** blows sand piles clear (revealing buried buttons, rails, and
@@ -173,9 +173,9 @@ gives Pip a `1`-tile knockback hop.
 
 ### 4. Magnet Bomb (Relic Shrine 4 — `15` Buttons): it attracts metal & rides rails
 
-- **Fuse and shape:** `1.5 s` magnetic hum, ending in a non-destructive
+- **Fuse and shape:** `3 s` magnetic hum, ending in a non-destructive
   **magnetic polarity pulse** (`2`-tile radius).
-- **Primary: continuous magnetic pull.** While ticking (`1.5 s`), it projects
+- **Primary: continuous magnetic pull.** While ticking (`3 s`), it projects
   cardinal magnetic lines up to `3` tiles that **pull aligned metal blocks,
   rolling iron spheres, Rail Tortoises, and other live cast-iron Bombs** `1–2`
   tiles toward itself (across gaps, chutes, or glazed floors).
@@ -187,7 +187,7 @@ gives Pip a `1`-tile knockback hop.
 
 ### 5. Ice Bomb (Relic Shrine 5 — `21` Buttons): it freezes, glazes & snuffs
 
-- **Fuse and shape:** `1.3 s`, a `3 × 3` ice nova.
+- **Fuse and shape:** `2.6 s`, a `3 × 3` ice nova.
 - **Primary: phase-change liquids & stop currents.**
   - Freezes still water (`~`) and moving currents (`1–4`) into walkable ice
     until Fire melts it or you leave the room—**freezing a current mid-drift
@@ -197,12 +197,12 @@ gives Pip a `1`-tile knockback hop.
     iron spheres **slide frictionlessly like curling stones until they hit a
     backstop**.
 - **Interactions:** snuffs flame jets and lit braziers (`T`); freezes Clockwork
-  Creatures solid for `4 s` into **frictionless ice cubes** that Pip can kick or
+  Creatures solid for `8 s` into **frictionless ice cubes** that Pip can kick or
   Wind can slide onto floor switches.
 
 ### 6. Rock Bomb (Relic Shrine 6 — `28` Buttons): it creates a solid block
 
-- **Fuse and shape:** `1.0 s`; turns its centre tile into **one solid stone
+- **Fuse and shape:** `2 s`; turns its centre tile into **one solid stone
   Rock block**. Making a new Rock block crumbles the old one; a plain **Bomb**
   blast shatters it.
 - **Primary: portable architecture.**
@@ -220,7 +220,7 @@ gives Pip a `1`-tile knockback hop.
 | Combo | Rube Goldberg Chain |
 |---|---|
 | **Squeak + Ice** | Lure a Brass Beetle onto a slick lane with a Squeak Bomb, then freeze it solid with Ice so it slides into a caged floor button. |
-| **Wind + Bomb / Fire** | Pop a Wind Bomb to leave a `2.5 s` whirlwind vortex, then throw a Bomb or Fire Bomb into the vortex to catapult it `4` tiles across an abyss onto a crystal or brazier. |
+| **Wind + Bomb / Fire** | Pop a Wind Bomb to leave a `5 s` whirlwind vortex, then throw a Bomb or Fire Bomb into the vortex to catapult it `4` tiles across an abyss onto a crystal or brazier. |
 | **Magnet + Chute / Glaze** | Roll a plain Bomb down a north–south chute, and drop a Magnet Bomb across a fence to pull the rolling bomb sideways mid-run into a side pocket. |
 | **Ice + Rock** | Glaze a lava floor with Ice, place a Rock block mid-room as a curling backstop, and blast-shove a block so it slides against the Rock block right on top of a switch. |
 | **Fire + Magnet + Bomb** | Light a `,` grass fuse line with Fire while a Magnet Bomb pulls an iron bridge segment into place just in time for a rolling Bomb to cross it. |

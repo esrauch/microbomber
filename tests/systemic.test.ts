@@ -55,7 +55,7 @@ function sandboxWorld(
 describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/boss AI', () => {
   it('spreads fire tile-by-tile across , -> B -> W to light T, stops at ~ and #, and terminates at MAX_FIRE_GENERATION', () => {
     expect(MAX_FIRE_GENERATION).toBe(6);
-    expect(FIRE_SPREAD_INTERVAL).toBe(0.36);
+    expect(FIRE_SPREAD_INTERVAL).toBe(0.72);
 
     // 1. Sequential chain: ',' -> ',' -> 'B' -> 'W' -> 'T', plus '~' water and '#' wall firebreaks
     const rows = openRows();
@@ -176,7 +176,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
   });
 
   it('floats and drifts bombs along directional water currents (1..4) while stopping drift on still water (~)', () => {
-    expect(CURRENT_SPEED).toBe(2.8);
+    expect(CURRENT_SPEED).toBe(1.4);
     expect(isWaterTile('~')).toBe(true);
     expect(isWaterTile('1')).toBe(true);
     expect(isWaterTile('2')).toBe(true);
@@ -207,7 +207,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     expect(eastBomb.z).toBe(0);
     const landedX = eastBomb.x;
 
-    stepSeconds(eastWorld, es, 0.45);
+    stepSeconds(eastWorld, es, 0.9);
     expect(es.bombs).toHaveLength(1);
     expect(eastBomb.z).toBe(0);
     expect(eastBomb.x).toBeGreaterThan(landedX + 0.8);
@@ -235,18 +235,18 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       vy: 0,
       z: 0,
       vz: 0,
-      fuse: 2.2,
+      fuse: 4.4,
       graceOverlap: false,
       shoveCount: 0,
     });
 
-    stepSeconds(southWorld, ss, 0.5);
+    stepSeconds(southWorld, ss, 1.0);
     expect(ss.bombs).toHaveLength(1);
     expect(ss.bombs[0]!.z).toBe(0);
     expect(ss.bombs[0]!.y).toBeGreaterThan(3.5);
 
-    // About 5.3 tiles at CURRENT_SPEED (with its ramp-up) arrives just before the 2.2 s fuse
-    stepSeconds(southWorld, ss, 1.8);
+    // About 5.3 tiles at CURRENT_SPEED (with its ramp-up) arrives just before the 4.4 s fuse
+    stepSeconds(southWorld, ss, 3.6);
     expect(ss.torches[0]!.lit).toBe(true);
 
     // 3. Still water '~' with zero wind stops horizontal drift on touchdown
