@@ -15,6 +15,7 @@ import {
   currentRoom,
   cycleEquippedBomb,
   enterDungeon999,
+  enterRoom,
   equipBomb,
   exportSave,
   importSave,
@@ -74,7 +75,12 @@ const controlsEl = controls;
 const world = campaignWorld();
 const sfx = makeSfx();
 
+// The campaign as it was when the player entered Dungeon 999 (a save JSON string), restored
+// on the way out. The rig's own state is never saved, so it can't leak bombs into a campaign.
+let campaignStash: string | null = null;
+
 function persistState(s: State): void {
+  if (s.zone === 'dungeon-999') return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(exportSave(s)));
   } catch {
@@ -87,8 +93,20 @@ function loadInitialState(): State {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('dev') === '999'
   ) {
+    try {
+      campaignStash = localStorage.getItem(SAVE_KEY);
+    } catch {
+      campaignStash = null;
+    }
     const devState = newState(world);
     enterDungeon999(world, devState);
+    // ?room=999:<x>,<y> starts in one test room
+    const room = /^999:(-?\d+),(-?\d+)$/.exec(
+      new URLSearchParams(window.location.search).get('room') ?? '',
+    );
+    if (room && world.rooms.has(roomKey('dungeon-999', Number(room[1]), Number(room[2])))) {
+      enterRoom(world, devState, 'dungeon-999', Number(room[1]), Number(room[2]), 5.5, 6.5);
+    }
     return devState;
   }
   try {
@@ -276,6 +294,7 @@ impactBtn.addEventListener('click', () => {
 });
 devRigBtn.textContent = '⚙ ENTER DUNGEON 999 (DEV RIG)';
 const warpToDungeon999 = (): void => {
+  if (state.zone !== 'dungeon-999') campaignStash = JSON.stringify(exportSave(state));
   enterDungeon999(world, state);
   if (menuOpen) toggleMenu(false);
   rebuildRoom();
@@ -283,6 +302,19 @@ const warpToDungeon999 = (): void => {
   syncHud(true);
 };
 devRigBtn.addEventListener('click', warpToDungeon999);
+if (!new URLSearchParams(window.location.search).has('dev')) devRigBtn.style.display = 'none';
+
+/** Leaving Dungeon 999 restores the campaign exactly as it was on the way in. */
+function leaveDungeon999(): State {
+  try {
+    const raw = campaignStash ?? localStorage.getItem(SAVE_KEY);
+    const restored = raw ? importSave(world, JSON.parse(raw)) : null;
+    if (restored && restored.zone !== 'dungeon-999') return restored;
+  } catch {
+    // Fall through to a new game
+  }
+  return newState(world);
+}
 const RESET_LABEL = '↺ NEW GAME (RESET SAVE)';
 resetSaveBtn.textContent = RESET_LABEL;
 // Two-tap confirm: the first tap arms the button, a second tap within 3 s erases the save
@@ -330,8 +362,9 @@ buildStamp.addEventListener('click', () => {
   stampTapUntil = now + 2500;
   stampTapCount++;
   if (stampTapCount >= 5) {
+    // Five taps reveal (or hide) the dev-rig button; players never see it otherwise
     stampTapCount = 0;
-    warpToDungeon999();
+    devRigBtn.style.display = devRigBtn.style.display === 'none' ? 'inline-flex' : 'none';
   }
 });
 settingsModal.append(muteBtn, impactBtn, devRigBtn, resetSaveBtn, buildStamp);
@@ -1312,6 +1345,10 @@ const frame = (now: number): void => {
     }
     if (accumulator >= FIXED_DT) {
       accumulator = 0;
+    }
+    if (moved && fromZone === 'dungeon-999' && state.zone !== 'dungeon-999') {
+      state = leaveDungeon999();
+      campaignStash = null;
     }
 
     state.events = frameEvents;

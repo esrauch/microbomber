@@ -3,6 +3,7 @@ import {
   ALL_BOMBS,
   BOMB_FUSE,
   BOMB_FUSES,
+  FIRE_DURATION,
   FIRE_FUSE,
   FIXED_DT,
   campaignWorld,
@@ -16,7 +17,7 @@ import {
   tileAt,
   windVectorAt,
 } from '../src/game/world';
-import { placeDownChute, pullA, stepSeconds, stepTicks, tapA } from './input';
+import { idle, placeDownChute, pullA, stepSeconds, stepTicks, tapA } from './input';
 
 describe('Dungeon 999: The Developer Dungeon & 7-Bomb Rube Goldberg Rig', () => {
   const world = campaignWorld();
@@ -404,6 +405,13 @@ describe('Dungeon 999: The Developer Dungeon & 7-Bomb Rube Goldberg Rig', () => 
     expect(s.x).toBeGreaterThan(pipStartX + 0.5);
     expect(mimic.x - mimicStartX).toBeCloseTo(s.x - pipStartX, 2);
 
+    // Walk back west, then south: the Mimic copies each step onto its plate at (3, 10)
+    for (let i = 0; i < 15; i++) tick(world, s, { dx: -1, dy: 0 }, FIXED_DT);
+    for (let i = 0; i < 90 && !isButtonPressed(world, s, 3, 10); i++) {
+      tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+    }
+    expect(isButtonPressed(world, s, 3, 10)).toBe(true);
+
     // 2. Place a Squeak Bomb next to crate W (6, 9) and button O (7, 3) to verify it lures the Beetle onto O and pops with 2.5s daze without breaking W
     s.bombs.push({
       id: s.nextEntityId++,
@@ -437,5 +445,65 @@ describe('Dungeon 999: The Developer Dungeon & 7-Bomb Rube Goldberg Rig', () => 
     expect(isButtonPressed(world, s, 7, 3)).toBe(true);
     expect(s.roomSolved).toBe(true);
     expect(beetle.stumbleTimer).toBeGreaterThan(2.3);
+  });
+
+  it('A2 keeps its fuse lines apart: lighting only the 5-tile line leaves the 4-tile line unburned', () => {
+    const s = newState(world, 'dungeon-999', 1, -1, 5.5, 6.5);
+    s.fires.push({ x: 3, y: 5, remaining: FIRE_DURATION, tickCooldown: 0, generation: 0 });
+    stepSeconds(world, s, 8);
+    expect(s.torches.find((t) => t.x === 8 && t.y === 5)?.lit).toBe(true);
+    expect(s.torches.find((t) => t.x === 7 && t.y === 3)?.lit).toBe(false);
+    expect(tileAt(world, s, 'dungeon-999', 1, -1, 3, 3)).toBe(',');
+  });
+
+  it('A4 needs Ice: a drifting Bomb misses C on its own, and hits it when frozen beneath it', () => {
+    const drift = (freeze: boolean): string => {
+      const s = newState(world, 'dungeon-999', 1, 1, 3.5, 5.5);
+      s.bombs.push({
+        id: s.nextEntityId++,
+        kind: 'bomb',
+        x: 3.5,
+        y: 4.5,
+        vx: 0,
+        vy: 0,
+        z: 0,
+        vz: 0,
+        fuse: BOMB_FUSE,
+        graceOverlap: false,
+        shoveCount: 0,
+      });
+      if (freeze) {
+        for (let i = 0; i < 60 && (s.bombs[0]?.x ?? 0) < 4.3; i++) tick(world, s, idle, FIXED_DT);
+        s.bombs.push({
+          id: s.nextEntityId++,
+          kind: 'ice',
+          x: 4.5,
+          y: 4.5,
+          vx: 0,
+          vy: 0,
+          z: 0,
+          vz: 0,
+          fuse: 0.02,
+          graceOverlap: false,
+          shoveCount: 0,
+        });
+      }
+      stepSeconds(world, s, BOMB_FUSE + 0.5);
+      return s.crystalColor;
+    };
+    expect(drift(false)).toBe('red');
+    expect(drift(true)).toBe('blue');
+  });
+
+  it('B1 is a chain: the Magnet plate alone does not solve it; the beetle pen is shut until C flips', () => {
+    const s = newState(world, 'dungeon-999', -1, -1, 3.5, 6.5);
+    const metal = s.blocks.find((b) => b.metal)!;
+    metal.x = 8;
+    metal.y = 5;
+    stepSeconds(world, s, 0.2);
+    expect(isButtonPressed(world, s, 8, 5)).toBe(true);
+    expect(s.roomSolved).toBe(false);
+    expect(tileAt(world, s, 'dungeon-999', -1, -1, 6, 7)).toBe('R');
+    expect(s.crystalColor).toBe('red');
   });
 });
