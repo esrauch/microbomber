@@ -280,16 +280,26 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.cryptWarpUnlocked).toBe(true);
   });
 
-  it('respawns at the current room doorway on death and round-trips v3 autosaves cleanly', () => {
+  it('respawns on the initial screen on overworld death, in the dungeon foyer on dungeon death, and round-trips v3 autosaves cleanly', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 2, 1, 9.2, 6.5);
     s.hp = 1;
-    // Collide with slime at (5.5, 4.5)
+    // Collide with slime at (5.5, 4.5) in overworld (2, 1) -> returns to initial screen (3, 2)
     s.x = 5.5;
     s.y = 4.5;
     tick(world, s, idle, FIXED_DT);
     expect(s.hp).toBe(s.maxHp);
-    expect([s.x, s.y]).toEqual([9.2, 6.5]);
+    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['overworld', 3, 2, 5.5, 6.5]);
+
+    // Die inside the dungeon (ice-cave 2, 3) -> returns to dungeon foyer (ice-cave 1, 3)
+    enterRoom(world, s, 'ice-cave', 2, 3, 2.5, 6.5);
+    s.invulnTimer = 0;
+    s.hp = 1;
+    s.x = 6.5;
+    s.y = 7.5;
+    tick(world, s, idle, FIXED_DT);
+    expect(s.hp).toBe(s.maxHp);
+    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['ice-cave', 1, 3, 5.5, 9.5]);
 
     // Autosave export & import
     s.unlockedBombs.push('fire');

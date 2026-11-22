@@ -852,19 +852,24 @@ function playerBlockedAt(
   return false;
 }
 
-/** Returns true if the hit knocked the player out and respawned them at the doorway. */
+/** Returns true if the hit knocked the player out and respawned them. */
 function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln = false): boolean {
   if (!ignoreInvuln && (s.invulnTimer > 0 || isRollInvulnerable(s))) return false;
   s.hp = Math.max(0, s.hp - halfHearts);
   s.invulnTimer = 1.05;
   s.events.push('player-hurt');
   if (s.hp <= 0) {
-    // Respawn right at the doorway of the room where you fell (`GAME.md` §1)
+    // Dying in a dungeon returns you to the dungeon foyer; dying outside returns you to the initial screen
     s.hp = s.maxHp;
     s.invulnTimer = 1.2;
     s.events.push('player-respawn');
-    enterRoom(world, s, s.zone, s.rx, s.ry, s.entryX, s.entryY);
-    showBanner(s, 'knocked out! Back on your feet at the doorway.', 2.8);
+    if (s.zone === 'ice-cave') {
+      enterRoom(world, s, 'ice-cave', 1, 3, 5.5, 9.5);
+      showBanner(s, 'Knocked out! Returned to the dungeon foyer.', 2.8);
+    } else {
+      enterRoom(world, s, 'overworld', 3, 2, 5.5, 6.5);
+      showBanner(s, 'Knocked out! Returned to Millbrook Square.', 2.8);
+    }
     return true;
   }
   return false;
