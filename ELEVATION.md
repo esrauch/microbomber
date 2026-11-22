@@ -43,9 +43,12 @@ from the games themselves.
 
 ## 2. The model
 
-- **Three levels.** A room may carry a `levels` layer beside its `rows`: one digit
-  per tile, `0`, `1` or `2`. Rooms without it are all level `0`, so nothing
-  existing changes.
+- **Three levels, no stored height.** A room may carry a `levels` layer beside its
+  `rows`: one digit per tile, `0`, `1` or `2`. Rooms without it are all level `0`,
+  so nothing existing changes. Neither Pip nor bombs store a persistent `level` or
+  `z` height: a grounded object's level is always read directly from the tile under
+  its centre (`levelAt`, or the cliff top above a two-level lower face), and `b.z` /
+  `s.hopZ` exist only as temporary vertical arcs during a throw, ledge fall or hop.
 - **Edges are derived.** A tile whose neighbour is lower becomes an edge tile: it
   stays part of the high ground and is **solid**. Which sides drop picks the art:
   front face (`ledgeS`), side faces (`ledgeE`, `ledgeW`), north rim (`ledgeN`),
@@ -125,8 +128,9 @@ Done:
    with a `0.75`-tile arc and Pip's shadow left on the ground.
 2. Ramps for Pip and bombs. In a room with levels every slope letter draws as a
    ramp.
-3. Bombs carry a level: they go down over edges with a short fall, never up a
-   face or down a north rim, and blasts stop at edges.
+3. Bombs read their level from the tile under them: they go down over edges with a
+   short fall bounce (`b.z`), never up a face or down a north rim, and blasts stop
+   at edges.
 4. Pillars (below).
 5. Dungeon 999 trial 12, *Up and Over*: the bomb-elevator puzzle.
 
@@ -163,5 +167,19 @@ no seam. Between them is the one thing that needs modelling: the move.
   fuse. Riders take the pillar's new level when it arrives.
 - **It is solid while moving.** Nothing steps on, nothing rolls in; a thrown bomb
   bounces off.
-- **The look.** The top plate climbs half a tile while the steel face grows under
-  it; riders, and their shadows, are drawn raised with it.
+- **The look.** The 16×16 top plate (`liftUp`) climbs half a tile (`8 px`, to
+  `py - 8`) while the solid block-coursed column face (`liftFace`, anchored with a
+  dark foot at `py + 15`) grows under it. When higher ground sits directly north of
+  the pillar at `(x, y - 1)`, its `8 px` vertical cliff wall (`ledgeS`) is drawn in
+  `py - 8 .. py - 1` above the lowered socket and is progressively covered up as
+  the top plate rises over it. Riders and their contact shadows are drawn raised
+  with the plate (translating both albedo and the `aux` G-buffer), and the `8 px`
+  lift tapers smoothly across any walkable same-level tile join so stepping between
+  a risen pillar and flat-`y` high ground never pops.
+- **Room-layout rule (the tile north of `'L'`).** Because both the `8 px` north
+  cliff wall (when lowered) and the top half of the raised 16×16 plate
+  (`py - 8 .. py - 1`) visually occupy the south half of `(x, y - 1)`, the tile
+  directly north of a pillar `(x, y - 1)` must be plain walkable floor (`'.'`). If a
+  wall (`'#'`) or special tile (`'O'`, `'Q'`, `'!'`, `'X'`, `'G'`, etc.) sits to
+  the north of `'L'`, it must be placed at least one slot further north (`(x, y - 2)`)
+  or to the side so the north cliff face and raised plate never draw over it.
