@@ -5,14 +5,36 @@
  * - Inner `50 × 50` (`25 × 25` art px `@ 2×`) pixel-art brass/amber thumb cap with specular
  *   pixel highlight and tactile `+` grip cross.
  */
+import { WALK_MIN_INPUT } from '../game/world';
 import { INK_RGB, rgb555 } from '../render/gbcPalette';
 import { TRANSPARENT_RGBA, encodeRgbaPngDataUrl, opaque } from './bezel';
 
 const SIZE = 118; // ring diameter, px (59 art px @ 2x)
 const KNOB_SIZE = 50; // knob diameter, px (25 art px @ 2x)
 const REACH = SIZE / 2 - 18; // max travel of knob centre, px
-const DEAD = 0.14; // dead-zone fraction
-const FULL = 0.7; // fraction of reach that already gives full speed, so thumbs needn't hit the rim
+export const DEAD = 0.22; // inner dead-zone fraction (no facing change, no walk)
+export const TURN = 0.44; // middle facing-only zone outer fraction (turns in place, no walk)
+export const FULL = 0.78; // fraction of reach that already gives full walk speed
+const TURN_MAG = 0.3; // output magnitude inside the facing-only ring (AIM_MIN_INPUT <= m < WALK_MIN_INPUT)
+
+/**
+ * Map normalized stick deflection `(dx, dy)` (`0..1` of `REACH`) across three concentric zones:
+ * - `m < DEAD`: `{ dx: 0, dy: 0 }` (dead zone)
+ * - `DEAD <= m < TURN`: facing-only vector of magnitude `TURN_MAG` (rotates Pip in place)
+ * - `m >= TURN`: walk vector ramping from `WALK_MIN_INPUT` to `1` at `FULL`
+ */
+export function mapJoystickDeflection(dx: number, dy: number): { dx: number; dy: number } {
+  const m = Math.hypot(dx, dy);
+  if (m < DEAD) return { dx: 0, dy: 0 };
+  if (m < TURN) {
+    const k = TURN_MAG / m;
+    return { dx: dx * k, dy: dy * k };
+  }
+  const u = Math.min(1, (m - TURN) / (FULL - TURN));
+  const mag = WALK_MIN_INPUT + u * (1 - WALK_MIN_INPUT);
+  const k = mag / m;
+  return { dx: dx * k, dy: dy * k };
+}
 
 export interface Joystick {
   /**
@@ -230,12 +252,7 @@ export function mountJoystick(host: HTMLElement): Joystick {
 
   return {
     read() {
-      const dx = offset.x / REACH;
-      const dy = offset.y / REACH;
-      const m = Math.hypot(dx, dy);
-      if (m < DEAD) return { dx: 0, dy: 0 };
-      const k = Math.min(1, (m - DEAD) / (FULL - DEAD)) / m;
-      return { dx: dx * k, dy: dy * k };
+      return mapJoystickDeflection(offset.x / REACH, offset.y / REACH);
     },
   };
 }

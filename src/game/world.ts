@@ -111,7 +111,9 @@ const PLAYER_RADIUS = 0.14;
 const PLAYER_SLOPE_DRIFT = 0.75;
 const CORNER_SLIDE_MAX = 0.42;
 /** Stick magnitude below which a move doesn't re-aim (thumb drift as it lifts off). */
-const AIM_MIN_INPUT = 0.22;
+export const AIM_MIN_INPUT = 0.22;
+/** Stick magnitude below which input only turns Pip in place without walking. */
+export const WALK_MIN_INPUT = 0.42;
 
 const firePatchTorchContacts = new WeakMap<State, WeakMap<object, Set<string>>>();
 const floatingBombIds = new WeakMap<State, Set<number>>();
@@ -2753,7 +2755,7 @@ function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt
     }
   }
 
-  if (inLen <= 0.01) {
+  if (inLen < WALK_MIN_INPUT) {
     if (Math.abs(driftDx) > 1e-6) sweepAxis(world, s, 'x', driftDx, false);
     if (Math.abs(driftDy) > 1e-6) sweepAxis(world, s, 'y', driftDy, false);
     return;
@@ -2825,6 +2827,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (inLen >= AIM_MIN_INPUT) {
     s.aimX = input.dx / inLen;
     s.aimY = input.dy / inLen;
+    s.fx = s.aimX;
+    s.fy = s.aimY;
   }
 
   const heldB = Boolean(input.holdB);

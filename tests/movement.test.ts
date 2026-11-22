@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { idle, kickA, tapA } from './input';
 import { campaignWorld, cardinalFacing, newState, tick } from '../src/game/world';
+import { DEAD, TURN, mapJoystickDeflection } from '../src/ui/joystick';
 
 describe('movement feel', () => {
   it('stops flush against a wall even with a coarse frame step', () => {
@@ -28,6 +29,23 @@ describe('movement feel', () => {
     tick(world, s, { ...idle, dx: -0.18, dy: 0 }, 0.001);
     expect(s.aimX).toBeCloseTo(0.8, 4);
     expect(s.aimY).toBeCloseTo(-0.6, 4);
+
+    // Joystick dead zone (< DEAD): no turn, no movement
+    const x0 = s.x;
+    const y0 = s.y;
+    tick(world, s, mapJoystickDeflection(0, DEAD * 0.8), 1 / 60);
+    expect(s.aimX).toBeCloseTo(0.8, 4);
+    expect([s.x, s.y]).toEqual([x0, y0]);
+
+    // Joystick turn-only ring (DEAD <= m < TURN): changes facing without walking
+    tick(world, s, mapJoystickDeflection(0, (DEAD + TURN) * 0.5), 1 / 60);
+    expect([s.aimX, s.aimY]).toEqual([0, 1]);
+    expect([s.fx, s.fy]).toEqual([0, 1]);
+    expect([s.x, s.y]).toEqual([x0, y0]);
+
+    // Joystick movement ring (m >= TURN): faces and walks
+    tick(world, s, mapJoystickDeflection(0, TURN + 0.1), 1 / 60);
+    expect(s.y).toBeGreaterThan(y0);
   });
 
   it('corner assist settles on the lane centre without overshooting', () => {
