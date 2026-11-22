@@ -1,153 +1,173 @@
-# Dungeons: room by room
+# Shrines & Dungeons: room by room
 
-The layouts, puzzles, minibosses and bosses of every Shrine and the Iron Tower.
-`GAME.md` §4 to §5 hold the rules this builds on: the bombs, the Shrine arc, the
-lineup. **Fixed decisions:** each Shrine's theme and the bomb found inside it
-(Ice Cave gives Fire, Rock Quarry gives Wind, Fire Mountain gives Ice, Wind
-Cliffs gives Rock), and the order you play them in.
+The layouts, Rube Goldberg puzzle chains, Miniboss gates, and Boss duels of:
+1. **Grandma's Basement (Dungeon 0 — `5` rooms):** unlocks the **Magic Bomb Sack (`Bomb`)**.
+2. **The `36` Single-Room Shrines (`6` Relic Shrines + `30` Trial Shrines):** self-contained *Breath of the Wild*-style single-room puzzle boxes (spanning `1 × 1` up to `2 × 2` screens with smooth camera scrolling), each with a **Trial Name that is its hint**.
+3. **The `4` Major Multi-Room Dungeons (`Ice Cave`, `Rock Quarry`, `Fire Mountain`, `Wind Cliffs`) & the `Iron Tower` (`85` rooms):** multi-bomb regional capstones built around a macro-architectural multi-room gimmick, awarding the **4 Elemental Keys** (**Cinder, Zephyr, Rime, Stone**) that unseal the Iron Tower.
 
-## Size: half of the Oracle games
+`GAME.md` and `PUZZLE_MECHANICS.md` hold the core rules this builds on.
 
-The *Oracle of Ages* / *Seasons* dungeons grow from about `20` rooms in the
-first to `32–40` in the middle and `46–64` at the end (`GAME.md` §1 and §5). We
-build **half**, with no filler rooms.
+---
 
-**Checked against the maps in `inspiration/`** (one cell of a full dungeon map
-is one `240 × 176` room, or one square on an in-game map; side-view underground
-passages counted as rooms):
+## Architecture & Scope
 
-| Dungeon (map file) | Rooms counted | How |
-|---|:-:|---|
-| *Seasons* D1, Gnarled Root Dungeon (`LegendOfZelda-OracleOfSeasons-GnarledRootDungeon.png`) | **19** + `1` passage | exact, on the grid |
-| *Seasons* D2, Snake's Remains (`LegendOfZelda-OracleOfSeasons-Snake'sRemains.png`) | **27** + `1` passage | exact, on the grid |
-| *Seasons* D3, Poison Moth's Lair (`LegendOfZelda-OracleOfSeasons-PoisonMoth_sLair.png`) | **~28** + `3` passages | by eye (floors sit off the grid), ±2 |
-| *Ages* D3 (`2001-oracle-of-ages/maps/LZ7_Ages_DungeonMap3.png`, the in-game map) | **30** (two floors of `15`) | exact, one square per room |
-| *Link's Awakening* D3, Key Cavern (`1993-links-awakening/maps/TLoZ_LA_Dungeon_3_map.png`; the engine the Oracle games build on) | **29** + `1` passage | exact, on the grid |
+| Category | Count | Rooms | Size per Room | What You Win |
+|---|:-:|:-:|:---:|---|
+| **0. Grandma's Basement** (House + Cellar) | 1 | **5** | `1 × 1` (`11 × 13`) | **Magic Bomb Sack (`Bomb`)** |
+| **Relic Shrines (`R1–R6`)** (Button-gated bomb unlocks) | 6 | **6** | `1 × 2` or `2 × 1` scrolling | **Fire, Squeak, Wind, Magnet, Ice, Rock** |
+| **Trial Shrines (`T01–T30`)** (Self-contained Rube Goldberg trials) | 30 | **30** | `1 × 1` to `2 × 2` scrolling | **`30` Grandma's Sewing Buttons** (`1` per Shrine) |
+| **1. Ice Cave** (`Bomb + Fire + Squeak`) | 1 | **10** | `1 × 1` to `1 × 2` | **Cinder Key** (`1/4` Tower Seal) + `1` Button |
+| **2. Rock Quarry** (`Bomb + Fire + Wind + Magnet`) | 1 | **15** | `1 × 1` to `2 × 1` | **Zephyr Key** (`2/4` Tower Seal) + `1` Button |
+| **3. Fire Mountain** (`Ice + Fire + Wind + Magnet`) | 1 | **20** | `1 × 1` to `2 × 1` | **Rime Key** (`3/4` Tower Seal) + `1` Button |
+| **4. Wind Cliffs** (`Rock + Magnet + Wind + Ice`) | 1 | **24** | `1 × 1` to `2 × 1` | **Stone Key** (`4/4` Tower Seal) + `1` Button |
+| **5. Iron Tower** (All 7 Bombs) | 1 | **16** | `1 × 1` to `2 × 2` | **Finale (The Sorcerer)** |
+| **Total Interior Puzzle Rooms** | | **126** | | (+ `100` Overworld flip-screens) |
 
-So the first three dungeons run **`20 → 28 → 30`**, and half of that is
-`10 → 14 → 15`. Our four Shrines take every other step of the Oracle curve
-(Shrine 2 sits where a third dungeon does), so **Ice Cave (`10`) and Rock Quarry
-(`15`) are verified at half their counterparts.**
+## Shared Rules
 
-**Not verified:** Fire Mountain (`20`), Wind Cliffs (`24`) and the Iron Tower
-(`16`). Full maps for Oracle dungeons 4 to 8 are not in `inspiration/` (nor on
-StrategyWiki, where these maps come from), and fetching them from other sites
-was declined (2026-11-21). Their counterparts stay estimates: `GAME.md`'s
-`32–40` for middle dungeons and `46–64` for late ones, a rise from the counted
-`~30` at D3 that halving turns into our `20` and `24`; the final tower's `~32`
-is an estimate in the same spirit. If those maps are added to `inspiration/`,
-count them and adjust.
-
-| # | Dungeon | Bomb found | Floors | Rooms | Oracle counterpart (×½) | Target time |
-|:-:|---|---|---|:-:|---|:-:|
-| 0 | Grandma's Basement (House + Cellar) | Bomb (Magic Bomb Sack) | House + `B1F` | **5** (`1` house + `4` cellar) | tutorial cellar (*Seasons* Hero's Cave, 7) | 4–5 min |
-| 1 | Ice Cave (built) | Fire | `1F` | **10** | a first dungeon, ~20 | 10–12 min |
-| 2 | Rock Quarry | Wind | `2F` rim + `1F` pit | **15** | a third dungeon, ~30 (counted) | 14–16 min |
-| 3 | Fire Mountain | Ice | `1F` + `B1F` | **20** | a middle dungeon, ~40 | 18–20 min |
-| 4 | Wind Cliffs | Rock | `1F` caves + `2F` tops | **24** | a late dungeon, ~48 | 22–25 min |
-| 5 | Iron Tower | (all) | `1F` to `4F` | **16** | the final tower, ~32 | 15–18 min |
-| | **Total** | | | **90** | | ~1.5 h |
-
-With the `100`-screen overworld (`OVERWORLD.md`) that makes about `190` rooms,
-the half-of-*Oracle* campaign `GAME.md` §1 sets out.
-
-## Shared rules
-
-- **A room is one screen:** `11 × 13` tiles. Coordinates below are `(x, y)` on
-  that floor's grid, north at the top, with the entrance at the south.
-- **Arc & the Two-Room Miniboss Trope:** Every Shrine follows the same signature
-  midpoint rhythm across **two connected rooms**:
-  1. **Miniboss Phase 1 (in Room A, the Reliquary / Ante-Arena):** You fight
-     Phase 1 of the miniboss using the bombs you already brought into the Shrine
-     (or the room's terrain). At half health, the miniboss **flees into the next
-     room**, unsealing the **new elemental bomb's chest** in Room A so you can
-     claim and test it in peace.
-  2. **Miniboss Phase 2 (in Room B, the Inner Arena):** Stepping into Room B
-     with your new bomb triggers Phase 2, where the miniboss uses its full
-     elemental defence that **only your new bomb can counter**. Defeating Phase 2
-     activates the **midpoint warp pad** back to the Shrine foyer and opens the
-     Act 2 loop.
-- **No-Key-Softlock Invariant (Certified by Unit Tests):** Because small keys
-  are fungible (`1 key = 1 locked door`), if two locked doors are ever reachable
-  at the same time, a player could spend a key on the "wrong" door. Every
-  dungeon must satisfy the **No-Softlock Key Graph Property** (verified via
-  exhaustive BFS state-space unit tests over `(room, inventory, openedDoors,
-  collectedKeys)`):
-  1. Whenever a hub has two locked doors (`L1` and `L2`), either the second
-     locked door is physically gated behind an obstacle or switch state solved
-     inside the `L1` branch (or behind the Act 2 bomb), **or** both locked
-     branches independently yield a small key so opening them in either order
-     never dead-ends.
-  2. No back-door loop may bypass a locked door in a way that leaves an unspent
-     key or strands the Boss Key branch.
-- **Controls (`Pull → Drop / Throw`):** Pressing **A (Pull)** takes out the
-  equipped bomb and holds it overhead (fuse paused, walk speed halved); while
-  overhead, **B (Drop)** sets it ahead of Pip and **A (Throw)** lobs it
-  orthogonally over `'='` fences and 1-tile barriers with rolling physics.
-  Puzzles that require **Wind** to fling a bomb across a chasm must therefore
-  span a **`3–4` tile chasm** (or high terrace wall) that a normal `1.8`-tile
-  Throw cannot cross on its own.
-- **Lingering Whirlwind (`2.5 s`):** When a **Wind Bomb** pops, it both emits
-  its instant `3 × 3` gust (for blast-jumping and clearing sand) *and* leaves a
-  **`2.5 s` spinning whirlwind vortex** on its centre tile (mirroring Fire's
-  `2.5 s` burning hearth patch). Any Bomb or Fire Bomb thrown or dropped into a
-  live whirlwind is catapulted `3–4` tiles downwind across wide chasms.
-- **One idea per room:** each room is marked *teach*, *twist* or *combine*.
-- **Rewards per Shrine:** a Heart Container (boss), one Heart Piece, and in two
-  Shrines a Magic Bomb Sack upgrade (live bombs `2 → 3` in Rock Quarry, `3 → 4` in Wind
-  Cliffs). Bomb reach `1 → 2` stays on the overworld (Millbrook West).
-- **Pieces we have now:** cracked walls, brambles and crates, braziers (lit,
-  timed, ordered), dark rooms, crystal switches with red and blue barriers,
-  floor buttons, blocks shoved by blasts, pits, deep and shallow water, sloped
-  chutes, shutters, key and boss doors, spikes, warp pads. Each Shrine adds at
-  most two new ones.
-
-Legend for the floor maps: `[nn]` a room, `==` a door between rooms, `||` a
-north–south door, `L` a locked door, `B` the boss door, `v` a drop or stair
-down, `^` a stair or lift up, `.` no room.
+- **Zero combat filler, zero hearts:**
+  - There are **no bats, no chasing trash mobs, and no `clear-enemies` doors**. Every creature in a puzzle room is a deterministic **Clockwork Creature** (Brass Beetle, Mimic Statue, Rail Tortoise, Pack-Otter).
+  - **No hearts anywhere:** your own bomb blasts never hurt you (`1`-tile knockback hop); pits, lava, spikes, and flame jets pop you back to the last safe tile (`0.35 s`); boss hits reset the current 1-of-3 puzzle phase.
+- **Hybrid camera (`11 × 13` base screen, scrolling inside Shrines & large halls):**
+  - Standard rooms are `11 × 13` tiles (`1 × 1`).
+  - Single-Room Shrines and centerpiece Dungeon halls can span **`1 × 2` (`11 × 26`)**, **`2 × 1` (`22 × 13`)**, or **`2 × 2` (`22 × 26`)** with smooth pixel-snapped camera follow so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous space without blind screen cuts.
+- **Minibosses as Living Puzzle Gates:**
+  - In each Major Dungeon, the **Miniboss** sits on the main trunk and acts as an impenetrable **living lock** if approached with brute force. You solve it in a 2- to 3-step Rube Goldberg sequence using the region's bombs, which activates the **midpoint warp pad** back to the dungeon foyer and opens the Act 2 loop.
+- **No-Key-Softlock Invariant (Certified by `tests/softlock.test.ts`):**
+  1. Whenever a hub has two locked doors (`L1` and `L2`), either `L2` is physically gated behind a crystal barrier or obstacle solved inside the `L1` branch, **or** both branches independently yield a Small Key.
+  2. Every consumable puzzle prop (`W` crates, `,` fuse lines, blocks, spheres, frozen crusts, Clockwork Creatures) resets on room exit so a mistimed chain can never soft-lock a room.
 
 ---
 
 ## 0. Grandma's Basement (Dungeon Zero — gives the Magic Bomb Sack): 5 rooms
 
-**Theme:** the cozy interior of the Mouse House and its cobwebbed stone root
-cellar below (`B1F`).
-**Story & purpose:** You start **inside the Mouse House** with no bombs at all
-(only walking and **B = Roll**). **Grandma** tells you that **your brother is
-making trouble again**—he raised the Iron Tower overnight—and you had better go
-down into the basement, fetch the **Magic Bomb Sack**, and
-make sure he doesn't cause too much trouble.
-**What it teaches:** walking, **B = Roll**, floor switches, **Small Keys** and
-locked doors, and then **the Bomb** (`A = Pull → B = Drop / A = Throw`) to break
-cracked walls and exit into the village yard (`(5,4)`).
+**Theme:** the cozy interior of the Mouse House (`1F`) and its cobwebbed stone root cellar (`B1F`).
+**Story & purpose:** You start **inside the Mouse House** with no bombs (`B = Roll` only). **Grandma** tells you your brother raised the Iron Tower overnight and scattered her sewing buttons, and sends you down to the basement for the **Magic Bomb Sack (`Bomb`)**.
 
 ```text
 House Interior (1F)              Grandma's Basement (B1F)
-     [ 0 ]                            [ 4 ]   [ 3 ]
-   v       v                                    L|
+     [ 0 ]                            [ 4 ] == [ 3 ]
+   v       v                            ||      L|
 (cellar) (out to 5,4)                 [ 2 ] == [ 1 ]^
 ```
 
-| # | Room | `(x,y)` | What it does | Exits |
+| # | Room | `(x,y)` | Puzzle and contents | Exits |
 |:-:|---|---|---|
-| 0 | Mouse House Interior | `House (0,0)` | **Start of the game.** Grandma stands by her sewing basket and tells you your brother is making trouble again—head down the cellar stairs for the magic bomb sack. The front door south to the overworld (`5,4`) is blocked from inside by fallen cellar rubble (`%`) until you return with the Bomb. *teach* talk & objective | cellar stair down to 1, front door out to `(5,4)` (blocked by `%` rubble) |
-| 1 | Cellar Stairs | `B1F (1,1)` | Where the house stair lands. Cobwebs, apple barrels and a locked north door (**L1**). *teach* locked door inspection | stair up to 0, W 2, N 3 (**L1**) |
-| 2 | Root Pantry | `B1F (0,1)` | Two harmless cellar slimes and a spike strip; **B = Roll** across the narrow gap to step on the floor switch (`O`) in the corner, dropping **Small Key 1** onto the centre seal ring. *teach* Roll, floor switch & **Small Key** | E 1 |
-| 3 | Grandpa's Workroom | `B1F (1,0)` | Unlocked with **Small Key 1**. On the pedestal sits the **Magic Bomb Sack** (**unlocks the Bomb**). The door shuts behind you; pull (`A`) and drop (`B`) your first Bomb against the cracked west masonry wall (`%`) to blast open a secret passage into 4. *teach* **Bomb** (`Pull` & `Drop` on `%`) | S 1 (**L1**), W 4 (via `%` cracked wall) |
-| 4 | Coal Chute | `B1F (0,0)` | A low wooden fence (`=`) separates you from a crystal switch (`C`) and a pair of cellar slimes. Pull (`A`) and **Throw (`A`)** a Bomb over the fence to flip the crystal (lowering the red barrier back to 1) and blast the slimes. Climb the stairs back up to 0, bomb the rubble blocking the front door, and step outside into Millbrook Vale (`5,4`). *teach* **Throw** over fences & crystal switches | E 3, S 2 (barrier), return via 1 to 0 |
-
-**Keys & No-Softlock Proof:**
-- **Key 1** (room 2) opens **L1** (`1 → 3`, the only locked door in the basement).
-- Returning to room 0 with the Bomb clears the `%` rubble blocking the front door to Overworld `(5,4)`.
+| 0 | Mouse House Interior | `House (1,3)` | **Start of the game (built).** Grandma stands by her sewing basket; the front door south to the village yard (`5,4`) is sealed by fallen cellar rubble (`%`) until you return with the Bomb. *teach* talk & objective | stair down to 1, front door out to `(5,4)` (blocked by `%`) |
+| 1 | Cellar Stairs | `B1F (1,1)` | Where the house stair lands. The return stair up is latched behind a raised red crystal barrier (`R`), and a locked door (**L1**) bars the north workroom. *teach* locked door & crystal latch | stair up to 0 (behind `R`), W 2, N 3 (**L1**) |
+| 2 | Root Pantry | `B1F (0,1)` | A `1`-tile spike strip (`!`) guards an alcove floor switch (`O`). Press **B = Roll** to dash across the spikes unharmed onto `O`, dropping **Small Key 1** onto the centre seal ring. *teach* Roll & floor switch | E 1, N 4 (behind `R`) |
+| 3 | Grandpa's Workroom | `B1F (1,0)` | Unlocked with **Small Key 1**. Claim the **Magic Bomb Sack (`Bomb`)** on the pedestal, then **A = Pull → B = Drop** a Bomb against the cracked west wall (`%`) to open the passage into 4. *teach* Pull & Drop on `%` | S 1 (**L1**), W 4 (via `%`) |
+| 4 | Coal Chute | `B1F (0,0)` | A wooden fence (`=`) separates you from a crystal switch (`C`). **A = Pull → A = Throw** a Bomb north over the fence into `C`, flipping `red → blue` to lower the red barriers in 2 and 1. Return upstairs and bomb the front door rubble out to `(5,4)`. *teach* Throw over `=` & crystal switch | E 3, S 2 |
 
 ---
 
-## 1. Ice Cave (gives Fire): 10 rooms
+## Part I: The 36 Single-Room Shrines (`6` Relic Shrines + `30` Trial Shrines)
 
-Ten rooms on one floor. In Room 5 (**Alchemist Reliquary**) you clash with
-**Ice Golem Phase 1** before it freezes over and retreats west into Room 6
-(**Lantern Hall**), leaving the **Fire Bomb** behind; you follow it into Room 6
-with Fire to melt its regrown ice armour in **Phase 2**.
+Every Shrine is a **single continuous room** (no keys, no filler corridors) with
+a **Trial Name that hints at its Rube Goldberg chain**.
+
+### A. The 6 Relic Shrines (Button-Gated Bomb Unlocks)
+
+Each Relic Shrine sits at the threshold of a biome (`OVERWORLD.md`). Presenting
+the required number of **Grandma's Sewing Buttons** unseals the door; inside,
+you claim the new Bomb on the entry pedestal and solve a two-part scrolling
+chamber (`1 × 2` or `2 × 1`) to open the exit altar.
+
+| ID | Shrine & Overworld `(x,y)` | Button Gate | Bomb Unlocked | Size | Trial Name & Rube Goldberg Solve |
+|:-:|---|:-:|---|:-:|---|
+| **R1** | **Hearth Vault** `(4,6)` *(Bramble Woods)* | **`2` Buttons** | **Fire Bomb** | `1 × 2` | *"The Travelling Spark"* — Part 1: throw Fire over a fence to light a `,` grass fuse line that burns around a corner to a brazier. Part 2: burn a hanging cage's rope so an iron weight drops onto a floor switch while a second fuse line lights a timed brazier in tandem. |
+| **R2** | **Chime Grotto** `(4,7)` *(Frost Hollow)* | **`5` Buttons** | **Squeak Bomb** | `2 × 1` | *"Follow the Chirp"* — Part 1: throw a Squeak Bomb over a balustrade to lure a Brass Beetle off a blocker tile onto a floor button, holding it with the `2.5 s` daze puff. Part 2: alternate two Squeak Bombs along an L-corridor to guide a Mimic Statue through a maze onto a permanent latch plate. |
+| **R3** | **Bellows Sanctum** `(2,4)` *(Quarry Hills)* | **`10` Buttons** | **Wind Bomb** | `1 × 2` | *"Eye of the Gale"* — Part 1: blast-jump up terraced ledges and blow a sand pile off a floor button. Part 2: pop a Wind Bomb on a chasm lip to leave a **`2.5 s` whirlwind vortex**, then throw a plain Bomb into the vortex to catapult it `4` tiles across the pit into a crystal switch. |
+| **R4** | **Lodestone Vault** `(1,5)` *(Quarry Hills)* | **`15` Buttons** | **Magnet Bomb** | `2 × 1` | *"Pull of the Rail"* — Part 1: roll a Bomb down a stone chute and place a Magnet Bomb behind a fence to pull the rolling bomb sideways mid-chute into a cracked `%` wall. Part 2: throw a Magnet Bomb onto a curved magnetic rail so its moving field drags an iron sphere across a parallel trench onto a socket. |
+| **R5** | **Rime Well** `(8,4)` *(River Valley)* | **`21` Buttons** | **Ice Bomb** | `1 × 2` | *"Stop the Stream"* — Part 1: set a Bomb floating down a fast water current, then throw an Ice Bomb to freeze the current mid-drift so the bomb stops and detonates right beside a shore crystal. Part 2: crust a lava pool into slick **glaze**, freeze a Brass Beetle into an ice cube, and kick-slide it across the glaze onto a switch. |
+| **R6** | **Cairn Sanctum** `(1,2)` *(Wind Cliffs)* | **`28` Buttons** | **Rock Bomb** | `2 × 1` | *"The Portable Wall"* — Part 1: drop a Rock block as a curling backstop on a glazed lane so a blast-shoved block stops dead on a center button. Part 2: place a Rock windbreak inside a howling gust lane so a Fire Bomb can light a brazier in its calm lee without blowing away. |
+
+### B. The 30 Trial Shrines (`1` Grandma's Button Each)
+
+Grouped by the bombs they require. Every Trial Shrine is a self-contained
+single-room Rube Goldberg puzzle box (`1 × 1` to `2 × 2` scrolling).
+
+#### Tier 1: Starter Bomb Trials (Millbrook Vale & Bramble Outskirts — unlocks `R1`)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T01** | `(5,3)` Millbrook North | *"A Delayed Flip"* | Bomb | `1 × 1` | Drop a Bomb at the top of an `e → s` stone chute and run across the lowered blue barrier while the bomb rolls; it strikes `C` at the bottom and lowers the red exit barrier behind you. |
+| **T02** | `(6,3)` Millbrook East | *"Two Bombs, One Spark"* | Bomb | `1 × 1` | Place Bomb A near a fence, then detonate Bomb B behind it to **blast-shove** Bomb A across a gap into a crystal pocket (`1st` hit shoves, fuse pops on target). |
+| **T03** | `(3,5)` Orchard | *"The Raised Backstop"* | Bomb | `1 × 2` | Flip crystal `C` to raise a Red peg `R` in the middle of an open hall → blast-shove a stone block `P` so it stops against `R` → flip `C` again so `R` drops and one more blast seats `P` on button `O`. |
+
+#### Tier 2: Fire Bomb Trials (Bramble Woods & Frost Border — unlocks `R2`)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T04** | `(3,4)` Meadow Fields | *"Twin Fuse Race"* | Bomb + Fire | `2 × 1` | Light a 6-tile `,` grass fuse line with Fire; as it burns toward a distant crystal-caged brazier, run to the midpoint and blast a `%` wall with a Bomb so the flame jumps the gap and lights the brazier. |
+| **T05** | `(6,5)` Thorn Thicket | *"The Firebreak"* | Bomb + Fire | `1 × 1` | A dry-grass room where burning the wooden crate on button `O` ruins the solve; blast a stone block into the grass lane first as a firebreak, then ignite the grass to light three braziers while sparing the crate. |
+| **T06** | `(3,6)` Old Orchard Wood | *"Drop the Weight"* | Bomb + Fire | `1 × 2` | Burn a rope with Fire to drop a suspended stone block onto the top of a chute; as it slides down, time a Bomb blast at the intersection to shove it east onto a permanent latch button. |
+| **T07** | `(6,7)` Frosted Thicket | *"Melt in Order"* | Bomb + Fire | `1 × 2` | Three ordered braziers (`I → II → III`) sit behind different lengths of ice blocks and `,` grass fuse lines; ignite all three lines so the flames arrive in exact `I → II → III` order. |
+
+#### Tier 3: Squeak Bomb Trials (Frost Hollow — unlocks `R3` & prepares for Ice Cave)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T08** | `(4,8)` Snow Fields | *"Beetle Relay"* | Bomb + Squeak | `2 × 1` | Lure a Brass Beetle across a narrow bridge behind a fence with a Squeak Bomb so it steps on button `O1` (lowering barrier `R`), then throw a Bomb through the opened gap into crystal `C`. |
+| **T09** | `(3,7)` Old Icehouse | *"Mirror Steps"* | Fire + Squeak | `1 × 2` | Walk a Mimic Statue onto a center turntable, then throw a Squeak Bomb into a side alcove to pull the statue off-axis onto a fire-lit latch plate while Pip walks to the exit. |
+| **T10** | `(2,7)` Frost Cistern | *"Bait the Drop"* | Bomb + Fire + Squeak | `1 × 2` | Lure a Brass Beetle under a suspended iron cage with a Squeak Bomb, then burn the rope with Fire so the cage drops and traps the beetle permanently on the floor button. |
+| **T11** | `(6,8)` Glacier Edge | *"Mousehole Messenger"* | Bomb + Squeak | `2 × 1` | Throw a Squeak Bomb to lure a Pack-Otter to a mousehole mouth, then drop a live Bomb; the otter carries the ticking Bomb through the mousehole to blast a `%` wall in a sealed glass chamber. |
+| **T12** | `(2,8)` Icicle Ravine | *"Chirp and Chute"* | Bomb + Fire + Squeak | `2 × 1` | Lure an Iron Tortoise with a Squeak Bomb so its shell bridges a gap in an overhead chute, then roll a Bomb down the completed chute into a crystal switch. |
+
+#### Tier 4: Wind Bomb Trials (Quarry Hills — unlocks `R4`)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T13** | `(2,3)` Gravel Flats | *"Whirlwind Artillery"* | Bomb + Wind | `1 × 2` | Pop a Wind Bomb on a high terrace to create a `2.5 s` whirlwind vortex, then throw two Bombs into it at different angles to blast two distant `%` pillars across a `4`-tile chasm. |
+| **T14** | `(0,4)` Dust Bowl | *"Buried Circuit"* | Fire + Wind | `2 × 1` | Blow three sand piles clear with Wind to expose a buried `,` powder fuse trail linking three timed braziers, then ignite the center of the trail with one Fire Bomb so all three light at once. |
+| **T15** | `(2,5)` Sand Dunes | *"Updraft Delivery"* | Squeak + Wind | `1 × 2` | Catapult a Squeak Bomb across a `4`-tile pit via a Wind whirlwind so it lands inside a distant pen and lures a Brass Beetle onto the bridge release switch. |
+| **T16** | `(0,6)` Deep Seam | *"Hop the Flip"* | Bomb + Wind | `1 × 2` | Drop a Bomb on a slow chute toward crystal `C`, blast-jump up two terrace tiers with Wind while the bomb rolls, and cross the upper `U` barrier right as `C` flips below. |
+| **T17** | `(2,2)` Stone Steps | *"Gale Vane Chain"* | Bomb + Fire + Wind | `2 × 1` | Spin a wind vane with a Wind Bomb to slide a cycling platform across a gap; a burning Fire Bomb riding the platform lights the far brazier before the platform returns. |
+
+#### Tier 5: Magnet Bomb Trials (Quarry Hills & River Border — unlocks `R5` & prepares for Rock Quarry)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T18** | `(1,6)` Rubble Gully | *"Bent Trajectory"* | Bomb + Magnet | `2 × 1` | Roll a Bomb east down a chute; a Magnet Bomb ticking north of a fence curves the rolling bomb `90°` north off the chute into a recessed crystal orb. |
+| **T19** | `(2,6)` Boulder Field | *"Rail Tug"* | Fire + Magnet | `2 × 1` | Throw a Magnet Bomb onto an S-shaped magnetic floor rail; as it glides along the rail, its magnetic field drags an iron brazier cart through a stationary Fire hearth patch, lighting the cart as it reaches its socket. |
+| **T20** | `(0,7)` Sand Pits | *"Magnetic Ferry"* | Wind + Magnet | `2 × 2` | Blow sand off a magnetic rail with Wind, catapult a Magnet Bomb across a chasm via a Wind whirlwind onto the rail, and let it pull an iron bridge segment into place. |
+| **T21** | `(0,8)` Stone Quay | *"Sphere Pinball"* | Bomb + Magnet | `1 × 2` | Pull an iron sphere off a pedestal with a Magnet Bomb onto a chute, then blast-shove the rolling sphere sideways at the bottom with a timed Bomb into a polarity switch. |
+| **T22** | `(7,5)` Otter Shallows | *"Attractor Lure"* | Squeak + Magnet | `2 × 1` | Lure a Pack-Otter carrying an iron key-sphere with a Squeak Bomb, then snatch the iron sphere across a fence grating with a Magnet Bomb onto a socket. |
+
+#### Tier 6: Ice Bomb Trials (River Valley, Coast & Fire Mountain Slopes — unlocks `R6`)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T23** | `(6,2)` Upper River | *"Frozen Mid-Drift"* | Bomb + Ice | `1 × 2` | Float a Bomb down a fast river current (`2`), then throw an Ice Bomb from the bank to freeze the current the instant the bomb passes a cracked wall in mid-channel. |
+| **T24** | `(8,5)` Lily Marsh | *"Curling Cube"* | Squeak + Ice + Wind | `2 × 1` | Lure a Brass Beetle with a Squeak Bomb, freeze it into an ice cube with Ice, and catapult/slide the cube across a frozen pond with a Wind Bomb onto a switch. |
+| **T25** | `(7,7)` Frozen Delta | *"Melt and Sink"* | Bomb + Fire + Ice | `1 × 2` | Freeze a water pool with Ice, blast-shove a stone block to its center tile, then throw a Fire Bomb to melt that tile so the block sinks onto an underwater pressure plate. |
+| **T26** | `(8,7)` South Cape | *"Glaze Bank Shot"* | Ice + Magnet | `2 × 1` | Crust a lava lane into slick glaze with Ice, slide an iron sphere down the glaze, and use a Magnet Bomb behind a corner fence to curve the sliding sphere onto a target button. |
+| **T27** | `(6,1)` Lava Fields | *"Quench the Ripple"* | Fire + Ice + Wind | `2 × 1` | Snuff two out of four ripple-timed flame jets with Ice so a Wind whirlwind can catapult a Fire Bomb safely through the remaining beat gap into a furnace brazier. |
+
+#### Tier 7: Rock Bomb Master Trials (Wind Cliffs & Iron Plateau — all 7 Bombs)
+
+| ID | Screen `(x,y)` | Trial Name | Bombs | Size | Rube Goldberg Chain |
+|:-:|:-:|---|---|:-:|---|
+| **T28** | `(8,1)` Ember Slope | *"The Curling Backstop"* | Bomb + Ice + Rock | `2 × 1` | Crust a wide lava hall into slick glaze with Ice, drop a Rock block at `(6,5)` as a backstop, and blast-shove a stone block so it slides across the room and stops against the Rock block on button `O`. |
+| **T29** | `(1,0)` Spray Ledges | *"Calm in the Gale"* | Fire + Wind + Rock | `2 × 1` | Place a Rock windbreak to block one of two cross-gust vents so only the north wind vane spins, opening a shutter while a `,` fuse line burns in the Rock block's calm lee to light a brazier. |
+| **T30** | `(3,2)` Gear Yard | *"The Sevenfold Chain"* | All 7 Bombs | `2 × 2` | Full Rube Goldberg showcase: blow sand off a mag-rail (Wind) → place a Rock backstop on glazed lava (Ice + Rock) → light a `,` fuse line (Fire) that drops an iron sphere → Magnet Bomb pulls the sphere onto the glaze against the Rock backstop → Squeak Bomb lures a Brass Beetle onto the final switch → Bomb blasts the unsealed vault. |
+
+*(The remaining `6` Buttons of the `36` total come from the **Pack-Otter Fuse Heist** at Crescent Cove `(9,6)`, the **Mouse House Smithy** `(5,4)`, and one master secret room inside each of the **4 Major Dungeons**.)*
+
+---
+
+## Part II: The 4 Major Multi-Room Dungeons & The Iron Tower
+
+Unlike the single-room Shrines, the **4 Major Dungeons** are multi-room
+architectural machines (`10 → 15 → 20 → 24` rooms) that combine their region's
+bombs around a macro spatial gimmick. Completing each awards one of the **4
+Elemental Keys** (**Cinder, Zephyr, Rime, Stone**) for the Iron Tower.
+
+### 1. Ice Cave (combines `Bomb + Fire + Squeak` — awards the **Cinder Key**): 10 rooms
+
+**Macro gimmick:** a frozen glacier sanctuary of dark halls, sliding ice lanes
+with crystal-peg backstops, Brass Beetles lured across grates, and ordered/timed
+braziers.
 
 ```text
  x:   0      1      2
@@ -158,33 +178,48 @@ y3  [ 7]   [ 1]   [ 2]
            (in)
 ```
 
-| # | Room | `(x,y)` | What it does |
+| # | Room | `(x,y)` | Rube Goldberg Puzzle & Contents |
 |:-:|---|---|---|
-| 1 | Entry Hall | `(1,3)` | Blast the east crate; ice blocks melt later. *teach* |
-| 2 | Switch Antechamber | `(2,3)` | A floor switch reveals **Small Key 1**. *teach* |
-| 3 | Crystal Crossroads | `(1,2)` | Throw a bomb into a crystal switch to lower the red barriers. *teach* |
-| 4 | Vault of Sparks | `(2,2)` | **Small Key 2**, cracked wall, and a thrown bomb into a crystal. *combine* |
-| 5 | Alchemist Reliquary | `(2,1)` | **Miniboss Phase 1: Ice Golem** (crack its frost crust with Bombs; at half health it retreats into 6). Claim **the Fire Bomb** and light both north braziers to open the west shutters. *teach* |
-| 6 | Lantern Hall | `(1,1)` | **Miniboss Phase 2: Ice Golem.** Full ice armour that Bombs clank off; melt it with Fire, then bomb the bare core to unlock the midpoint warp pad. |
-| 7 | Frozen Hall | `(0,3)` | Burn wooden shields, light two timed braziers for the **Heart Piece**. *twist* |
-| 8 | Hall of Three Flames | `(0,2)` | Throw Fire Bombs over the water channel to light three braziers in order, I → II → III, for the **Boss Key**. *twist* |
-| 9 | Sanctum Ante-Room | `(0,1)` | A crate cache with a heart; the boss door. |
-| 10 | Frozen Sanctum | `(0,0)` | **Boss: Ice Wraith.** Translucent and immune in the dark; light a corner brazier with Fire to expose it, then bomb it across 3 Ice Storm snuffs. |
+| 1 | Entry Hall | `(1,3)` | Blast the east crate (`W`) or melt the west ice blocks (`B`) with Fire to open the two wings; midpoint warp pad sits before the north locked door (**L1**). |
+| 2 | Switch Antechamber | `(2,3)` | Lure a Brass Beetle across a fenced spike grating with a **Squeak Bomb** so it steps onto the floor button (`O`) and holds it while dazed, revealing **Small Key 1**. |
+| 3 | Crystal Crossroads | `(1,2)` | Unlocked by **L1**. Roll a Bomb down an angled stone chute while running across the lowered blue barrier so crystal `C` flips *after* you cross, lowering the east red barrier. |
+| 4 | Vault of Sparks | `(2,2)` | Use raised crystal pegs (`R`/`U`) as a temporary backstop to blast-shove a stone block (`P`) onto a recessed plate for **Small Key 2**, then bank a Bomb through a `%` seam into crystal `C` to open **L2** north. |
+| 5 | Alchemist Reliquary | `(2,1)` | Light two `,` powder fuse lines of unequal length with **Fire** while flipping a crystal damper so both north braziers ignite simultaneously, opening the west shutters to the Miniboss gate (and revealing the dungeon's **Grandma's Button** in a side niche). |
+| 6 | Lantern Hall | `(1,1)` | **Miniboss Living Gate: Ice Golem** (below). Solved with **Squeak + Fire + Bomb**; unlocks the **midpoint warp pad** and west shutters. |
+| 7 | Frozen Hall | `(0,3)` | Burn a wooden rope support with **Fire** to drop a block as a windbreak, then light two timed braziers before the first fades to open the north shutter. |
+| 8 | Hall of Three Flames | `(0,2)` | Throw **Fire Bombs** and route a Brass Beetle with a **Squeak Bomb** across a bridge toggle to light three braziers in strict order (`I → II → III`) for the **Boss Key**. |
+| 9 | Sanctum Ante-Room | `(0,1)` | A dark room where lighting a `,` fuse trail illuminates the hidden floor path to the **Boss Door (`K`)**. |
+| 10 | Frozen Sanctum | `(0,0)` | **Boss: Ice Wraith** (3-Phase Puzzle Duel, below). Reward: **Cinder Key**. |
+
+#### Miniboss Living Gate: Ice Golem (Room 6)
+A hulking construct encased in mirror-thick glacier armour. Plain Bombs clank
+harmlessly off its shell, and it refuses to step onto the room's central furnace
+grate on its own.
+- **Solve (2 cycles):** Throw a **Squeak Bomb** onto the central furnace grate
+  to lure the Golem's clockwork core over the vents (dazing it in place for
+  `2.5 s`), ignite the furnace grate with a **Fire Bomb** to melt its glacier
+  armour off, and drop a **Bomb** to crack its bare core.
+
+#### Boss: Ice Wraith (Room 10)
+A lantern phantom that glides through pitch darkness, completely translucent and
+immune while the room is dark.
+- **3-Phase Puzzle Duel:** Light a corner brazier with **Fire** (or lure the
+  Wraith into a burning hearth pool with a **Squeak Bomb**) to materialize it,
+  then blast it with a **Bomb**. After each phase (`3` cycles total), it
+  unleashes an **Ice Storm** that snuffs all braziers and raises crystal walls
+  you must flip to reach the next corner brazier. Getting hit by its frost orbs
+  knocks Pip back and snuffs the active brazier (resetting that phase's light
+  setup, with zero player hearts).
 
 ---
 
-## 2. Rock Quarry (gives Wind): 15 rooms
+### 2. Rock Quarry (combines `Bomb + Fire + Wind + Magnet` — awards the **Zephyr Key**): 15 rooms
 
-**Theme:** a stone quarry stepping down a hillside in terraces, with wooden
-scaffolds, pulleys and a cargo lift, and sand drifting into every corner.
-**New pieces:** **sand piles** (only Wind blows them clear; a Bomb scatters them
-and they slump back) and **terraces** (one-tile ledges you can drop off but not
-climb; Wind's blast-jump goes up one).
-
-**Shape:** you enter on the **rim** (`2F`) and can only go *down* in Act 1,
-dropping into the quarry **pit** (`1F`). Wind is the way back *up*. The rim's
-centre room looks straight down into the pit, so you always see where you are
-going.
+**Macro gimmick:** you enter on the quarry **rim (`2F`)** above a great central
+**drop shaft (`5 → 8`)** looking down into the **pit (`1F`)**. In Act 1 you drop
+down terraces and shafts into the pit; **Wind** (blast-jumps + `2.5 s`
+whirlwinds) and **Magnet** (magnetic crane rails + iron spheres) power the cargo
+lift back up in Act 2.
 
 ```text
 2F (rim)                         1F (pit floor)
@@ -197,98 +232,48 @@ y2  [ 2] == [ 1] == [ 3]^        y2   .     [14] == [15]^
             (in)
 ```
 
-| # | Room | `(x,y)` | Act | Puzzle and contents | Exits |
-|:-:|---|---|:-:|---|---|
-| 1 | Quarry Gate | `2F (1,2)` | 1 | *teach* terraces: you enter on the top tier and drop down a ledge; side stairs lead back up, so you can't trap yourself. A sand pile sits on a floor switch beside the east shutter; a Bomb scatters it and it slumps back (*teach* sand). | W 2, N 5, E 3 (shutter, Act 2) |
-| 2 | Sand Hall | `2F (0,2)` | 1 | Burn the scaffold crates with Fire to reach a chest: **Small Key 1**. Sand piles line the west wall; in Act 2 Wind blows one clear to open an alcove: **Magic Bomb Sack upgrade (`2 → 3` live bombs).** | E 1 |
-| 3 | Pulley Top | `2F (2,2)` | 2 | The cargo lift arrives here from 15. Blow the sand off the floor switch to open the shutter to 1 (a shortcut home). Pop a Wind Bomb on the south lip to leave a `2.5 s` whirlwind, then throw a Bomb into it to catapult across a `3`-tile pit onto a cracked wall. *combine* | W 1, N 6, lift to 15 |
-| 4 | Upper Terrace | `2F (0,1)` | 1 | Three terraces step down southward; rock-throwing goblins on the tiers. Bomb the cracked floor block on the lowest tier to open a **drop** to 9. *teach* (drops between floors) | E 5 (**L1**), drop to 9 |
-| 5 | Rim Crossing (hub) | `2F (1,1)` | 1–2 | A walkway rings a great square drop shaft that shows the quarry floor below. Jump in: you land in 8 (the only way down without a key). East is a 2-tile gap, crossable only by blast-jump (Act 2). | S 1, W 4 (**L1**), E 6 (gap), drop to 8 |
-| 6 | Lookout Steps | `2F (2,1)` | 2 | *twist* terraces: four tiers stepping *up* to the north; blast-jump up each, with sand piles to clear off the landing spots first. | W 5 (gap), S 3, N 7 (**boss door**) |
-| 7 | Top Terrace | `2F (2,0)` | 2 | **Boss: Boulder Golem** (below). | S 6 |
-| 8 | Pit Floor (hub) | `1F (1,1)` | 1–2 | Where the hub shaft lands you. Its south locked door (**L3** to 14) sits behind a raised blue crystal barrier flipped in room 12, so **Key 2** can only be spent on **L2** (east to 12). | W 9, E 12 (**L2**), N 11, S 14 (**L3**, behind blue barrier) |
-| 9 | Gravel Chutes | `1F (0,1)` | 1 | Throw a bomb over a fence onto sloped chutes so it rolls downhill into a crystal switch, lowering the red barrier to 10. *twist* (chutes) | E 8, N 10 |
-| 10 | Sand Cellar | `1F (0,0)` | 1 | A dark cellar: light its two braziers with Fire; a chest appears: **Small Key 2**. | S 9 |
-| 11 | Quarry Face | `1F (1,0)` | 2 | A cliff of three terraces with a ledge at the top. Blast-jump up tier by tier and gust the sand off the top ledge: **Heart Piece**. | S 8 |
-| 12 | Scaffold Stack | `1F (2,1)` | 1 | Burn the scaffold supports so a crate drops onto a floor button, revealing **Small Key 3**, and throw a bomb into the crystal switch to lower the blue barrier in 8 (exposing **L3**). North is a 2-tile chasm (Act 2). | W 8 (**L2**), N 13 (gap) |
-| 13 | Gravel Seam | `1F (2,0)` | 2 | Blast-jump the chasm from 12. A cracked wall sits beyond a `3`-tile chasm; pop a Wind Bomb whirlwind and throw a Bomb into it to catapult across: **Boss Key**. *combine* | S 12 |
-| 14 | Foreman's Den | `1F (1,2)` | 1 | **Miniboss Phase 1: Mole Foreman** (below). At half health he flees east into 15 and drops **the Wind Bomb** chest; blow the sand off the east door switch to pursue him. | N 8 (**L3**), E 15 |
-| 15 | Lift Room | `1F (2,2)` | 1–2 | **Miniboss Phase 2: Mole Foreman** (below). Defeating him unlocks the midpoint warp pad; clear the sand-buried cargo lift switch with Wind to ride the lift up to 3. *teach* Wind | W 14, lift to 3 |
+| # | Room | `(x,y)` | Rube Goldberg Puzzle & Contents |
+|:-:|---|---|---|
+| 1 | Quarry Gate | `2F (1,2)` | Terraces step down from the entrance; a sand-buried switch beside the east shutter waits for **Wind** to open the shortcut from 3. |
+| 2 | Sand Hall | `2F (0,2)` | Burn scaffold ropes with **Fire** and pull an iron counterweight with **Magnet** to unseal **Small Key 1**; blowing the west sand wall clear with **Wind** reveals the quarry's **Grandma's Button**. |
+| 3 | Pulley Top | `2F (2,2)` | Where 15's cargo lift arrives on `2F`. Pop a **Wind Bomb** on the south lip to leave a `2.5 s` whirlwind, then throw a **Magnet Bomb** into it so it catapults across a `3`-tile pit onto a mag-rail and pulls the shutter latch open. |
+| 4 | Upper Terrace | `2F (0,1)` | Unlocked by **L1**. Blast-jump up a terrace with **Wind**, pull an iron sphere off a ledge with **Magnet** onto a chute so it smashes a cracked floor plug (`%`), and drop through the new shaft to 9. |
+| 5 | Rim Crossing (hub) | `2F (1,1)` | A walkway ringing the central drop shaft down to 8; east is a `2`-tile gap crossable by **Wind** blast-jump once the east crane rail is aligned from below. |
+| 6 | Lookout Steps | `2F (2,1)` | Four terraces stepping up north to the **Boss Door (`K`)**; clear sand off each landing with **Wind** while pulling an iron shield-block along a vertical mag-rail with **Magnet** to block falling boulders. |
+| 7 | Top Terrace | `2F (2,0)` | **Boss: Boulder Golem** (3-Phase Puzzle Duel, below). Reward: **Zephyr Key**. |
+| 8 | Pit Floor (hub) | `1F (1,1)` | Where 5's drop shaft lands you. Its south locked door (**L3** to 14) sits behind a raised blue crystal barrier flipped in room 12, so **Key 2** can only open **L2** (east to 12). |
+| 9 | Gravel Chutes | `1F (0,1)` | Roll a Bomb down a switchback stone chute and place a **Magnet Bomb** across a fence to tug the rolling bomb onto the inner branch into crystal `C`, opening 10. |
+| 10 | Sand Cellar | `1F (0,0)` | A dark cellar: blow sand off two magnetic floor sockets with **Wind**, pull iron braziers onto them with **Magnet**, and light both with **Fire** for **Small Key 2**. |
+| 11 | Quarry Face | `1F (1,0)` | An optional 3-tier cliff puzzle combining a **Wind** whirlwind catapult and a **Magnet** rail to open a shortcut back to 5. |
+| 12 | Scaffold Stack | `1F (2,1)` | Unlocked by **L2**. Burn scaffold supports with **Fire** to drop an iron sphere onto a rail, pull it onto a button with **Magnet** for **Small Key 3**, and flip crystal `C` to lower the blue barrier in 8 (exposing **L3**). |
+| 13 | Gravel Seam | `1F (2,0)` | Blast-jump the north chasm from 12 with **Wind**, catapult a Bomb via a `2.5 s` whirlwind into a `%` wall, and pulse an iron polarity switch with **Magnet** for the **Boss Key**. |
+| 14 | Foreman's Den | `1F (1,2)` | Unlocked by **L3**. A prelude crane-rail puzzle where you align the gantry tracks leading east into the Miniboss hall. |
+| 15 | Lift Room | `1F (2,2)` | **Miniboss Living Gate: Mole Foreman** (below). Solved with **Magnet + Wind + Bomb**; unlocks the **midpoint warp pad** and starts the cargo lift up to 3. |
 
-**Keys & No-Softlock Proof:**
-- **Key 1** (room 2) opens **L1** (`5 → 4`, the only reachable locked door on `2F`).
-- **Key 2** (room 10) opens **L2** (`8 → 12`); **L3** (`8 → 14`) is physically blocked by a raised blue crystal barrier in room 8 until you flip the crystal switch inside room 12, and room 12 has no back door to room 15.
-- **Key 3** (room 12) opens **L3** (`8 → 14`, Foreman's Den).
-- **Boss Key** (room 13) opens the boss door (`6 → 7`).
+#### Miniboss Living Gate: Mole Foreman (Room 15)
+Rides an armored iron mine-cart gantry over the lift shaft, shovelling sand piles
+onto the room's four corner floor switches so the lift cannot run.
+- **Solve (2 cycles):** Throw a **Magnet Bomb** onto the side rail to yank his
+  iron shield-cart off balance, blow all four sand-buried switches clean with
+  **Wind Bombs** to drop the gantry, and hit him with a **Bomb** while dazed.
 
-**Act 1 route:** 1 → 2 (Key 1) → 1 → 5 → 4 (L1) → drop to 9 → 10 (Key 2) → 9 → 8
-→ 12 (L2, Key 3 + flip crystal) → 8 → 14 (L3, Miniboss Phase 1 + Wind) → 15
-(Miniboss Phase 2 + Lift).
-**Act 2 route:** 15 (lift) → 3 → 6 → back down via 5's shaft → 8 → 12 → 13
-(Boss Key) → 12 → 8 → 14 → 15 (lift) → 3 → 6 → 7. Optional: 11 (Heart Piece),
-2's sand alcove (Magic Bomb Sack upgrade), 3's shortcut to 1.
-
-### Miniboss: Mole Foreman (Two-Room Fight: Rooms 14 & 15)
-
-A mole in a hard hat who runs the quarry; at mouse scale, he is huge.
-
-- **Phase 1 (Room 14, Foreman's Den — using Bomb + Fire):** he rides a wooden
-  scaffold over the den, tossing gravel bombs. Burn the two wooden scaffold
-  props with **Fire** so the scaffold tips and dumps him to the floor, dazed,
-  then hit him with a **Bomb**. After two hits, he panics and **flees east into
-  Room 15**, dropping the **Wind Bomb** chest in the centre of Room 14. Claim
-  Wind and blow the sand pile off the east shutter switch to follow him.
-- **Phase 2 (Room 15, Lift Room — testing Wind):** he mounts the iron lift
-  gantry (immune to Fire) and shovels sand piles onto the four floor switches
-  round the room. A regular Bomb only scatters sand back onto the switches; your
-  new **Wind Bomb** blows the switches clean. With all four switches clear, the
-  gantry drops him to the floor, dazed—bomb him twice to finish him and unlock
-  the midpoint warp pad and cargo lift.
-- He never digs into the floor himself, so it isn't a burrowing fight (see the
-  homage note below).
-
-### Boss: Boulder Golem
-
-A golem of piled stone holding the top terrace, which steps down in four tiers
-to where you enter.
-
-- **Phase 1:** it rolls boulders down the tiers. Dodge between them, and
-  blast-jump up one tier at a time between volleys.
-- **Phase 2:** on its tier it backs towards the edge. Gust it with Wind; each
-  gust pushes it a tile. At the edge, a last gust topples it off.
-- **Phase 3:** it lands shattered at the foot of the terraces, its glowing core
-  bare. Drop down and throw or drop a Bomb onto the core twice before it
-  rebuilds.
-- **Reward:** Heart Container, then the **Zephyr Core** in a chamber behind the
-  terrace (part of room 7, not a separate room).
-
-### Inspiration notes
-
-- *Seasons*, **Poison Moth's Lair:** the new item (Roc's Feather) arrives
-  halfway, and you go back through earlier rooms with it; and drops between
-  floors carry you down. We borrow that *structure*: dropping in Act 1, climbing
-  back with Wind in Act 2.
-- *Ages*, **Moonlit Grotto:** a central **hub room** you pass again and again.
-  Our hub pit (5 over 8) plays that role.
-- **Homage check:** Moonlit Grotto's miniboss, **Subterror**, burrows in sand
-  and is dug up with a shovel. That is why the Mole Foreman never burrows: he
-  buries *switches*, and you uncover *them*.
+#### Boss: Boulder Golem (Room 7)
+A towering golem of iron-veined quarry stone atop a four-tier terrace, bowling
+boulders down the steps.
+- **3-Phase Puzzle Duel:** Blast-jump up the terraces with **Wind** between
+  boulder waves; on its top tier, drop a **Magnet Bomb** behind it to pull its
+  iron-veined torso backward to the cliff lip, then pop a **Wind Bomb** to
+  topple it off the terrace so its shattered core lies exposed below for a
+  **Bomb**.
 
 ---
 
-## 3. Fire Mountain (gives Ice): 20 rooms
+### 3. Fire Mountain (combines `Ice + Fire + Wind + Magnet` — awards the **Rime Key**): 20 rooms
 
-**Theme:** a volcano with an old forge dug into it: dark basalt, glowing lava,
-furnaces, iron grates and chains. **New pieces:** **lava** (deadly; Ice crusts
-it into floor until you leave the room, or Fire melts it) and **flame jets**
-(fire on a beat; Ice puts one out for good). **Act 2 twist:** frozen crust is
-*glazed*, so thrown/dropped bombs and shoved blocks on it slide until they hit
-something (the only glazed floors in a Shrine).
-
-**Shape:** `1F` is the upper forge around a **Great Forge** hub: a lava pool
-with an island in its middle. In Act 1 you circle the pool; in Act 2 you crust
-a path to the island, whose stair leads down to the lower forge (`B1F`) and the
-boss.
+**Macro gimmick:** `1F` rings the **Great Forge** lava pool around a central
+island stair (`1F ↔ B1F`). Freezing lava with **Ice** creates slick **glazed
+crust** where bombs, blocks, and magnetically pulled iron spheres slide like
+curling stones across the lower forge (`B1F`).
 
 ```text
 1F (upper forge)                          B1F (lower forge)
@@ -301,102 +286,54 @@ y2  [ 2] == [ 1] == [12] == [ 3]          (13 sits under 4's island)
             (in)    (L3 v)
 ```
 
-| # | Room | `(x,y)` | Act | Puzzle and contents | Exits |
-|:-:|---|---|:-:|---|---|
-| 1 | Mountain Gate | `1F (1,2)` | 1 | *teach* lava: a one-tile lava stream crosses the room; blast-jump it with Wind. A flame jet guards the north door on a slow beat. | W 2, E 12, N 4 |
-| 2 | Ash Hall | `1F (0,2)` | 1 | *teach* flame jets: a corridor of jets firing in a ripple; walk the gaps. At the end: **Small Key 1**. | E 1 |
-| 3 | Chain Hoist | `1F (3,2)` | 1 | An iron cage hangs on a rope over a lava channel. Throw a Fire Bomb over the fence to burn the rope: the cage drops into the lava and becomes a bridge to the far ledge, with a fairy and a way north to 7. *combine* (Fire + lava) | W 12, N 7 |
-| 4 | Great Forge (hub) | `1F (1,1)` | 1–2 | A lava pool fills the middle, with an anvil island and a stair. Its north locked door (**L2** to 9) is blocked by a raised blue crystal barrier until you flip the crystal switch in room 7, so **Key 1** must go to **L1** (east to 6). Act 2: crust a path across the pool to the island stair down to 13. | S 1, W 5, E 6 (**L1**), N 9 (**L2**, behind blue barrier), island to 13 |
-| 5 | Bellows Room | `1F (0,1)` | 1 | A three-tile lava river. Pop a Wind Bomb on the near bank to leave a `2.5 s` whirlwind, then throw a Bomb into it to catapult across onto a floor switch; the shutter to 8 opens and a chest appears: **Small Key 2**. *combine* (Wind + Bomb) | E 4, N 8 |
-| 6 | Furnace Row | `1F (2,1)` | 1 | Four furnaces (braziers); light all four with Fire before the first burns out, and an iron grate lifts. *twist* (timed braziers) | W 4 (**L1**), E 7 |
-| 7 | Slag Chute | `1F (3,1)` | 1 | Sloped chutes run past flame jets; drop or throw a bomb onto the chute between jets so it rolls into a crystal switch, lowering the blue barrier in 4 (exposing **L2**) and revealing **Small Key 3** behind an Act 2 lava strip. | W 6, N 11, S 3 |
-| 8 | Ember Vault | `1F (0,0)` | 2 | A dark vault lit only by its lava; a ledge across lava holds the **Heart Piece**. Crust a path to it. | S 5 |
-| 9 | Salamander Pit | `1F (1,0)` | 1 | **Miniboss Phase 1: Fire Salamander** (below). At half health it dives through the east grate into 10, leaving **the Ice Bomb** chest behind; crust the east lava strip with Ice to pursue it. | S 4 (**L2**), E 10 |
-| 10 | Quench Room | `1F (2,0)` | 1–2 | **Miniboss Phase 2: Fire Salamander** (below). Snuff its white-hot flame aura with Ice and bomb it to unlock the midpoint warp pad, then crust the east lava strip to exit to 11. *teach* Ice | W 9, E 11 (over the lava) |
-| 11 | Jet Gallery | `1F (3,0)` | 2 | A gallery of flame jets on a fast beat, too fast to run. Ice puts each out for good; the gallery leads south to 7, where you crust the lava pocket to claim **Small Key 3**. *twist* | W 10, S 7 |
-| 12 | Lava Falls | `1F (2,2)` | 1–2 | A lava fall pours across the room; you pass along its edge to 3 in Act 1. In Act 2, crust its pool and spend **Key 3** on **L3** to reach a stair down to 17 (a shortcut to the boss floor). | W 1, E 3, stair to 17 (**L3**) |
-| 13 | Lower Forge | `B1F (1,0)` | 2 | Where the island stair lands. Your first *glazed crust*: crust a lava lane and throw a bomb onto it; it slides the whole lane into a crystal. *teach* glaze | W 14, E 15 |
-| 14 | Ingot Press | `B1F (0,0)` | 2 | Shove a block with a blast onto glazed crust; it slides until it stops on a floor button. *twist* (blocks slide too) | E 13, S 17 |
-| 15 | Smelter | `B1F (2,0)` | 2 | Throw a bomb onto glazed crust so it banks off iron pillars to hit a switch round a corner. *combine* | W 13, E 16 |
-| 16 | Crucible | `B1F (3,0)` | 2 | Flame jets ring a chest; put them out with Ice and crust the lava moat: **Boss Key**. | W 15, S 20 |
-| 17 | Slag Pool | `B1F (0,1)` | 2 | Where 12's stair lands. Freeze a lava channel to stop a slag-block current, then melt one tile with Fire so the block drops onto a sunken button. *combine* (Ice + Fire) | N 14, E 18, stair to 12 |
-| 18 | Drake Stair | `B1F (1,1)` | 2 | The boss door. Pots and a heart. | W 17, E 19 (**boss door**) |
-| 19 | Drake's Moat | `B1F (2,1)` | 2 | **Boss: Lava Drake** (below). | W 18, E 20 |
-| 20 | Core Chamber | `B1F (3,1)` | 2 | Heart Container and the **Rime Core**; a warp back to the gate. | W 19, N 16 |
+| # | Room | `(x,y)` | Rube Goldberg Puzzle & Contents |
+|:-:|---|---|---|
+| 1 | Mountain Gate | `1F (1,2)` | Blast-jump or crust the entry lava stream and time the slow flame jet north to 4. |
+| 2 | Ash Hall | `1F (0,2)` | Snuff a ripple of beat-timed flame jets with **Ice** while pulling an iron shield along a rail with **Magnet** to claim **Small Key 1**. |
+| 3 | Chain Hoist | `1F (3,2)` | Throw **Fire** over a fence to burn a hoist rope, dropping an iron cage into a lava channel as a permanent bridge north to 7. |
+| 4 | Great Forge (hub) | `1F (1,1)` | A wide lava pool surrounds the central anvil island. **L2** (north to 9) sits behind a blue crystal barrier flipped in 7, so **Key 1** opens **L1** (east to 6). Once **Room 10** is cleared, crust a path across the pool with **Ice** to take the island stair down to 13. |
+| 5 | Bellows Room | `1F (0,1)` | Pop a **Wind** whirlwind on the near bank of a `3`-tile lava river and catapult a **Bomb** across onto a switch, opening 8 and unsealing **Small Key 2**. |
+| 6 | Furnace Row | `1F (2,1)` | Unlocked by **L1**. Light a `,` powder fuse loop with **Fire** while freezing a steam leak with **Ice** so four timed furnaces ignite together. |
+| 7 | Slag Chute | `1F (3,1)` | Roll a Bomb down a chute between flame jets (snuffed with **Ice**) into crystal `C`, lowering the blue barrier in 4 (exposing **L2**) and revealing **Small Key 3** across a lava strip. |
+| 8 | Ember Vault | `1F (0,0)` | Crust a path across dark lava with **Ice** and guide an iron sphere with **Magnet** to claim the mountain's **Grandma's Button**. |
+| 9 | Salamander Pit | `1F (1,0)` | Unlocked by **L2**. An anteroom of lava channels where you align the quench sluice leading east into 10. |
+| 10 | Quench Room | `1F (2,0)` | **Miniboss Living Gate: Fire Salamander** (below). Solved with **Ice + Glaze Slide + Bomb**; unlocks the **midpoint warp pad** and east gate to 11. |
+| 11 | Jet Gallery | `1F (3,0)` | Snuff a fast-beat gallery of flame jets with **Ice** to return south to 7 and claim **Small Key 3**. |
+| 12 | Lava Falls | `1F (2,2)` | Crust the waterfall pool with **Ice** and spend **Key 3** on **L3** to unlock the direct stair down to 17. |
+| 13 | Lower Forge | `B1F (1,0)` | Where 4's island stair lands. *Teach glazed lava crust:* freeze a lava lane with **Ice** and throw a **Bomb** onto the glaze so it slides the full length into crystal `C`. |
+| 14 | Ingot Press | `B1F (0,0)` | Freeze a lava floor into glaze with **Ice**, raise a crystal peg `R` as a backstop, and blast-shove an ingot block so it slides onto button `O`. |
+| 15 | Smelter | `B1F (2,0)` | Slide an iron sphere across glazed crust and curve it `90°` around an iron pillar with a **Magnet Bomb** into a recessed polarity switch. |
+| 16 | Crucible | `B1F (3,0)` | Snuff four rapid flame jets with **Ice**, catapult a **Fire Bomb** via a **Wind** whirlwind to burn a hoist rope, and claim the **Boss Key**. |
+| 17 | Slag Pool | `B1F (0,1)` | Freeze a moving slag current with **Ice** so a floating block stops over a submerged plate, then melt that single tile with **Fire** so the block sinks onto the switch. |
+| 18 | Drake Stair | `B1F (1,1)` | The **Boss Door (`K`)** east to 19. |
+| 19 | Drake's Moat | `B1F (2,1)` | **Boss: Lava Drake** (3-Phase Puzzle Duel, below). |
+| 20 | Core Chamber | `B1F (3,1)` | Claim the **Rime Key** and warp back to the entrance. |
 
-**Room count:** 1F has 12 rooms (1 to 12) and B1F has 8 (13 to 20): **20**.
+#### Miniboss Living Gate: Fire Salamander (Room 10)
+Prowls a lava-ringed quench basin wreathed in white-hot flame that vaporizes
+ordinary Bombs before they can touch it.
+- **Solve (2 cycles):** Crust the lava lane in front of it into slick **glaze**
+  with an **Ice Bomb**, catch the salamander in an **Ice Bomb** nova to quench
+  its white-hot aura for `4 s`, and throw/slide a **Bomb** across the glazed
+  crust straight into its cooled scales.
 
-**Keys & No-Softlock Proof:**
-- **Key 1** (room 2) and **Key 2** (room 5) are both available on `1F`, while **L2** (`4 → 9`) is gated behind the blue crystal barrier flipped in room 7 (which lies behind **L1**, `4 → 6`). Even if the player collects both Key 1 and Key 2 before opening **L1**, **L1** is the only unlocked-barrier door available first, and **L3** (`12`'s stair) sits across an uncrusted lava pool requiring Act 2's **Ice Bomb** ( plus **Key 3** in room 7 is also gated behind an Ice-crusted lava strip).
-- Thus **Key 1** and **Key 2** always open **L1** (`4 → 6`) and **L2** (`4 → 9`), **Key 3** (room 7, Act 2) opens **L3** (`12 → 17`), and **Boss Key** (room 16) opens the boss door (`18 → 19`).
-
-**Act 1 route:** 1 → 2 (Key 1) → 1 → 4 → 5 (Key 2) → 4 → 6 (L1) → 7 (flip
-crystal) → 6 → 4 → 9 (L2, Miniboss Phase 1 + Ice) → 10 (Miniboss Phase 2). Room
-3 (from 12) is an optional loop to 7 with a fairy.
-**Act 2 route:** 10 → 11 → 7 (Key 3) → 6 → 4 (crust to the island) → 13 → 14 →
-17 → 18 … then 13 → 15 → 16 (Boss Key) → 20 → … → 18 → 19. Optional: 8 (Heart
-Shard); 12 (L3) → 17 is the quick way down once you have Ice and Key 3.
-
-### Miniboss: Fire Salamander (Two-Room Fight: Rooms 9 & 10)
-
-A big lizard wreathed in flame, prowling a pit edged with lava. Bombs bounce off
-its flames.
-
-- **Phase 1 (Room 9, Salamander Pit — using Wind + Bomb):** you arrive with
-  Bomb, Fire and Wind. Whenever it inhales to spit fire, pop a **Wind Bomb** to
-  blow its flame cloak off for a moment, then throw a **Bomb** onto its bare
-  scales. After two hits it dives under the east lava grate into Room 10,
-  unsealing the **Ice Bomb** chest in Room 9. Claim Ice and crust the east lava
-  strip to follow it.
-- **Phase 2 (Room 10, Quench Room — testing Ice):** inside the quenching room it
-  burns white-hot (Wind can no longer blow its flames out, and lava pools divide
-  the floor). Crust the lava pools with **Ice** to manoeuvre, and hit the
-  salamander directly with an **Ice Bomb** nova to quench its white-hot cloak
-  and stun it; then throw a **Bomb** to damage it. Two cycles finish it and
-  unlock the midpoint warp pad.
-
-### Boss: Lava Drake
-
-A long drake that swims a lava moat round the room's central island.
-
-- **Phase 1:** it surfaces at random points and breathes a line of fire across
-  the room. Crust a path of floor across the moat with Ice to reach the island
-  (each crust holds until you leave).
-- **Phase 2:** from the island, wait for it to rear up and breathe. Throw an
-  **Ice Bomb** into its open jaws to freeze the breath and cool its throat; it
-  stalls with its mouth open.
-- **Phase 3:** throw a **Bomb** into its mouth (or slide one across the glazed
-  crust) while it's stalled. Three cycles. Each cycle it melts some of your
-  crust, so you re-freeze your path.
-
-### Inspiration notes
-
-- *Seasons*, **Dancing Dragon Dungeon:** a mine laid out in the shape of a
-  dragon, where the item you find late (the slingshot) turns rooms you rode
-  through earlier into new puzzles. Our hub (4) does the same: a pool you circle
-  in Act 1 becomes the way down in Act 2. We use no mine carts; the "ride" is a
-  bomb sliding on glazed crust.
-- *Ages*, **Moonlit Grotto:** a hub whose state changes partway through (the
-  wheel room's platform falls to the floor below). Our Great Forge island stair
-  is the same idea in our terms.
-- **Homage check:** a fire lizard and a lava serpent are genre staples, but our
-  verbs (snuff with Ice, throw/slide a bomb into its mouth while frozen open,
-  re-freeze a crust path) belong to our bombs.
+#### Boss: Lava Drake (Room 19)
+Circles a wide lava moat around a central forge island, surfacing to breathe
+sweeping torrents of flame.
+- **3-Phase Puzzle Duel:** Crust a bridge of **glazed lava** across the moat
+  with **Ice Bombs**; when the Drake rears up and inhales, throw an **Ice Bomb**
+  into its open jaws to freeze its breath and prop its mouth open, then slide a
+  **Bomb** across the glazed crust into its throat (`3` cycles).
 
 ---
 
-## 4. Wind Cliffs (gives Rock): 24 rooms
+### 4. Wind Cliffs (combines `Rock + Magnet + Wind + Ice` — awards the **Stone Key**): 24 rooms
 
-**Theme:** sea caves at the foot of a cliff (`1F`) and ruined watchtowers on
-the clifftop (`2F`), with rope bridges, gulls and sea spray. **New pieces:**
-**gusts** (steady wind from vents that carries rolling bombs, sand and loose
-objects; the mouse walks normally; a block makes calm air behind it) and
-**gaps** (one-tile channels and pits that a Rock block turns into a stepping
-stone).
-
-**Shape:** a wide cave floor with a **Tide Hall** hub; a **blowhole** carries
-bombs straight up to the clifftop, so Act 1 shoots from below what Act 2 climbs
-to. The lighthouse stair links the floors.
+**Macro gimmick:** sea caves at the cliff foot (`1F`) connected to ruined
+watchtowers on the clifftop (`2F`) by an upward **Blowhole (`6 → 17`)** that
+shoots bombs from `1F` to `2F`. Cross-gust wind vents sweep bombs and spheres
+off ledges unless you anchor **Rock Bomb** windbreaks and backstops. *(Rule:
+**no moving platforms** in Wind Cliffs.)*
 
 ```text
 1F (sea caves)                                  2F (clifftop)
@@ -409,110 +346,60 @@ y2 [ 5] == [ 2] == [ 1] == [ 3]                y2 [21] == [20] == [19]
                    (in)
 ```
 
-| # | Room | `(x,y)` | Act | Puzzle and contents | Exits |
-|:-:|---|---|:-:|---|---|
-| 1 | Sea Cave Mouth | `1F (2,2)` | 1 | *teach* gusts: a vent blows across the room. Throw a bomb upwind and the gust curves it into a crystal switch. | W 2, E 3, N 4 |
-| 2 | Spray Steps | `1F (1,2)` | 1 | Sea spray pours down the walls; Ice freezes it into ledges to walk on. A chest on the top ledge: **Small Key 1**. | E 1, W 5 |
-| 3 | Gull Roost | `1F (3,2)` | 1 | Burn the driftwood nests (Fire); a gust carries a thrown bomb across a `3`-tile gap onto a high cracked wall to open the way to 8. *combine* (Fire + gust) | W 1, N 8 |
-| 4 | Tide Hall (hub) | `1F (2,1)` | 1–2 | Four vents whose gusts cross in the middle, sweeping any bomb you place. Its north locked door (**L2** to 11) sits behind a raised blue crystal barrier flipped in room 15 (at the top of the lighthouse stair), so **Key 1** must open **L1** (`8 → 9`) first. Act 2: a Rock windbreak calms the centre for good. | S 1, W 6, E 8, N 11 (**L2**, behind blue barrier) |
-| 5 | Driftwood Store | `1F (0,2)` | 1 | Crates and pits; blast-jump between outcrops to a crate cache with a fairy. | E 2, N 7 |
-| 6 | Blowhole | `1F (1,1)` | 1 | A blowhole vent shoots straight up. A bomb thrown into it is carried up to 2F, where it hits the switch that lowers the rope bridge in 17. *twist* (gusts across floors) | E 4, W 7, N 10 |
-| 7 | Kelp Cellar | `1F (0,1)` | 1 | A dark cave: light three braziers with Fire to see the hidden stepping-stones across the water. | E 6, S 5, N 13 |
-| 8 | Wreck Hold | `1F (3,1)` | 1 | A shipwreck's hull; shove a block with a blast onto a floor button against a gust that keeps pushing it back. A chest: **Small Key 2**. | W 4, S 3, E 9 (**L1**) |
-| 9 | Lighthouse Base | `1F (4,1)` | 1–2 | The spiral stair up to the clifftop (15). Act 1 reaches it with **Key 1** to climb to 15 and flip the crystal; Act 2 uses it as the route up. | W 8 (**L1**), N 14, stair to 15 |
-| 10 | Echo Cave | `1F (1,0)` | 2 | Gaps everywhere. *teach* Rock stepping stones: drop Rock into one-tile channels to cross. **Heart Piece** at the far end. | S 6 |
-| 11 | Harpy's Roost | `1F (2,0)` | 1 | **Miniboss Phase 1: Harpy** (below). At half health it flees east into 12, leaving **the Rock Bomb** chest behind; drop a Rock stepping stone across the east gap to pursue it. | S 4 (**L2**), E 12 |
-| 12 | Gust Gallery | `1F (3,0)` | 1–2 | **Miniboss Phase 2: Harpy** (below). Raise Rock pillars in its dive line to daze and defeat it (unlocking the midpoint warp pad), then raise windbreaks so bombs sit on three floor buttons at once to open the south shortcut to 8. *teach* windbreaks | W 11, S 8 (shutter) |
-| 13 | Stone Bridge Cave | `1F (0,0)` | 2 | Chains of gaps over the sea; stepping stones plus a blast-jump between them. A chest: **Small Key 3**. *combine* (Rock + Wind) | S 7 |
-| 14 | Undertow | `1F (4,0)` | 2 | A channel where the current drags blocks; wall it off with Rock so a shoved block stops on a button. **Magic Bomb Sack upgrade (`3 → 4` live bombs).** | S 9 |
-| 15 | Watchtower Stair | `2F (3,1)` | 1–2 | Where the lighthouse stair lands. In Act 1 you throw a bomb across the gap into a crystal switch (lowering the blue barrier in 4 to expose **L2**), while the west path dead-ends at a channel that needs a Rock stepping stone in Act 2. | stair to 9, W 16 (gap) |
-| 16 | Cliff Path | `2F (2,1)` | 2 | Gusts along the cliff edge sweep bombs over the drop. Windbreaks keep them on the path while you bomb a line of cracked boulders. | E 15, W 17, S 19, N 22 (**boss door**) |
-| 17 | Rope Bridge | `2F (1,1)` | 1–2 | The bridge lowered by 6's blowhole bomb (Act 1, seen from below); in Act 2 you cross it, filling its broken planks with stepping stones. | E 16, W 18 (**L3**), S 20 |
-| 18 | Ruined Watchtower | `2F (0,1)` | 2 | Locked by **L3**. A four-button door: two blocks shoved by blasts, one Rock block and one bomb held under a windbreak. **Boss Key**. *combine* | E 17 (**L3**), S 21 |
-| 19 | Nesting Ledges | `2F (2,2)` | 2 | Gull nests on ledges; burn them for hearts; terraces you blast-jump up. | N 16, W 20 |
-| 20 | Vane Hall | `2F (1,2)` | 2 | Wind-vane switches spun by gusts; block one vent with Rock so only the right vane turns, opening the west door to 21. *twist* | E 19, W 21, N 17 |
-| 21 | Lookout | `2F (0,2)` | 2 | A crumbling lookout over the sea with a view of the boss's perch; pots and a fairy before the boss (south of 18 is a one-way ledge drop from 18 → 21 so 21 never bypasses **L3**). | E 20, one-way drop from 18 |
-| 22 | Storm Stair | `2F (2,0)` | 2 | The boss door, then a climb up the last terraces into the wind. | S 16, W 23 |
-| 23 | Clifftop | `2F (1,0)` | 2 | **Boss: Storm Bird** (below). | E 22, W 24 |
-| 24 | Core Chamber | `2F (0,0)` | 2 | Heart Container and the **Stone Core**; a warp back to the cave mouth. | E 23 |
+| # | Room | `(x,y)` | Rube Goldberg Puzzle & Contents |
+|:-:|---|---|---|
+| 1 | Sea Cave Mouth | `1F (2,2)` | A steady gust vent blows east across the cave; place a **Rock** windbreak or throw a bomb upwind so the gust curves it into crystal `C`. |
+| 2 | Spray Steps | `1F (1,2)` | Freeze sea spray into walkable ice ledges with **Ice** and drop a **Rock** stepping stone into a tide channel for **Small Key 1**. |
+| 3 | Gull Roost | `1F (3,2)` | Place a **Rock** windbreak to calm a gust lane, light a `,` fuse line with **Fire**, and let the vent carry a Bomb into a `%` wall north to 8. |
+| 4 | Tide Hall (hub) | `1F (2,1)` | Four cross-gust vents sweep the centre; **L2** (north to 11) sits behind a blue crystal barrier flipped in 15 (via **L1** `8 → 9`). A **Rock** windbreak calms the centre intersection. |
+| 5 | Driftwood Store | `1F (0,2)` | Blast-jump outcrops with **Wind** and pull an iron crate with **Magnet** to open the west passage north to 7. |
+| 6 | Blowhole | `1F (1,1)` | *Cross-floor action:* throw a Bomb into the upward **Blowhole** vent on `1F`; the vertical gale shoots it up to `2F` Room 17, where its blast flips the switch that lowers 17's Rope Bridge. |
+| 7 | Kelp Cellar | `1F (0,1)` | A dark sea cave: shield three braziers from sea gusts with a **Rock** block and light them with **Fire** to reveal the path to 13. |
+| 8 | Wreck Hold | `1F (3,1)` | Pull an iron ballast block along a rusted rail with **Magnet** and lock it behind a **Rock** backstop against a headwind for **Small Key 2**. |
+| 9 | Lighthouse Base | `1F (4,1)` | Unlocked by **L1**. The spiral stair up to 15 on `2F` (and north to 14). |
+| 10 | Echo Cave | `1F (1,0)` | Drop **Rock** stepping stones into `1`-tile channels and lure a Brass Beetle across with a **Squeak Bomb** for the cliffs' **Grandma's Button**. |
+| 11 | Harpy's Roost | `1F (2,0)` | Unlocked by **L2**. A wind-swept cliff ledge leading east into the Miniboss gallery. |
+| 12 | Gust Gallery | `1F (3,0)` | **Miniboss Living Gate: Harpy** (below). Solved with **Rock + Bomb**; unlocks the **midpoint warp pad** and south shortcut to 8. |
+| 13 | Stone Bridge Cave | `1F (0,0)` | Combine **Rock** stepping stones, an **Ice**-frozen current, and a **Wind** blast-jump across sea gaps for **Small Key 3**. |
+| 14 | Undertow | `1F (4,0)` | Dam a fast tide current with a **Rock** block so a magnetically pulled iron sphere stops on a submerged switch, opening a shortcut to 9. |
+| 15 | Watchtower Stair | `2F (3,1)` | Where 9's stair lands on `2F`. Flip crystal `C` across the gap (lowering 4's blue barrier to **L2**), then drop a **Rock** stepping stone into the west channel to cross into 16. |
+| 16 | Cliff Path | `2F (2,1)` | Cliffside gales sweep bombs toward the abyss; place **Rock** windbreaks to hold Bombs against a line of `%` boulders guarding the **Boss Door (`K`)** north to 22. |
+| 17 | Rope Bridge | `2F (1,1)` | The bridge lowered from below by 6's **Blowhole** bomb; patch its missing plank gap with a **Rock** stepping stone to reach **L3** (west to 18). |
+| 18 | Ruined Watchtower | `2F (0,1)` | Unlocked by **L3**. A 4-button Rube Goldberg vault: one stone block shoved by **Bomb**, one iron sphere pulled by **Magnet**, one Brass Beetle lured by **Squeak**, and one **Rock** block → unseals the **Boss Key**. |
+| 19 | Nesting Ledges | `2F (2,2)` | Blast-jump terraces with **Wind** and curve a bomb along a gust lane into 20. |
+| 20 | Vane Hall | `2F (1,2)` | Two wind vanes sit in twin gust lanes; block the wrong vent with a **Rock** block so only the target vane spins, opening 21. |
+| 21 | Lookout | `2F (0,2)` | Overlooks the Storm Bird's crag (one-way drop from 18 → 21 so **L3** can never be bypassed). |
+| 22 | Storm Stair | `2F (2,0)` | Unlocked by the **Boss Door (`K`)**; climb the final windswept terraces west to 23. |
+| 23 | Clifftop | `2F (1,0)` | **Boss: Storm Bird** (3-Phase Puzzle Duel, below). |
+| 24 | Core Chamber | `2F (0,0)` | Claim the **Stone Key** and warp back to the cave mouth. |
 
-**Keys & No-Softlock Proof:**
-- **Key 1** (room 2) and **Key 2** (room 8) are both in Act 1, while **L2** (`4 → 11`) is gated behind the blue crystal barrier in room 4 that can only be flipped from room 15 (behind **L1**, `8 → 9`). Thus the player must open **L1** first, flip the crystal in 15, and then open **L2** (`4 → 11`).
-- **Key 3** (room 13) requires the **Rock Bomb** (from room 11) to cross the sea gaps, and opens **L3** (`17 → 18`). Room 21's connection to 18 is a one-way southward ledge drop (`18 → 21`), so **L3** cannot be bypassed from below.
-- **Boss Key** (room 18) opens the boss door (`16 → 22`).
+#### Miniboss Living Gate: Harpy (Room 12)
+Swoops down the gallery's howling wind lanes at high speed, blowing ordinary
+bombs away with its wings.
+- **Solve (2 cycles):** Raise a **Rock Bomb** pillar in its dive lane as it
+  winds up; the Harpy slams headfirst into the stone block and drops dazed to
+  the floor for a **Bomb**.
 
-**Act 1 route:** 1 → 2 (Key 1) → 1 → 3 → 8 (Key 2) → 9 (L1) → up to 15 (flip
-crystal, dead end at gap) → back → 4 → 6 (blowhole bomb lowers 17's bridge) →
-11 (L2, Miniboss Phase 1 + Rock) → 12 (Miniboss Phase 2). Side rooms: 5, 7.
-**Act 2 route:** 12 → 8 → 4 → 6 → 7 → 13 (Key 3) → back to 9 → 15 (fill the
-gap) → 16 → 17 → 18 (L3, Boss Key) → 17 → 16 → 22 → 23. Optional: 10 (Heart
-Shard), 14 (Magic Bomb Sack upgrade), 19 to 21.
-
-### Miniboss: Harpy (Two-Room Fight: Rooms 11 & 12)
-
-A diving harpy in a high sea cave.
-
-- **Phase 1 (Room 11, Harpy's Roost — using Ice / Wind + Bomb):** it swoops in
-  low circuits over shallow tide pools and dives at you. Freeze the tide pool in
-  its flight path with **Ice** (or punt it into the cave wall with a **Wind
-  Bomb** as it swoops) so it skids and tumbles, dazed; then hit it with a
-  **Bomb**. After two hits it screeches and **flees east into Room 12**,
-  unsealing the **Rock Bomb** chest in Room 11. Claim Rock and drop a stepping
-  stone into the east channel to follow it.
-- **Phase 2 (Room 12, Gust Gallery — testing Rock):** in the dry wind gallery
-  there are no tide pools, and cross-gusts blow Wind Bombs off course. The Harpy
-  now dives straight down the wind lanes at high speed; raise a **Rock Bomb**
-  pillar in its dive line so it slams headfirst into the stone block and drops,
-  dazed, then bomb it twice to finish it and unlock the midpoint warp pad.
-
-### Boss: Storm Bird
-
-A great storm bird on the clifftop, beating its wings into gales that blow
-every bomb back at you.
-
-- **Phase 1 (Perch Gale — Rock Windbreak):** it perches on the north crag and
-  fans a continuous gale across the clifftop. Raise a **Rock** windbreak in
-  front of it; a Bomb dropped in the calm lee behind the block stays put and
-  detonates under its beak.
-- **Phase 2 (Eye of the Squall — Redirecting Tornados with Rock):** it takes wing
-  and sends rolling cyclone orbs down the clifftop lanes while bombarding you
-  with feather darts. Place a **Rock** block to deflect its cyclone orb laterally
-  into the bird's own low-hovering wing (or trap a Bomb against the block as it
-  sweeps past), grounding it in a heap of feathers so you can bomb it.
-- **Phase 3:** it alternates between Perch Gales and Squall sweeps, faster, and
-  its gales crumble your Rock blocks after a few seconds so you must place fresh
-  ones each volley.
-
-### Inspiration notes
-
-- *Seasons*, **Poison Moth's Lair:** **Mothula** flies circuits above pits while
-  you fight from platforms. Our Storm Bird keeps the "airborne boss you ground
-  first" idea but grounds it with *your own* blocks, not platforms.
-- *Ages*, **Wing Dungeon** and the cliff areas: floors you see before you can
-  reach them. The blowhole that bombs 2F from 1F is our version: you change the
-  clifftop in Act 1 before you ever stand on it.
-- **Homage check:** no feathers, no jumping item, no moving platforms; the
-  verbs are gusts, windbreaks and stepping stones.
+#### Boss: Storm Bird (Room 23)
+Perches on the north crag, beating gales that blow every bomb and sphere back
+toward the southern drop.
+- **3-Phase Puzzle Duel:**
+  - **Phase 1:** Raise a **Rock** windbreak in front of its perch so a **Bomb**
+    dropped in the block's calm lee stays put and detonates under its beak.
+  - **Phase 2:** It takes wing and bowls cyclone orbs down the lanes; place a
+    **Rock** block (or pull an iron bumper with **Magnet**) to deflect a cyclone
+    orb laterally into its low-hovering wing, grounding it in a heap of feathers
+    to be bombed.
+  - **Phase 3:** Combines Perch Gales and Squall sweeps at higher speed.
 
 ---
 
-## 5. Iron Tower (all bombs): 16 rooms
+### 5. Iron Tower (All 7 Bombs — opened by the **4 Elemental Keys**): 16 rooms
 
-**Theme:** the Sorcerer's tower, dark iron and old stone, each floor tinted
-by the Shrine it echoes. **No new pieces:** every room combines pieces you
-already know. **No keys:** each floor is a **`2 × 2` square of 4 rooms** around
-the tower's **central lift spine**.
-
-**Shape:** Instead of a 16-room single-file snake, each floor (`1F` to `4F`) is
-a `2 × 2` square:
-- From each floor's **Landing** (`(1,1)`), two parallel trial wings branch
-  **West** (`(0,1)`) and **North** (`(1,0)`). You can solve the two wings in
-  **either order**; each wing releases one of the two iron bolts on the
-  **Apex Room** (`(0,0)`), which holds the stair up to the next floor (or the
-  miniboss / final boss).
-- Reaching `2F`, `3F` and `4F` unlocks that floor's stop on the **Central Lift
-  Warp Pad** in `1F` Room 1, so dying in the upper tower and respawning in the
-  `1F` foyer lets you warp straight back to the highest floor you reached.
+**Macro gimmick:** four `2 × 2` floors (`1F–4F`) around a **Central Lift Spine**.
+On each floor, from the **Landing (`1,1`)**, two parallel Rube Goldberg trial
+wings branch **West (`0,1`)** and **North (`1,0`)**—solvable in either order—each
+releasing one of the two iron bolts on that floor's **Apex Room (`0,0`)**.
 
 ```text
 Each floor (1F..4F) is a 2x2 square around the central shaft:
@@ -521,329 +408,61 @@ Each floor (1F..4F) is a 2x2 square around the central shaft:
 y0   [Apex ^] == [North Wing]
         ||            ||
 y1   [West Wing] == [Landing]
-
-1F (Ice Cave reprise):    [4]^ == [3]     2F (Rock Quarry reprise): [8]^ == [7]
-                           ||      ||                                ||      ||
-                          [2]  == [1](in)                           [6]  == [5]v
-
-3F (Fire Mtn reprise):    [12]^== [11]    4F (Wind Cliffs & Boss):  [16] == [15]
-                           ||      ||                                B||     ||
-                          [10] == [9]v                              [14] == [13]v
 ```
 
-| # | Room | Floor & `(x,y)` | Role & Puzzle |
+| # | Room | Floor & `(x,y)` | Bombs Combined & Rube Goldberg Puzzle |
 |:-:|---|:-:|---|
-| 1 | Tower Gate (Landing) | `1F (1,1)` | The four-element gate (`GAME.md` campaign flow): light a brazier, spin a vane, freeze a moat, weigh a pedestal. Also houses the **Central Lift Warp Pad** (`1F ↔ 2F ↔ 3F ↔ 4F` as each floor is reached). |
-| 2 | Frozen Gust (West Wing) | `1F (0,1)` | *Ice Cave reprise A:* ice blocks to melt, but each sits in a gust that blows your Fire Bomb off target; raise a Rock windbreak first. Releases West bolt on 4. (Fire + Rock) |
-| 3 | Brazier Moat (North Wing) | `1F (1,0)` | *Ice Cave reprise B:* ordered braziers across a lava gap; crust the gap with Ice to throw Fire into brazier III in time. Releases North bolt on 4. (Fire + Ice) |
-| 4 | Dark Landing (Apex) | `1F (0,0)` | Unlocks once both 2 and 3 are solved. A dark room where lighting all four corner braziers lowers the crystal barrier to the `2F` stair. |
-| 5 | Sand Lift (Landing) | `2F (1,1)` | *Rock Quarry reprise:* arrives from 4 and links the `2F` warp stop. Sand-buried switches under glazed crust; melt the crust with Fire, then blow the sand clear with Wind to open both wings. (Fire + Wind) |
-| 6 | Terrace Bank (West Wing) | `2F (0,1)` | Terraces where you blast-jump up and throw a sliding bomb along glazed tiers into a crystal. Releases West bolt on 8. (Wind + Ice) |
-| 7 | Rubble Chasm (North Wing) | `2F (1,0)` | **Miniboss Phase 1: Iron Knight** (below). At half armour it retreats west into 8. |
-| 8 | Knight's Hall (Apex) | `2F (0,0)` | **Miniboss Phase 2: Iron Knight** (below). Requires both 6's bolt and 7's retreat. Defeating it opens the stair to `3F` and activates the midpoint warp stop. |
-| 9 | Forge Landing | `3F (1,1)` | *Fire Mountain reprise:* links the `3F` warp stop. Lava and flame jets whose beat is tied to a crystal switch; crust a bridge to open the West and North wings. (Ice + Bomb) |
-| 10 | Glaze Works (West Wing) | `3F (0,1)` | A glazed-crust slide where only a Rock backstop stops a blast-shoved block on its button. Releases West bolt on 12. (Ice + Rock) |
-| 11 | Crucible Bridge (North Wing) | `3F (1,0)` | Freeze a lava river, shove a block across, then melt one crust tile with Fire so it sinks onto a submerged switch. Releases North bolt on 12. (Ice + Fire) |
-| 12 | Slag Apex | `3F (0,0)` | Unlocks once both 10 and 11 are solved. Put out four rapid flame jets with Ice and catapult a Bomb via a Wind whirlwind to open the `4F` stair. (Ice + Wind + Bomb) |
-| 13 | Gale Landing | `4F (1,1)` | *Wind Cliffs reprise:* links the `4F` warp stop. Cross-gusts sweep the landing; place a Rock windbreak to open the West and North wings. |
-| 14 | Broken Bridge (West Wing) | `4F (0,1)` | Stepping stones and blast-jumps over a chasm with alternating gusts. Releases West seal on the Boss Door (14 → 16). (Rock + Wind) |
-| 15 | Gale Braziers (North Wing) | `4F (1,0)` | Gust vents carry thrown Fire Bombs across a `4`-tile abyss into distant braziers; use a Rock block to trim the wind lane. Releases North seal on the Boss Door (15 → 16). (Fire + Rock + gust) |
-| 16 | Sorcerer's Roof (Apex) | `4F (0,0)` | Unlocks once both 14 and 15 are solved (pots and a fairy stand by the threshold). **Boss: the Sorcerer** (below and `GAME.md` §5). |
+| 1 | Tower Gate (Landing) | `1F (1,1)` | Unsealed by the **4 Elemental Keys** (**Cinder, Zephyr, Rime, Stone**). Houses the **Central Lift Warp Pad** (`1F ↔ 2F ↔ 3F ↔ 4F` as each floor is reached). |
+| 2 | Frozen Gust (West Wing) | `1F (0,1)` | Place a **Rock** windbreak in a gust lane so **Fire** can melt an ice block while a **Squeak Bomb** lures a Brass Beetle onto the west bolt switch. *(Fire + Squeak + Rock)* |
+| 3 | Brazier Moat (North Wing) | `1F (1,0)` | Crust a lava moat with **Ice** and pull a lit iron brazier cart along a rail with **Magnet** to ignite ordered braziers `I → II → III`, releasing the north bolt. *(Fire + Ice + Magnet)* |
+| 4 | Dark Landing (Apex) | `1F (0,0)` | Unlocks once 2 and 3 are solved. Light a 4-way `,` powder fuse star in the dark while a **Wind** whirlwind jumps the flame across a center pit to open `2F`. *(Fire + Wind)* |
+| 5 | Sand Lift (Landing) | `2F (1,1)` | Links the `2F` warp stop. Melt glazed crust over sand piles with **Fire**, then blow the sand clear with **Wind** to expose magnetic rail switches opening both wings. *(Fire + Wind + Magnet)* |
+| 6 | Terrace Bank (West Wing) | `2F (0,1)` | Blast-jump terraces with **Wind**, slide a Bomb along a glazed ledge (`Ice`), and curve it with a **Magnet Bomb** into a corner crystal for the west bolt. *(Wind + Ice + Magnet)* |
+| 7 | Rubble Chasm (North Wing) | `2F (1,0)` | Catapult a **Squeak Bomb** via a **Wind** whirlwind across a `4`-tile chasm to lure an Iron Tortoise onto a magnetic bridge switch, releasing the north bolt. *(Wind + Squeak + Magnet)* |
+| 8 | Knight's Hall (Apex) | `2F (0,0)` | **Miniboss Living Gate: Iron Knight** (below). Defeating it opens `3F` and activates the `2F`–`3F` lift stop. |
+| 9 | Forge Landing | `3F (1,1)` | Links the `3F` warp stop. Crust a lava pool with **Ice** and flip a crystal switch to shift the beat of four flame jets, opening the two wings. *(Ice + Bomb)* |
+| 10 | Glaze Works (West Wing) | `3F (0,1)` | A `2 × 1` glazed-crust curling puzzle: place a **Rock** backstop, pull an iron sphere with **Magnet** across the glaze against the Rock block, and freeze a current with **Ice** to release the west bolt. *(Ice + Rock + Magnet)* |
+| 11 | Crucible Bridge (North Wing) | `3F (1,0)` | Freeze a lava river with **Ice**, blast-shove a block to the center, and melt one crust tile with **Fire** so it sinks onto a submerged switch for the north bolt. *(Ice + Fire + Bomb)* |
+| 12 | Slag Apex | `3F (0,0)` | Snuff rapid flame jets with **Ice**, lure a Mimic Statue with **Squeak**, and catapult a **Bomb** via a **Wind** whirlwind to open `4F`. *(Ice + Squeak + Wind + Bomb)* |
+| 13 | Gale Landing | `4F (1,1)` | Links the `4F` warp stop. Anchor a **Rock** windbreak and pull an iron storm-shutter open with **Magnet** to enter the final wings. *(Rock + Magnet)* |
+| 14 | Broken Bridge (West Wing) | `4F (0,1)` | Drop **Rock** stepping stones, blast-jump alternating gusts with **Wind**, and freeze a spray waterfall with **Ice** to release the west Boss Seal. *(Rock + Wind + Ice)* |
+| 15 | Gale Braziers (North Wing) | `4F (1,0)` | Light a `,` fuse line behind a **Rock** windbreak, dropping an iron sphere that a **Magnet Bomb** pulls onto a chute into the north Boss Seal. *(Fire + Rock + Magnet)* |
+| 16 | Sorcerer's Roof (Apex) | `4F (0,0)` | Unlocks once both 14 and 15 are solved. **Boss: The Sorcerer (Your Brother)** (below). |
 
-### Miniboss: Iron Knight (Two-Room Fight: Rooms 7 & 8)
+#### Miniboss Living Gate: Iron Knight (Room 8)
+A clockwork suit of heavy iron plate patrolling a lava-rimmed hall.
+- **Solve (2 cycles):** Throw a **Magnet Bomb** to wrench its magnetic shield
+  plate aside, raise a **Rock Bomb** pillar in its charge path so it slams and
+  staggers, and drop a **Bomb** into its open visor.
 
-A hulking suit of iron armour that marches and swings a great iron blade.
+#### Boss: The Sorcerer — Your Brother (Room 16)
+Pip's older brother, who raided Grandpa's notes and cycles through all **6
+special bomb styles**, wearing each as a clockwork barrier and throwing that
+bomb's hazards across the roof. Break each shield with its **counter bomb**,
+then hit him with a plain **Bomb** while stunned:
 
-- **Phase 1 (Room 7, Rubble Chasm):** each Bomb blast knocks one heavy plate off
-  (shield, then breastplate); heating its joints with **Fire** first makes a
-  single Bomb blast strip both plates at once. Once its outer plates crack off,
-  it **retreats west into Room 8**.
-- **Phase 2 (Room 8, Knight's Hall):** in the main hall it charges across a
-  lava-rimmed floor. Daze its charge against a **Rock** block (or crust the
-  lava moat with **Ice** to flank its backplate), blast off its helmet, and
-  bomb the exposed core inside the empty suit.
-
-### Boss: the Sorcerer (Your Brother)
-
-Pip's older brother, who raided the cellar before you and mastered all four
-Shrine elements: the mirror of Pip. He cycles Fire, Wind, Ice and Rock in a
-fixed order, throwing that element's bombs and wearing it as a shield. Break
-the shield with its **counter**, then hit him with a plain Bomb while he's
-stunned:
-
-| He shifts into | He attacks with | Your counter |
-|---|---|---|
-| Fire | Fire Bombs that leave burning patches | Ice |
-| Wind | gusts that blow your bombs away | Rock (a block the gust can't move, then drop a Bomb behind it) |
-| Ice | ice novas that glaze the floor, so your bombs slide | Fire |
-| Rock | rock walls raised around himself | Wind |
-
-Each loop is faster and adds a bomb to his volleys; about two loops beat him. A
-wrong bomb fizzles into his shield and costs time, not hearts.
-
-### Inspiration notes
-
-- *Ages*, **Black Tower**, and *Seasons*, **Onox's Castle:** a final climb
-  through floors that recall the whole journey before the last fight. We keep
-  the climb and the recap, but use one floor per Shrine, so it reads as a lesson
-  review.
-- **Homage check:** the mirror duel is a Zelda staple; the counter-the-element
-  rule is ours.
+| Brother shifts into | His hazard | Your counter bomb | Rube Goldberg interaction |
+|---|---|---|---|
+| **Fire** | Burning hearth rings & fuse trails | **Ice Bomb** | Quenches his flames and freezes his hearth ring |
+| **Squeak** | Sends wind-up Brass Beetles marching at you | **Squeak Bomb** | A louder chirp lures his own beetles back into his shield, dazing him |
+| **Wind** | Gale barrier that blows bombs away | **Rock Bomb** | Spawns an anchored stone windbreak; a Bomb dropped in its lee detonates beside him |
+| **Magnet** | Orbiting iron spheres that deflect blasts | **Magnet Bomb** | Pulls his own iron spheres out of orbit and slams them back into his barrier |
+| **Ice** | Glazes the roof so bombs slide past him | **Fire Bomb** | Melts the glaze and shatters his frost ward |
+| **Rock** | Surrounds himself with stone ramparts | **Wind Bomb** | Leave a `2.5 s` whirlwind vortex to catapult a Bomb right over his ramparts into his sanctum |
 
 ---
 
-## 999. The Developer Dungeon (not part of the game)
+## 999. The Developer Dungeon (not part of the main campaign)
 
-A test rig, not a Shrine. **Every room isolates one mechanic** so we can tune
-physics, bomb timings and readability in a clean space: no keys, no doors that
-depend on other rooms, nothing carried between rooms. Many rooms are written to
-**become** a real room later (the **Becomes** column names it); others are
-**toys** for feeling out how mechanics interact. It is **not counted** in the
-size budget above.
+A self-contained test rig (`?dev=999`, or unlocked in-game via the soot-black
+mousehole in Grandma's Basement once you collect all **`36` Grandma's Buttons**).
+Every room isolates one mechanic or bomb pair with live tuning sliders:
 
-### Rules of the rig
-
-- **Self-contained:** leaving a room resets it. No small keys, no crystal colour
-  or burned tiles carried over, no shared state. A **reset pad** (a warp tile
-  `>` back to the Lobby) sits by every door.
-- **Everything unlocked:** all five bombs, `4` live bombs, Bomb reach `2`, and a
-  toggle for infinite hearts. A room never needs an item to *reach* it.
-- **No enemies** unless the enemy *is* the mechanic (impact, splitting,
-  shields, punting, freezing, charging).
-- **Readable numbers:** a dev overlay shows hitboxes, velocity arrows, fuse
-  timers, blast outlines and grid coordinates on the floor. Each room lists the
-  **tuning knobs** it exercises (constants in `src/game/world.ts`, or planned
-  ones), and the dev build shows them as live sliders on that room's screen.
-- **Markers:** **1×** = solvable with one placed bomb (the cleanest timing
-  measurements); 🎯 = a puzzle meant to become a real room; 🧸 = a toy (no
-  win condition, just play); 📏 = a measuring rig.
-
-### Getting in (and the Easter egg)
-
-- **Dev builds:** `?dev=999` in the URL, or the settings panel's build stamp
-  tapped five times, warps to the Lobby.
-- **Easter egg (optional, after the credits):** a soot-black mousehole behind
-  the Coal Chute in Grandma's Basement. Entering shows a banner, not a voice
-  (Grandma stays the only one who speaks):
-
-  > **DUNGEON 999.** This is the developer dungeon, where the bombs were tuned.
-  > There's nothing to win in here. Honestly. Go outside.
-
-### Layout
-
-A **Lobby** in the middle, and one straight wing per bomb plus a combination
-wing and a toy wing. Rooms connect only by plain doorways back to their wing's
-corridor.
-
-```text
-            [Toys]   [Combos]
-               \       /
-   [Bomb] — [ LOBBY: Measuring Hall ] — [Fire]
-               /   |   \
-          [Wind] [Ice] [Rock]
-```
-
-**Lobby, the Measuring Hall** 📏: an empty `7 × 9` floor ruled in tiles, with
-numbered marks every tile from the centre. Stand on the centre mark and use any
-verb: the overlay reports roll distance, throw distance and arc height, kick and
-shove travel, blast reach, knockback, blast-jump distance and gust push, each
-against its constant. **Knobs:** `ROLL_DISTANCE`, `ROLL_DURATION`, `KICK_SPEED`,
-`THROW_LOB_VZ`, `BOMB_GRAVITY`, `BOMB_FRICTION`, `SHOVE_BOMB_SPEED`.
-
-### Part A: one bomb kind per room
-
-#### Movement (no bomb)
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A0.1 Roll Ruler** 📏 | Roll reach and i-frames | Spike strips `1`, `2` and `3` tiles wide; roll across each. The `3` should be too far. Spike *timing* traps for the i-frame window. | `ROLL_DISTANCE`, `ROLL_IFRAME_START/END`, `ROLL_RECOVERY` | Basement **Root Pantry** |
-| **A0.2 Buffer Lane** 📏 | Input forgiveness | A doorway that slams on a beat; tap roll or pull just before you can. Checks the buffered press still fires. | `INPUT_BUFFER_WINDOW` | 🧸 |
-
-#### Bomb (the starter)
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A1.1 Crack Gallery** 📏 1× | Blast reach | Cracked walls at `1`, `2` and `3` tiles from a fixed pad. Reach `1` breaks one; reach `2` breaks two; nothing breaks the third. | blast reach, `BLAST_CONTACT_PADDING` | 🧸 |
-| **A1.2 Over the Fence** 🎯 1× | Drop vs throw | A crystal behind a low fence (`=`). Dropping can't reach; a throw lobs over. | `THROW_LOB_VZ`, `KICK_SPEED` | Basement **Coal Chute** |
-| **A1.3 Bank Shot** 🎯 1× | Wall bounce | A crystal round a corner. Throw at the wall so the bomb bounces round into it. | `BOMB_WALL_BOUNCE`, `BOMB_FRICTION` | Ice Cave **Vault of Sparks** |
-| **A1.4 Chute Run** 🎯 1× | Slopes vs the fuse | Drop a bomb on the first chute tile; it rolls east, turns south, and must reach the crystal before its fuse ends (`11` tiles, tight on purpose). The crystal lowers the red barrier in the door. See the map below. | `SLOPE_ACCEL`, `SLOPE_MAX_SPEED`, `BOMB_FUSE` | Rock Quarry **Gravel Chutes** |
-| **A1.5 Pit Lip** 🎯 1× | Grounded vs airborne | A crystal across a `2`-tile pit. A dropped or rolled bomb falls in; a throw carries over. | `BOMB_GRAVITY`, pit swallow rule | 🧸 |
-| **A1.6 River Ferry** 🎯 1× | Water currents | Set a bomb on a current (`3`, east); it drifts downstream and must arrive at a cracked wall before it goes off. | `CURRENT_SPEED`, `BOMB_FUSE` | Wind Cliffs **Undertow** |
-| **A1.7 Block Nudge** 🎯 1× | Blast shoves blocks | A block one tile from a floor button; one blast behind it shoves it on. A second block shows a shove *into a wall* (nothing). | block shove distance | Fire Mountain **Ingot Press** (pre-glaze) |
-| **A1.8 Two Bombs, One Blast** 🎯 | Shove chains | Two bombs in a line: the first blast shoves the second (once-shoved) into a crystal; its own blast must still land. Shows the shove-then-detonate rule. | `SHOVE_BOMB_SPEED`, chain rule | Ice Cave **Crystal Crossroads** |
-| **A1.9 Held Door** 🎯 1× | Weight on a button | A shutter that stays open only while something weighs its button. A bomb on the button holds it for one fuse; walk through in time. | `BUTTON_CONTACT_RADIUS`, `BOMB_FUSE` | Basement **Cellar Stairs** |
-| **A1.10 Crate Plus** 🎯 1× | The `+` blast shape | Five crates in a `+`; the one bomb in the middle clears all five. A second layout needs reach `2`. | blast shape | 🧸 |
-| **A1.11 Knockback Ledge** 📏 | Self-blast knockback and splashback | Stand beside your own bomb next to a pit, a spike strip and open floor. Measures the `1`-tile push and the quarter-heart splashback. | knockback, splashback damage | 🧸 |
-| **A1.12 Impact Pin** 🎯 1× | Impact detonation (enemy) | One slime patrolling behind a fence; a thrown bomb that touches it goes off on contact. | impact radius, `KICK_SPEED` | 🧸 |
-
-#### Fire
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A2.1 One Brazier** 🎯 1× | Lighting | One brazier behind a fence; throw a Fire Bomb in range. | `FIRE_FUSE`, brazier light radius | Ice Cave **Alchemist Reliquary** |
-| **A2.2 Timed Pair** 🎯 | Timed braziers | Two braziers at opposite walls that each burn for `N` seconds; light both before the first goes out. | `timedSeconds`, travel time | Ice Cave **Frozen Hall** |
-| **A2.3 Ordered Three** 🎯 | Ordered braziers | Light I → II → III; a wrong one fizzles all. | order reset | Ice Cave **Hall of Three Flames** |
-| **A2.4 Fuse Lines** 📏 1× | Fire spread and its cap | Three lines of dry grass, `4`, `5` and `6` tiles long, each ending at a brazier (map below). Light each line's far end: fire must travel the line and light the brazier. At `MAX_FIRE_GENERATION = 6` the `6`-line should *just* make it. | `FIRE_SPREAD_INTERVAL`, `MAX_FIRE_GENERATION` | Overworld **Meadow Fields** |
-| **A2.5 Firebreak** 🎯 | What stops fire | A grass field with a crate you must *not* burn (it hides the button). Shallow water and stone are the breaks; plan a burn that stops short. | spread rules, `;` douses | 🧸 |
-| **A2.6 Melt Line** 🎯 1× | Ice blocks and brambles | A row of ice blocks and brambles; one Fire Bomb, placed right, clears the row by spreading. | burn / melt spread | Ice Cave **Entry Hall** |
-| **A2.7 Dark Room** 📏 | Light from fire | A dark room; a Fire Bomb's patch lights the room for `2.5 s`. Tune how far you can see and how long. | `FIRE_DURATION`, light radius | Ice Cave **Lantern Hall** |
-| **A2.8 Shield Strip** 🎯 | Burning shields (enemy) | One shielder; bombs bounce off its wooden shield until Fire burns it away. | shield rule | Ice Cave **Frozen Hall** |
-| **A2.9 Split Test** 🧸 | Fire splits slimes (enemy) | One big slime; Fire splits it, Bomb doesn't. | split rule | 🧸 |
-| **A2.10 Wet Fuse** 📏 | Fire in shallow water | Throw Fire Bombs onto floor, shallows and deep water; check which burn, fizzle or sink. | `;` douse rule | 🧸 |
-
-#### Wind (planned)
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A3.1 Jump Ruler** 📏 | Blast-jump reach | Gaps of `1`, `2`, `3` tiles and a one-tier ledge; jump each from beside a Wind Bomb. `2` and the ledge should work; `3` should not. | jump distance and height, Wind fuse `0.8 s` | 🧸 |
-| **A3.2 Sand Switch** 🎯 1× | Sand piles | A sand pile on a floor switch. A Bomb scatters it and it slumps back; one Wind Bomb clears it for good. | sand slump time | Rock Quarry **Lift Room** |
-| **A3.3 Terrace Up** 🎯 | Terraces | Drop down two ledges, then get back up with blast-jumps. | ledge rules | Rock Quarry **Lookout Steps** |
-| **A3.4 Fling** 🎯 | Launching a live bomb | A cracked wall across a `3`-tile chasm. Set a Bomb on the edge, pop Wind behind it. | launch distance, gust force | Rock Quarry **Gravel Seam** |
-| **A3.5 Early Pop** 📏 | Popping early | A moving target on a track; press A again to pop the Wind Bomb at the right moment. | early-pop input window | 🧸 |
-| **A3.6 Vane Gate** 🎯 1× | Wind-vane switches | A gate opened by spinning one vane. | vane spin threshold | Wind Cliffs **Vane Hall** |
-| **A3.7 Punt** 🎯 | Pushing enemies (enemy) | Slimes on a ledge above a pit; punt them in. | enemy push distance | 🧸 |
-
-#### Ice (planned)
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A4.1 Pond Bridge** 🎯 1× | Freezing water | A `3 × 3` freeze makes a path across a pond; it lasts until you leave. | freeze area | Wind Cliffs **Spray Steps** |
-| **A4.2 Crust Walk** 🎯 | Crusting lava | A lava field crossed one crust at a time. | crust area | Fire Mountain **Mountain Gate** |
-| **A4.3 Glaze Lane** 🎯 1× | Glazed crust | Crust a lava lane, throw a bomb onto it; it slides the whole lane into a crystal. | glaze friction | Fire Mountain **Lower Forge** |
-| **A4.4 Slide Stop** 🎯 | Blocks on glaze | Shove a block onto glaze; it slides until it hits the wall beside a button. | glaze friction, shove distance | Fire Mountain **Ingot Press** |
-| **A4.5 Jet Off** 🎯 1× | Putting out fire | A corridor of flame jets on a beat; Ice puts one out for good. | jet beat, snuff radius | Fire Mountain **Jet Gallery** |
-| **A4.6 Ice Weight** 🎯 | Freezing an enemy (enemy) | Freeze a slime into a pushable ice block and shove it onto a button. | freeze time `4 s` | 🧸 |
-| **A4.7 Still Water** 📏 | Freezing a current | A bomb drifting on a current; freeze the current to stop it on target. | freeze vs `CURRENT_SPEED` | 🧸 |
-
-#### Rock (planned)
-
-| Room | Tests | Setup and solve | Knobs | Becomes |
-|---|---|---|---|---|
-| **A5.1 Stepping Stone** 🎯 1× | Filling a gap | A one-tile channel; drop Rock in and walk across. | block size | Wind Cliffs **Echo Cave** |
-| **A5.2 Dead Weight** 🎯 1× | A block on a button | A button that must stay down; a Rock block holds it for good (a bomb only for one fuse; compare with A1.9). | — | 🧸 |
-| **A5.3 Windbreak** 🎯 | Calm air | A gust vent sweeps the room; a Rock block makes calm air where a bomb can sit. | gust force, calm area | Wind Cliffs **Gust Gallery** |
-| **A5.4 Beam Shield** 🎯 | Blocking a beam | An eye-beam turret sweeps across a door; a Rock block shadows you through. | beam sweep speed | Wind Cliffs **Ruined Watchtower** |
-| **A5.5 Backstop** 🎯 1× | Stopping a rolling bomb | A chute carries bombs past a button; a Rock block at the end stops one on it. | `SLOPE_MAX_SPEED` | 🧸 |
-| **A5.6 One At A Time** 📏 | The one-block rule | Two buttons, one Rock block: making a second crumbles the first. Feel out whether the rule reads. | block limit | 🧸 |
-| **A5.7 Charger** 🎯 | Dazing a charge (enemy) | A charging enemy; raise Rock in its path, then bomb it dazed. | daze time | Iron Tower **Knight's Hall** |
-
-### Part B: combinations of bombs
-
-Every room needs **two or more bomb kinds**, and each pairing appears at least
-once, so the "only the obvious interactions" rule (`GAME.md` §4) is tested as
-a whole.
-
-| Room | Bombs | Setup and solve | Becomes |
-|---|---|---|---|
-| **B1 Crate Cache** 🎯 | Bomb + Fire | A crate hides a cracked wall; burn the crate (Fire), then break the wall (Bomb). | 🧸 |
-| **B2 Fire Fling** 🎯 | Fire + Wind | A brazier across a chasm: set a Fire Bomb on the edge, pop Wind behind it. | Fire Mountain **Bellows Room** |
-| **B3 Sunken Switch** 🎯 | Ice + Fire | Freeze a pond, shove a block across, melt the tile under it so it sinks onto a submerged button. | Fire Mountain **Slag Pool** |
-| **B4 Pillar Hop** 🎯 | Rock + Wind | A `4`-tile chasm: raise a Rock pillar mid-chasm, blast-jump onto it and off again. | Iron Tower **Rubble Chasm** |
-| **B5 Glaze Backstop** 🎯 | Ice + Rock | A sliding block on glaze overshoots its button; a Rock block makes it stop on it. | Iron Tower **Glaze Works** |
-| **B6 Spray Climb** 🎯 | Ice + Wind | Freeze sea spray into a ledge, then blast-jump up from it. | Wind Cliffs **Spray Steps** |
-| **B7 Shielded Flame** 🎯 | Fire + Rock | A brazier sits in a gust that blows out flames; windbreak first, then light it. | Iron Tower **Frozen Gust** |
-| **B8 Gust Delivery** 🎯 | Bomb + Wind | Let a vent's gust carry a live Bomb round a corner to a cracked wall. | Wind Cliffs **Sea Cave Mouth** |
-| **B9 Shatter** 🎯 | Bomb + Rock | A Rock block you placed now blocks the exit; a Bomb shatters it. | 🧸 |
-| **B10 Ice Smash** 🎯 | Bomb + Ice | Freeze a slime, shove it into a crystal; the blast that shatters it toggles the crystal. | 🧸 |
-| **B11 Steam Door** 🎯 | Fire + Ice | A frozen door and a lit brazier both block the way: melt one, snuff the other. | 🧸 |
-| **B12 Four Sockets** 🎯 | All four elements | One door, four sockets: set each off with its own bomb. | Iron Tower **Last Door** |
-| **B13 Sorcerer Rehearsal** 🧸 | All four | A dummy that cycles Fire, Wind, Ice, Rock on a fixed beat; answer each with its counter. Tune the windows and tells without the full boss. | Iron Tower **Sorcerer's Roof** |
-
-### Toys
-
-| Room | What it's for |
-|---|---|
-| **Bowling Alley** 🧸 | A long chute ending in ten crates set as pins; kick bombs down it. Tunes slope speed, bounce and blast feel. |
-| **Pinball Table** 🧸 | Slopes, walls and fences arranged like a table; throw and watch bombs carom. Tunes bounce and friction. |
-| **Firework Field** 🧸 | A big field of dry grass; drop Fire anywhere. Shows the spread rate and the generation cap at a glance. |
-| **Wind Tunnel** 🧸 | Four vents in a square; set bombs, blocks and sand anywhere and watch them drift. Tunes gust force. |
-| **Skating Rink** 🧸 | All glaze; throw bombs and shove blocks and watch them slide. Tunes glaze friction. |
-| **Stress Hall** 🧸 | `4` live bombs, chain reactions, fire, particles at their cap (`600`); the frame-rate check on a phone. |
-| **Lighting Lab** 🧸 | A dark room holding one of every light (brazier, fire patch, fuse spark, lantern, warp pad) next to water. Tunes radii, intensity and reflections. |
-
-### Two rooms as tile maps
-
-**A1.4 Chute Run.** Stand at `(2,2)` and drop a Bomb onto the first chute tile:
-it rolls `4` tiles east, then `7` south into the crystal `C`, whose blast drops
-the red barrier `R` in the south door.
-
-```text
-#####.#####
-#####.#####
-##.eeees.##
-##=====s.##
-##.....s.##
-##.....s.##
-##.....s.##
-##.....s.##
-##.....s.##
-##.....C.##
-##.......##
-#####R#####
-#####.#####
-```
-
-**A2.4 Fuse Lines.** Three grass lines (`4`, `5`, `6` tiles), each ending at a
-brazier `T` on the west wall, fenced off from the lane in row `6`. Stand in the
-lane, throw a Fire Bomb over the fence onto each line's east end, and watch which
-braziers light.
-
-```text
-###########
-###########
-##T,,,,..##
-##=======##
-##T,,,,,.##
-##=======##
-...........
-##=======##
-##T,,,,,,##
-##=======##
-##.......##
-#####.#####
-#####.#####
-```
-
-### Mechanic coverage
-
-Every mechanic has a room, and every room has one mechanic:
-
-| Mechanic | Rooms |
-|---|---|
-| Roll, i-frames, input buffer | A0.1, A0.2, Lobby |
-| Drop, throw, bounce, friction, gravity | A1.2, A1.3, A1.5, Lobby, Pinball |
-| Blast reach and shape, cracked walls, crates | A1.1, A1.10 |
-| Crystal switches and barriers | A1.2, A1.4, A1.8 |
-| Slopes and chutes | A1.4, A5.5, Bowling |
-| Pits, water, currents | A1.5, A1.6, A4.7 |
-| Shoving blocks and bombs, chains | A1.7, A1.8, A4.4 |
-| Buttons, held doors, weights | A1.9, A5.2, A5.6 |
-| Self knockback and splashback | A1.11 |
-| Impact detonation | A1.12 |
-| Braziers (lit, timed, ordered) | A2.1, A2.2, A2.3 |
-| Fire spread, firebreaks, ice and brambles | A2.4, A2.5, A2.6, Firework Field |
-| Dark rooms and light | A2.7, Lighting Lab |
-| Enemy rules (shield, split, punt, freeze, charge) | A2.8, A2.9, A3.7, A4.6, A5.7 |
-| Blast-jump, terraces, fling, early pop | A3.1, A3.3, A3.4, A3.5 |
-| Sand piles, vanes, gusts, windbreaks | A3.2, A3.6, A5.3, Wind Tunnel |
-| Freezing water and lava, glaze, snuffing jets | A4.1, A4.2, A4.3, A4.5, Skating Rink |
-| Rock: stepping stones, beams, backstops, the one-block rule | A5.1, A5.4, A5.5, A5.6 |
-| Every pair of bombs, and all four | B1–B13 |
-| Performance | Stress Hall |
-
-
-## Build order
-
-0. **Grandma's Basement (Dungeon Zero):** Mouse House interior (`Room 0`) and
-   the 4-room basement teaching Roll, floor switch, Small Key, and the Magic
-   Bomb Sack (`Pull → Drop / Throw`).
-1. **Rock Quarry first:** sand piles, terraces, the hub pit, the cargo lift,
-   the Mole Foreman and the Boulder Golem. It also builds the multi-floor
-   machinery (drops, stairs, lifts) the later Shrines need.
-2. **Fire Mountain:** lava, crust and glaze, flame jets, then its two fights.
-3. **Wind Cliffs:** gusts, Rock blocks, windbreaks, stepping stones, the
-   blowhole between floors, then its two fights.
-4. **Iron Tower:** combinations only, then the Iron Knight and the Sorcerer.
-
-Each Shrine is playable end to end before the next is started, with a test
-that walks its key route (as the Ice Cave's tests do).
+- **Wings `A0–A7`:** `A0` Movement & Roll, `A1` Bomb, `A2` Fire, `A3` Wind, `A4`
+  Ice, `A5` Rock, **`A6` Magnet** (*Rail Glide*, *Mid-Chute Curve*, *Sphere Tug*,
+  *Polarity Pulse*), and **`A7` Squeak** (*Beetle Lure*, *Daze Hold*, *Mimic
+  Desync*, *Mousehole Messenger*).
+- **Wing `B` (`B1–B21`):** Every pairing of the 7 bombs.
+- **Wing `Toys`:** *Bowling Alley*, *Pinball Table*, *Firework Field*, *Wind
+  Tunnel*, *Skating Rink*, *Magnetic Rail Yard*, *Clockwork Menagerie*, *Stress
+  Hall*, and *Lighting Lab*.

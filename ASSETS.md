@@ -1,143 +1,87 @@
-# `microbomber` — GBC Seamless Pixel-Art Asset Plan (`Oracle of Ages` / `Zelda DX`)
+# `microbomber` — GBC Seamless Pixel-Art & Rube Goldberg Visual Plan (`Oracle of Ages` / `Zelda DX`)
 
-This plan defines the visual architecture, multi-tile kits, sprite specifications, and room-scale upgrade needed to move `microbomber` from NES-style isolated `16 × 16` squares to the continuous, storybook Game Boy Color craft of *Oracle of Ages* (`OoA`) and *Link's Awakening DX* (`LADX`).
+This plan defines the visual architecture, multi-tile kits, sprite specifications, and Rube Goldberg animation language for `microbomber`'s puzzle-first, zero-heart, 7-bomb design (`GAME.md`, `PUZZLE_MECHANICS.md`, `DUNGEONS.md`, `OVERWORLD.md`).
 
 ---
 
 ## 1. Core Architectural Decisions
 
-### 1.1 `11 × 13` Room Grid (`176 × 208` Logical Pixels)
-- Expand `ROOM_W × ROOM_H` from `9 × 11` to **`11 × 13` tiles** (odd on both axes so doorways, bridges, and altars center cleanly at `(5, 6)`, matching GBC *Zelda*'s ~`10`-tile horizontal screen density).
-- **Why `11 × 13` is foundational:** A full **`2`-tile-deep perimeter**—whether **`2 × 2` interlocking forest trees**, **`2`-tall rock cliffs**, or **`2`-tile-deep *Oracle* dungeon walls**—still leaves a roomy **`7 × 9` playable interior** with space for **`3 × 2` and `3 × 3` landmarks**.
-- Update `SaveData` version (`version: 2`) so stale `9 × 11` local saves cleanly reset instead of spawning out of bounds.
+### 1.1 `11 × 13` Base Viewport (`176 × 208` Logical Pixels) & Scrolling Shrine Rooms
+- **Viewport size:** **`11 × 13` tiles (`176 × 208 px`)**—odd on both axes so doorways, bridges, and altars center cleanly at `(5, 6)`, with a full `2`-tile-deep perimeter leaving a `7 × 9` playable interior on `1 × 1` screens.
+- **Hybrid Camera:**
+  - **Overworld (`10 × 10` screens):** Crisp `11 × 13` (`1 × 1`) flip-screens.
+  - **Single-Room Shrines & Large Dungeon Chambers:** Can span **`1 × 1` (`11 × 13`)**, **`1 × 2` (`11 × 26`)**, **`2 × 1` (`22 × 13`)**, or **`2 × 2` (`22 × 26`)** tiles with **integer pixel-snapped camera follow** clamped to the room bounds, so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous room.
 
 ### 1.2 Authentic `2`-Tile-Deep Dungeon Walls & Recessed Archways
-- Shrine perimeters use `OoA` / `LADX` **`2`-tile (`32px`) beveled wall construction**:
+- Shrine and Dungeon perimeters use `OoA` / `LADX` **`2`-tile (`32px`) beveled wall construction**:
   - **Outer Ring (`dist = 0` from edge):** Flat dark ceiling/parapet cap with `45°` diagonal miter joints at the corners.
-  - **Inner Ring (`dist = 1` from edge):** Sloped masonry wall face (`N, S, E, W` perspectives, `A/B` `32px` staggered stone courses so `16px` repetition disappears) meeting the `7 × 9` floor.
-  - **Recessed `2`-Tile Doorway Tunnels:** Passages cut cleanly through both rings (`2` tiles deep), framed by carved stone jambs and oriented **`N / S / E / W` archways**, Key Doors (`D`), Horned Boss Doors (`K`), and Iron Portcullises (`S`).
+  - **Inner Ring (`dist = 1` from edge):** Sloped masonry wall face (`N, S, E, W` perspectives, `A/B` `32px` staggered stone courses) meeting the interior floor.
+  - **Recessed `2`-Tile Doorway Tunnels:** Passages cut cleanly through both rings, framed by carved stone jambs and oriented **`N / S / E / W` archways**, Button-Lock Relic Doors, Small-Key Doors (`D`), Horned Boss Doors (`K`), and Iron Portcullises (`S`).
 
 ### 1.3 GBC Colour & Palette Rules (`gbcPalette.ts` & `gbcArt.test.ts`)
 - **15-bit `RGB555` colour space** enforced across every palette (`isRgb555`).
 - **Backgrounds (`BG`) — Strict `4` Colours per `8 × 8` Quarter-Tile (`≤ 8` Palettes per Zone):**
   - Preserves authentic GBC tile harmony and per-quarter `quads: [TL, TR, BL, BR]` assignment.
-  - Terrain palettes (`grass`, `foliage`, `cliff`, `water`, `floor`, `wall`) use **chromatic darks** (deep forest pine, rich umber, deep plum-slate, abyssal navy) rather than jet black, so actors pop cleanly off painted ground.
+  - Terrain palettes (`floor`, `wall`, `foliage`, `water`, `wood`, `red`, `blue`, `steel`) use **chromatic darks** (deep forest pine, rich umber, deep plum-slate, abyssal navy) rather than jet black, so actors and Rube Goldberg chain sparks pop cleanly off painted ground.
 - **Sprites (`OBJ`) — `5–6` Colours + Transparent (`'.'` + `'1'..'6'`, `≤ 8` Named Sprite Palettes):**
-  - Relaxed from `3` to **up to `6` `RGB555` colours per sprite** so characters, bombs, NPCs, and bosses achieve full `OoA` multi-tone richness in clean single-layer definitions (e.g. Pip's amber hood + brass/cyan goggles + peach skin + cobalt tunic + dark ink outline; dark iron bombs with live orange-gold sparks; thorny green-and-amber `Cinderhull` carapace with glowing red eyes).
+  - Up to `6` `RGB555` colours per sprite for rich `OoA`-style characters, all 7 bombs, Clockwork Creatures, and bosses.
 
-### 1.4 Semantic Map Characters + Landmark `stamps[]`
-Keep `RoomSpec.rows` human-readable in `campaign.ts` by adding semantic terrain characters (mapped to clean walk/solid rules in `world.ts`) alongside explicit multi-tile `stamps`:
+### 1.4 Semantic Map Characters, Rube Goldberg Kits & Landmark `stamps[]`
 - **Solid terrain (`blocks walk`):**
-  - `'#'` — Cliff escarpment (Overworld) / `2`-tile beveled stone wall (Shrines)
-  - `'Y'` — Forest tree (Overworld, auto-paired into `2 × 2` interlocking canopies!)
-- **Walkable ground (`open floor`):**
-  - `'.'` — Meadow grass (Overworld) / Dungeon flagstone (Shrines)
-  - `':'` — Trodden dirt trail / Village cobble path (`8 × 8` blob-edged against grass)
-  - `'_'` — Planked timber footbridge / Causeway stone bridge deck (spans `~` or `^` with connected side rails)
-- **Existing interactive tiles:** `'%'` (cracked cliff/wall), `'~'` (water), `'^'` (pit), `'='` (connected wood fence / stone balustrade), `'B'` (connected bramble web), `'W'` (crate), `'P'` (push-block), `'C' / 'R' / 'U'` (crystal orb & pegs), `'T'` (brazier), `'D' / 'K' / 'S'` (oriented doors), `'O'` (button), `'!'` (spikes), `'>'` (stairs / warp).
-- **Landmark `stamps?: StampSpec[]` on `RoomSpec`:** Overlays bespoke `3 × 2` and `3 × 3` buildings, arches, and seals at `(x, y)` over underlying `#` / `.` collision tiles.
-
-### 1.5 Proportions, `3/4` Overhead Overlap & Boss Scale
-- **Regular Actors (`16 × 18`–`16 × 20`):** Pip, villagers, and standard foes stand on a `16 × 16` foot tile with `2–4px` of crown/hood headroom and soft ground shadows.
-- **Overhead Render Pass (`Pass 4`):** Tree crowns, cottage roof eaves, and northern doorway arch lintels render *after* Y-sorted actors so Pip tucks naturally behind roofs, lintels, and forest canopies.
-- **Minibosses (`24 × 24`) & Shrine Bosses (`32 × 32` = `2 × 2` tiles):** `Wickgeist` (`24 × 24`) and `Cinderhull` (`32 × 32`) command genuine `OoA` boss presence inside the `7 × 9` sanctum.
-
-### 1.6 Unified Pixel HUD & GBC Framed UI
-- Replace all OS emojis (`❤️`, `💔`, `🖤`, `🩷`, `🗝️`, `💣`, `🔥`, `🎯`) in `#topbar` and `#controls` with crisp nearest-neighbor `<canvas>` / `<img>` data-URI sprites baked directly from `gbcArt.ts`.
-- Style `#topbar`, the Boss HP bar, and the Storybook Dialogue Box with classic GBC double-lined pixel frames and RGB555-matched colours.
+  - `'#'` — Cliff escarpment (Overworld) / `2`-tile beveled stone wall (Shrines & Dungeons)
+  - `'Y'` — Forest tree (Overworld, auto-paired into `2 × 2` interlocking canopies and thickets)
+- **Walkable ground & liquids:**
+  - `'.'` — Meadow grass (Overworld) / Flagstone (Shrines & Dungeons)
+  - `':'` — Trodden dirt trail / Village cobble path (`8 × 8` blob-edged)
+  - `'_'` — Planked timber footbridge / Causeway stone deck
+  - `','` — Dry grass / Alchemical powder fuse line (ignites and spreads fire tile-by-tile)
+  - `'~'` / `';'` / `'1'..'4'` — Deep water (floats bombs), shallow water (walkable firebreak), and directional currents
+  - `'n' | 's' | 'e' | 'w'` — Carved directional stone chutes (roll bombs and iron spheres downhill)
+- **Rube Goldberg mechanism tiles & props:**
+  - `'%'` (cracked wall/floor plug), `'^'` (pit), `'='` (low wood fence / stone balustrade), `'B'` (brambles / ice block), `'W'` (wooden crate), `'P'` (stone push-block), `'M'` (metal block / rolling iron sphere), `'C' / 'R' / 'U'` (crystal switch & red/blue barriers), `'T'` (brazier), `'D' / 'K' / 'S'` (doors & shutters), `'O'` (floor button), `'!'` (spikes), `'>'` (stairs / warp pad), magnetic floor rails, polarity switches (`N/S`), wind vanes, sand piles, flame jets, glazed lava crust, and mouseholes.
+- **Local Floor Rune Traces (`decals` layer):**
+  - Point-to-point stone inlay traces connecting a floor button (`O`), wind vane, or polarity switch to its target shutter, platform, or lift; glows with emissive G-buffer light when energized.
 
 ---
 
-## 2. Seamless Multi-Tile Kits (`src/render/art/`)
+## 2. Sprites, All 7 Bombs, Clockwork Creatures & Rube Goldberg VFX (`OBJ`)
 
-### Kit A — `CHR8` (`8 × 8` Subtile) Blob Engine
-Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge`, `Outer Convex Corner`, `Inner Concave Bend`) plus `flipX / flipY` flags to generate all **47 seamless shapes** with zero internal seams:
-1. **Waterbanks (`~`):** Scalloped grass/ochre bank lip + `1px` animated white foam around `3`-frame scrolling azure water ripples.
-2. **Crumbling Pit Rims (`^`):** Continuous recessed stone/earth rim; northern edges expose `5px` of vertical rock wall descending into abyss.
-3. **Dirt & Cobble Paths (`:`):** Rounded road edges with overlapping grass-blade tufts connecting doorways, village plazas, and bridges.
-4. **Shrine Perimeter Floor Trim:** `1`-tile recessed stone border hugging the inner dungeon wall ring around smooth, unboxed interior flagstones (plus subtle worn-crack variants and **`2 × 2` Carved Central Medallions**).
+### 2.1 Pip (the Fuse Mouse)
+- Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in the G-buffer, like bomb fuses).
+- **Poses (`MOUSE_*`, S/N/E, west = east flipped):** upright idle (with spark flicker and blink), 4-frame four-legged gallop, crouch transition, `B = Roll` somersault, overhead bomb lift/carry/throw, item-get fanfare pose, and a snappy `0.35 s` hazard hop-back pose (zero hearts, zero death screen).
 
-### Kit B — Overworld Foliage & Escarpment Cliffs
-1. **`2 × 2` Interlocking Round-Canopy Trees (`Y`, `32 × 32` px):**
-   - `treeNW, treeNE, treeSW, treeSE` for standalone `2 × 2` trees, plus **`treeOvlW, treeOvlE`** where stacked vertical tree rows overlap crowns seamlessly (the signature `LADX` / `OoA` forest border!).
-   - Isolated `1 × 1` `Y` / `#` cells automatically fall back to a sculpted **Mossy Boulder** or **Cut Stump**—never a lone brick.
-2. **`2`-Tall Layered Escarpment Cliffs (`#`):**
-   - Upper row renders **Mossy Cliff Brow** (`NW, N, NE, W, Plateau, E`); lower south-facing row renders **Striated Stone Cliff Face** (`SW, FaceA, FaceB, SE`) with `32px` rock crevices + `2px` grass shadow below.
-   - **Bombable Cliff Cave Seam (`%`):** `cliffCracked` inset seamlessly into `FaceA / FaceB` with unmistakable dark fracture lines and talus stones (`GAME.md` §7).
+### 2.2 The 7 Bombs & Signature Rube Goldberg VFX
 
-### Kit C — Vertical Slice Multi-Tile Landmark Stamps (`stamps[]`)
+| Bomb | Sprite (`10 × 10` in `16 × 16`) | Signature Rube Goldberg Animation & VFX |
+|---|---|---|
+| **0. Bomb** | Round dark-slate cast-iron body, steel collar, live gold rope spark | `4`-frame connected `+` cross blast (`blastHub`, `blastArmH/V`, `blastCapN/S/E/W`), shockwave ring, and radial spark particles. |
+| **1. Fire Bomb** | Brass-necked ruby alchemical flask with swirling liquid flame | `1`-tile incandescent burst + `2.5 s` crackling **hearth patch**; ignites `,` fuse lines with a travelling spark front that races tile-to-tile. |
+| **2. Squeak Bomb** | Brass wind-up clockwork mouse decoy with turning key & twitching ears | Bounces in place for `2.5 s` emitting floating **pixel music notes (`♪`)** that arc toward any lured Clockwork Creature; pops in a harmless golden confetti + acoustic ring that spins stars over dazed creatures for `2.5 s`. |
+| **3. Wind Bomb** | Emerald-cyan glass orb with whirling brass vane fins | Instant `3 × 3` radial gale ring (blast-jumping Pip with a dust puff) + leaves a **`2.5 s` spinning whirlwind vortex** on its centre tile that visibly slingshots any bomb thrown into it `3–4` tiles downwind. |
+| **4. Magnet Bomb** | Cobalt-and-brass lodestone sphere with horseshoe poles | While ticking (`1.5 s`), draws animated **blue-gold magnetic flux arcs** to any metal block, iron sphere, or cast-iron Bomb within `3` tiles, physically sliding them toward itself; sparks along grooved magnetic rails; pops with a crisp `N ↔ S` polarity ring. |
+| **5. Ice Bomb** | Faceted glacier-cyan crystal prism with frost vapour | `3 × 3` crystalline frost nova; ripples water/currents into solid ice tiles, glazes molten lava with a mirror-slick sheen, snuffs flame jets into steam puffs, and encases Clockwork Creatures in a translucent `16 × 16` **sliding ice cube**. |
+| **6. Rock Bomb** | Banded ochre-granite core with mason rune | Swells and locks into a beveled `16 × 16` **carved stone Rock block** with dust chips (and plays a 3-frame stone-crumble animation when a new Rock block replaces the old one or a Bomb shatters it). |
 
-| Stamp ID | Footprint | Room(s) | Visual Composition |
-|---|---|---|---|
-| `mouse-house` | `3 × 2` (`48 × 32`) | `Mouse House (3,2)` | Pitched slate-amber roof (overhead eaves), round attic window, brass alembic flue + animated smoke puff, timber-frame front wall & arched door. |
-| `smithy` | `3 × 2` (`48 × 32`) | `Mouse House (3,2)` | Weathered red-shingle forge roof, stone chimney, quenched trough & old iron anvil beside the `%` rubble pocket. |
-| `causeway-bridge` | `5 × 3` / modular `_` | `Tower Causeway (2,1)` | Dressed stone parapet piers & arched causeway deck spanning the moat (`~`) with water ripples visible North & South. |
-| `spire-seal-gate` | `5 × 3` + `3 × 3` dais | `Tower Courtyard (2,0)` | Looming dark-iron Tower gatehouse (`N` wall) + `3 × 3` octagonal carved floor seal with **4 individual Elemental Core pedestals** (`Cinder` lights up gold/flame once reclaimed!). |
-| `crypt-mausoleum` | `3 × 2` (`48 × 32`) | `Ice Cave Arch (3,5)` | Carved stone arch set into the canyon cliff, flanked by twin braziers (`T`), framing the `%`-sealed `>` descending stair. |
+### 2.3 Clockwork Creatures (Replacing Trash-Mob Enemies) & Bosses
 
-### Kit D — `2`-Tile Shrine Architecture & Connected Props (`Ice Cave`)
-- **Outer Cap Ring & Inner Sloped Wall Ring:** `45°` mitered outer corners, `45°` mitered inner corners, concave `L`-corners, and `A/B` alternating `N / S / E / W` stone faces.
-- **Oriented `2`-Tile Doorway Tunnels (`N / S / E / W`):**
-  - Carved outer arch + inner jamb pillars for open passages, Small-Key Doors (`D`), Horned Boss Doors (`K`), and riveted Iron Portcullises (`S`).
-  - `Cracked Dungeon Wall (`%`)` oriented to `N / S / E / W` sloped faces with crumbled mortar & floor chips.
-- **Connected Linear Props:**
-  - **Outdoor Wooden Rail Fence (`=`):** `fenceW ── fenceH ── fenceE` & `fenceN / fenceV / fenceS`.
-  - **Indoor Stone Balustrade (`=` in Shrines):** Connected low carved stone rail with square end-finials.
-  - **Connected Bramble Web (`B`):** Interlocking thorny vines that bridge across adjacent `B` tiles and anchor onto `#`/`Y` walls.
-  - **Connected Timber Footbridge (`_`):** Planked deck + post-and-rope rails (`H` & `V`).
+There are **no bats or random chasing slimes**. Every creature has crisp mechanical tells:
 
----
+- **Grandma (`16 × 16`, `'mouse'` palette):** The only character who speaks; stands inside the Mouse House (`basement:1,3`) beside her sewing basket and button jar.
+- **Brass Beetle (`16 × 16`, `'villager'` / `'powder'` palette):** Wind-up brass carapace with articulated legs and two copper antennae. When a **Squeak Bomb** chirps, a tiny `!` / `♪` icon pops above its head and its antennae point toward the decoy as it marches tile-by-tile onto switches or into traps.
+- **Mimic Statue / Armos (`16 × 18`, `'steel'` / `'spectral'` palette):** Carved stone automaton whose eyes glow cyan when awake, stepping in exact cardinal lockstep (or reverse lockstep) with Pip until lured off-axis by a **Squeak Bomb**.
+- **Rail Tortoise / Iron Roller (`16 × 16`, `'powder'` palette):** Riveted iron-shell tortoise that glides along grooved floor tracks; stalls or slides when tugged by a **Magnet Bomb** and reverses cleanly off a **Rock block**.
+- **Pack-Otter (`16 × 18`, `'mouse'` palette):** Sleek coastal otter that pops out of runnels, snatches a dropped bomb over its head, and scurries through a mousehole pipe.
+- **Miniboss Living Gates (`24 × 24` / `32 × 32`) & Puzzle Bosses (`32 × 32`):**
+  - **Ice Golem** & **Ice Wraith** (*Ice Cave*)
+  - **Mole Foreman** (on his iron mine-cart gantry) & **Boulder Golem** (*Rock Quarry*)
+  - **Fire Salamander** & **Lava Drake** (*Fire Mountain*)
+  - **Harpy** & **Storm Bird** (*Wind Cliffs*)
+  - **Iron Knight** & **The Sorcerer (Your Brother)** (*Iron Tower*)
 
-## 3. Sprites, VFX & UI Icons (`OBJ`, up to `6` RGB555 Colours Each)
-
-### 3.1 Pip (the Fuse Mouse)
-
-Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in the G-buffer, like bomb fuses).
-- **Poses (`MOUSE_*`, S/N/E, west = east flipped):** upright idle facing the viewer (with spark
-  flicker and blink), a 4-frame **four-legged gallop**, a crouch shown for 0.08 s when he starts
-  or stops running, lift/throw, item get and a 3-frame fall. Pushing is a slow gallop.
-- **Palette (`'mouse'`):** spark yellow, pink ears/paws, fawn fur, brown shade and fuse cord, white
-  belly / white-hot spark, ink.
-- **Hitbox:** the centred half-size circle (`r = 0.14`); the art (~11 px upright, ~15 px side gallop) overhangs it.
-
-### 3.2 Bombs & Connected Blast VFX
-- **Bomb (`10 × 10` body in `16 × 16` cell):** Round dark-slate iron body, big specular rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).
-- **Fire Bomb (`10 × 10` body in `16 × 16` cell):** Brass-necked ruby alchemical flask with swirling golden liquid flame (`Swirl 1, Swirl 2, Incandescent Swell, Flash`).
-- **Connected `+` Cross Explosion (`Bomb`):**
-  - `blastHub`, `blastArmH`, `blastArmV`, `blastCapN / S / E / W` across `4` frames (`White-Gold Core → Billowing Flame → Soot Ring → Dispersing Puffs`) so `1`–`2` tile `+` blasts form one continuous fiery cross instead of disconnected circles; impact/single-tile blasts use a `4`-frame radial starburst.
-- **Fire Hearth Patch (`16 × 16`):** `4`-frame crackling ember bed + dancing flame tongues.
-
-### 3.3 Cast, Enemies & Bosses
-- **Cinderholm Cast (`16 × 18`, `2`-frame lively idle):**
-  - **Grandma** (`16 × 16`, `'mouse'` palette): the only character who speaks. A mouse with a white bun, gold spectacles, brown shawl and white apron; frame 2 blinks. She stands outside the Mouse House (`3,2`).
-- **Common Foes (`16 × 18`):**
-  - **Moss-Slime (`3` frames):** Glossy emerald jelly with inner leaf/core (`Idle, Squash, Hop`).
-  - **Cinder-Bat (`3` frames):** Plum wings + bright ember eyes (`Wings Up, Glide, Tuck`).
-  - **Bramble Shielder (`S / N / E` directional sprites):** Armored imp holding an integrated thorn-and-oak buckler on its facing side (plus unshielded state once burned by Fire).
-- **Bosses:**
-  - **Wickgeist (`24 × 24`):** Hooded lantern phantom swinging a ghostly censer (`2` spectral cyan-indigo frames in darkness; `2` materialized violet-crimson frames recoiling in brazier light).
-  - **Cinderhull (`32 × 32` = `2 × 2` tile Shrine Boss):**
-    - *Armored:* Gnarled green-and-amber briar carapace (`2`-frame breathing/scuttling motion) with glaring red eyes behind the thorns.
-    - *Exposed:* Charred obsidian shell split wide open around a pulsing incandescent orange-white Cinder Core (`2`-frame throb + regrowing thorn flash).
-
-### 3.4 Pixel HUD & Control Icons (`12 × 12` / `16 × 16`)
-- `uiHeartFull`, `uiHeartHalf`, `uiHeartEmpty`, `uiHeartShard`, `uiSmallKey`, `uiBossKey`, `uiCinderCore`, `uiThrowArc`, `uiGear`, `uiSoundOn`, `uiSoundOff` — rendered at crisp integer scale in `#topbar`, `#controls`, and settings.
-
----
-
-## 4. Code & Verification Plan
-
-1. **Modularize Art Sources (`src/render/art/`):**
-   - `gbcPalette.ts` — `RGB555` helpers, `8` `4`-colour `BG` palettes per zone, `8` `6`-colour `OBJ` palettes.
-   - `chr8.ts` — `8 × 8` subtile primitives, `H/V` flip composer, and `47`-state blob resolver.
-   - `overworldArt.ts` — Grass/path/water/pit `CHR8` sets, `2 × 2` trees, `2`-tall cliffs, fences/bridges, and the `5` Vertical Slice landmark stamps.
-   - `shrineArt.ts` — `2`-tile mitered dungeon walls, `N/S/E/W` recessed doorway tunnels & doors, floor border + `2 × 2` medallions, stone balustrades, braziers, switches, blocks.
-   - `spritesArt.ts` — `6`-colour Pip (`16 × 18`), bombs, connected `+` blasts, NPCs, directional enemies, `24 × 24` `Wickgeist`, `32 × 32` `Cinderhull`, and pixel HUD icons.
-2. **Migrate Campaign to `11 × 13` (`src/game/types.ts`, `src/game/campaign.ts`, `src/game/world.ts`, `tests/*.test.ts`):**
-   - Reshape all `19` Vertical Slice rooms (`9` Overworld + `10` Ice Cave) to `11 × 13` with `2 × 2` tree borders, `2`-tall cliffs, winding `:` paths, `_` bridges, `stamps[]` landmarks, and `2`-tile-deep Shrine walls while preserving every puzzle, secret, and test invariant (`doorways.test.ts`, `world.test.ts`, `campaign.test.ts`, `movement.test.ts`).
-3. **4-Pass Layered Renderer & Pixel HUD (`src/render/gbc.ts`, `src/main.ts`, `index.html`):**
-   - `Pass 1` Ground/Blobs → `Pass 2` Walls/Trunks/Stamp Bases → `Pass 3` Y-Sorted Actors → `Pass 4` Overhead Canopies/Eaves/Lintels + Airborne Bombs + Connected Blasts + Bayer Lantern Mask.
-   - Swap `#topbar`, dialogue box, Boss bar, and `#controls` icons to pixel art + GBC double-lined borders.
-4. **Automated Magnified Proof Sheets (`tools/make-sprites.ts` & `tests/gbcArt.test.ts`):**
-   - `gbcArt.test.ts` verifies `RGB555` compliance, `4`-colour `8 × 8` `BG` quarters, `≤ 6`-colour `OBJ` sprites, and valid stamp dimensions.
-   - `npm run make-sprites` outputs both a **Tile & Sprite Contact Sheet** and a **Stitched Full-Room Proof Sheet** (`Mouse House`, `Tower Courtyard`, `Ice Cave Arch`, `Entry Hall`, `Crystal Crossroads`, `Lantern Hall`, `Frozen Sanctum`) for `6 ×` visual seam inspection alongside live mobile Playwright screenshots.
+### 2.4 Pixel HUD & Control Icons (Zero Hearts!)
+- **Top HUD (`#topbar`):**
+  - **Grandma's Button Counter:** crisp pixel sewing-button icon (`HUD_BUTTON`) + `×N/36` count.
+  - **Elemental Keys & Dungeon Keys:** `HUD_SMALL_KEY`, `HUD_BOSS_KEY`, and the **4 Elemental Key badges** (`HUD_CINDER_KEY`, `HUD_ZEPHYR_KEY`, `HUD_RIME_KEY`, `HUD_STONE_KEY`).
+  - **Room / Shrine Trial Title & Minimap:** full non-truncated room name + trial hint and auto-drawn minimap.
+- **Control Band (`#controls`):**
+  - Virtual pixel stick, live satchel pips (`●●○`), tappable **Quick-Swap Bomb Pill** (`[ICON NAME ↻]`), `START`, and two-state arcade caps (`B·ROLL / B·DROP`, `A·PULL / A·THROW`).

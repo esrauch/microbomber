@@ -1,148 +1,170 @@
 # microbomber roadmap
 
-Burn-down for the "retro look, modern play" decisions in [`GAME.md` §10](GAME.md)
-and the full half-of-*Oracle* campaign (`~190` rooms across [`OVERWORLD.md`](OVERWORLD.md)
-and [`DUNGEONS.md`](DUNGEONS.md)). Tick items off as they land; `npm run check`
-passes at every tick.
-
-Phases 1–6 (Roll, bomb physics, `Pull → Drop / Throw` ergonomics, physics puzzles,
-systemic world and AI, PixiJS lighting/shadows, integer GBC framing, pixel font,
-and tile-art variety) are built and committed.
+Burn-down for the puzzle-first, Rube Goldberg, zero-heart, 7-bomb campaign
+across [`GAME.md`](GAME.md), [`PUZZLE_MECHANICS.md`](PUZZLE_MECHANICS.md),
+[`OVERWORLD.md`](OVERWORLD.md), [`DUNGEONS.md`](DUNGEONS.md), and
+[`ASSETS.md`](ASSETS.md). Tick items off as they land; `npm run check` passes at
+every tick.
 
 ---
 
-## Phase 1–6: Core engine & presentation (done)
+## Phase 1–7: Core engine, presentation & ergonomic foundation (done)
 
 - [x] **Phase 1–2:** Deterministic `60 Hz` movement, `B = Roll` (i-frames + buffer),
-      `A = Pull → B = Drop / A = Throw` over fences, rolling/rebounding bomb physics,
-      `1/4`-heart splashback (exempt on enemy hit), and ground fire damage.
+      `A = Pull → B = Drop / A = Throw` over fences, rolling/rebounding bomb physics.
 - [x] **Phase 3–4:** Contact-radius triggers, sloped chutes, fire spread, water
-      currents, wind gusts, systemic enemy FSM, and the 10-room Ice Cave + 9-room
-      Prologue vertical slice.
+      currents, wind gusts, and the initial 10-room Ice Cave + 9-room Prologue
+      vertical slice.
 - [x] **Phase 5–6:** Integer device-pixel framing, zone GBC bezels & dialogue strip,
       bundled `CinderholmPixel` font, emissive-only bloom, directional & height-aware
       contact shadows, foot-position depth sorting, and tile-art variety pass.
+- [x] **Phase 7:** Fast in-play **Quick-Swap Bomb Pill** (`Tap` / `Q` / `Tab`),
+      impact feedback (integer-pixel screen shake, brief hit-stop, mobile haptics),
+      **Grandma's Basement (Dungeon 0 — `5` rooms)** starting inside the Mouse
+      House with Roll only and earning the **Magic Bomb Sack (`Bomb`)**, and the
+      exhaustive **Automated No-Key-Softlock Verifier** (`tests/softlock.test.ts`).
 
 ---
 
-## Phase 7: Core feel, UX & vertical-slice alignment
+## Phase 8: Puzzle-First Pivot — Zero Hearts, Clockwork Creatures & Scrolling Shrines
 
-Lock down core ergonomics and align the existing vertical slice with the finalized
-design in `GAME.md`, `DUNGEONS.md` and `OVERWORLD.md` before scaling out content.
+Align the core simulation, HUD, and existing vertical slice (`Grandma's Basement`,
+`Prologue Overworld`, and `Ice Cave`) with the finalized puzzle-first design in
+`GAME.md` and `PUZZLE_MECHANICS.md`.
 
-- [x] **Bomb-swapping UX:** fast in-play bomb switching (tappable quick-swap bomb
-      pill in the control band + `Q` / `Tab` / `Shift` cycling `cycleEquippedBomb(s)`
-      without opening the full `START` pause modal), essential once carrying 3–5
-      bomb types.
-- [x] **Impact feedback:** integer-pixel screen shake, brief hit-stop, and optional
-      mobile haptics (`navigator.vibrate`, toggleable in settings) on blasts, boss
-      hits and phase shifts.
-- [x] **Grandma's Basement (`DUNGEONS.md` §0 — Dungeon Zero, `5` rooms):**
-  - [x] Start inside the **Mouse House (`Room 0`)** with no bombs (`Roll` only) and
-        Grandma's opening prompt about your brother raising the Iron Tower.
-  - [x] Build the `4`-room cellar (`B1F`) teaching floor switches, **Small Key**,
-        the **Magic Bomb Sack (`Bomb`)**, `Pull → Drop` on `%` walls, and
-        `Pull → Throw` over `=` fences into crystal switches, exiting to the yard.
-- [x] **Ice Cave two-room miniboss split (`DUNGEONS.md` §1):**
-  - [x] **Ice Golem Phase 1** in `Alchemist Reliquary (2,1)` (fought with Bombs;
-        flees west at half HP, unsealing the **Fire Bomb**).
-  - [x] **Ice Golem Phase 2** in `Lantern Hall (1,1)` (regrowing ice armour melted
-        with Fire; unlocks midpoint warp pad).
-- [x] **Automated No-Key-Softlock verifier:** exhaustive BFS + reverse-reachability
-      state-space unit test (`tests/softlock.test.ts`) certifying that no player
-      choice of locked door or crystal switch can ever soft-lock a dungeon.
-- [ ] **Real-phone playtest checkpoint:** verify Roll, `Pull → Drop / Throw`,
-      bomb-swap UX, lighting readability, and steady `60 fps` on a phone.
-
----
-
-## Phase 8: Multi-floor, `10 × 10` grid & collectible infrastructure
-
-Build the shared world systems required by Chapters 1–5 (`OVERWORLD.md`,
-`DUNGEONS.md`).
-
-- [ ] **`10 × 10` Overworld grid migration:** shift the 9 built Overworld screens
-      `(+2, +2)` (`Mouse House` at `(5,4)`, `Iron Tower` at `(4,1)`, `Ice Cave Arch`
-      at `(5,7)`) and update minimap rendering for `10 × 10`.
-- [ ] **Multi-floor dungeon support (`1F / 2F / B1F`):** floor-aware `RoomSpec`
-      coordinates, minimap floor indicator, stairs/lifts, and harmless vertical
-      drop shafts landing at matching `(x, y)` on the floor below.
-- [ ] **Island collectibles & upgrades (`GAME.md` §6, `OVERWORLD.md`):**
-  - [x] **Heart Pieces (`12` total, `4` per Heart Container):** update from 2-shard
-        pairs to 4-piece hearts (`3 → 10` max hearts).
-  - [ ] **Grandma's Sewing Buttons (`36`):** pickup sprite, HUD/menu counter, and
-        Grandma's reward logic (`1` Heart Piece per `12` buttons returned).
-  - [ ] **Mousehole tile:** passable by tiny Pip, impassable to bombs, blocks and
-        enemies, for secret cellars and two-way shortcuts.
-
----
-
-## Phase 9: Campaign buildout (`~190` rooms)
-
-Each chapter ships end-to-end with its new bomb, at most two new terrain pieces,
-Overworld biome(s), Shrine, and automated route + no-softlock Vitest suites.
-
-### 9.1 Chapter 1: `Bramble Woods` & `Frost Hollow` (`OVERWORLD.md`)
-- [ ] Remaining `Bramble Woods` (`7` screens) and `Frost Hollow` (`16` screens)
-      with overworld ice walls, skating slimes, icicle ravines, `Old Icehouse`
-      Heart Piece, buttons, and `Hollow's End ↔ South Beach` mousehole.
-
-### 9.2 Chapter 2: `Quarry Hills` & Shrine 2 — `Rock Quarry` (`15` rooms, **Wind Bomb**)
-- [ ] **Wind Bomb:** `0.8 s` fuse (or early A-pop), `3 × 3` gust, `2`-tile
-      blast-jump over gaps/up ledges, and `2.5 s` lingering whirlwind vortex that
-      catapults thrown Bombs/Fire `3–4` tiles downwind.
-- [ ] **New pieces:** **sand piles** (scattered back by Bomb, blown clear by Wind)
-      and **one-way terraces** (drop down freely, blast-jump up one tier).
-- [ ] **Overworld (`15` screens):** `Old Windmill (3,3)` boiler puzzle, `Quarry
-      Lift (1,4)` two-way shortcut, `Quarry Hills` screens, `Stone Steps` Heart Piece.
-- [ ] **Rock Quarry (`2F` rim + `1F` pit, `15` rooms):** Rim Crossing drop shaft,
-      cargo lift, Magic Bomb Sack upgrade (`2 → 3` live bombs), **Mole Foreman** (Phases
-      1 & 2 across rooms 14–15), and **Boulder Golem** boss + Zephyr Core.
-
-### 9.3 Chapter 3: `River Valley`, `Coast`, `Fire Mountain Slopes` & Shrine 3 — `Fire Mountain` (`20` rooms, **Ice Bomb**)
-- [ ] **Pack-Otter Fuse Heist (`Coast`, `4` screens):** dud-bomb throw/drop bonk in
-      `Crescent Cove (9,4)` → recover **Wind** → `Tide Pools (8,6)` for **Fire** →
-      `Driftwood Beach (9,5)` for **Bomb** → `Thief Burrows (9,6)` Heart Piece &
-      `North Beach ↔ Hot Springs` ferry.
-- [ ] **Overworld (`34` screens):** `River Valley` (`9`), `Coast` (`13`, including
-      `River Estuary (7,9)`), and `Fire Mountain slopes` (`12`).
-- [ ] **Ice Bomb:** `1.3 s` fuse, `3 × 3` ice nova that freezes water, crusts lava
-      into walkable **glazed crust** (sliding bombs & blocks in Fire Mountain),
-      puts out fire/flame jets, and freezes small enemies for `4 s`.
-- [ ] **New pieces:** **lava** (crusts with Ice, melts with Fire) and **flame jets**
-      (beat-timed fire vents snuffed permanently by Ice).
-- [ ] **Fire Mountain (`1F + B1F`, `20` rooms):** Great Forge island hub, glazed
-      crust puzzles, **Fire Salamander** (Phases 1 & 2 across rooms 9–10), and
-      **Lava Drake** boss + Rime Core.
-
-### 9.4 Chapter 4: `Wind Cliffs Coast` & Shrine 4 — `Wind Cliffs` (`24` rooms, **Rock Bomb**)
-- [ ] **Overworld (`9` screens):** frozen `River Ford (7,3)` shortcut, `Windmill
-      Bluff (0,2)` frozen waterfall stair, and `Wind Cliffs coast` screens.
-- [ ] **Rock Bomb:** `1.0 s` fuse; spawns one solid pushable **rock block**
-      (making a new one crumbles the old; Bomb shatters it) acting as weight,
-      stopper, windbreak, and stepping stone in 1-tile channels/gaps.
-- [ ] **New pieces:** **steady gust vents** (blocked by Rock windbreaks) and
-      **gaps** + the cross-floor **blowhole** (`1F → 2F`).
-- [ ] **Wind Cliffs (`1F` caves + `2F` clifftop, `24` rooms):** Tide Hall hub,
-      blowhole bridge puzzle, Magic Bomb Sack upgrade (`3 → 4` live bombs), **Harpy**
-      (Phases 1 & 2 across rooms 11–12), and **Storm Bird** boss + Stone Core.
-
-### 9.5 Chapter 5: `The Iron Plateau` & Finale — `Iron Tower` (`16` rooms, all bombs)
-- [ ] **Overworld (`10` screens):** storm-swept `Iron Plateau` screens, four-element
-      gate on `Tower Causeway (4,3)`, and Fourfold Seal in `Tower Courtyard (4,2)`.
-- [ ] **Iron Tower (`1F..4F`, `16` rooms):** four `2 × 2` elemental floors around
-      the **Central Lift Warp Pad**, **Iron Knight** miniboss (Phases 1 & 2 across
-      rooms 7–8), **The Sorcerer (Your Brother)** 4-element mirror duel, and
-      ending sequence.
+- [ ] **Zero-heart, zero-splashback model (`GAME.md` §1):**
+  - [ ] Remove self-blast damage and player HP / hearts from the simulation and
+        HUD (own blasts deal `0` damage and apply a `1`-tile knockback hop).
+  - [ ] Convert pits (`^`), lava, deep water (`~`), spikes (`!`), and flame jets
+        to an instant **`0.35 s` positional hop back** to the last safe tile /
+        doorway (never a dungeon-foyer death reset).
+  - [ ] Convert Boss and Miniboss hits to knock Pip back / daze (`0.6 s`) or
+        reset the current 1-of-3 puzzle phase setup.
+- [ ] **Deterministic Clockwork Creatures & room-local persistence (`PUZZLE_MECHANICS.md`):**
+  - [ ] Remove erratic bats and aggro-chasing trash mobs (`clear-enemies` locks
+        removed).
+  - [ ] Implement deterministic **Clockwork Creatures**: **Brass Beetle** (lured
+        by Squeak Bomb, frozen into a sliding ice cube by Ice), **Mimic Statue /
+        Armos** (cardinal lockstep with Pip or lured off-axis), **Rail Tortoise**,
+        and **Pack-Otter** (fuse/bomb carrier).
+  - [ ] Make `W` wooden crates and `,` dry grass / powder fuse lines reset on
+        room exit (room-local) while `%` cracked walls and `B` brambles/ice
+        blocks remain permanent per save.
+  - [ ] Render **local floor rune traces** (`decals` layer, glowing when active)
+        linking buttons, vanes, and polarity switches to their target shutters,
+        bridges, platforms, or lifts.
+- [ ] **Grandma's Sewing Buttons (`36`) & Elemental Keys (`4`) economy:**
+  - [ ] Replace Heart Pieces / Containers with **Grandma's Sewing Buttons**
+        (`HUD_BUTTON ×N/36`) as the single collectible currency, plus the **4
+        Elemental Keys** (**Cinder, Zephyr, Rime, Stone**) from Major Dungeon
+        bosses.
+  - [ ] Button-Lock door primitive for the **6 Relic Shrines (`R1–R6`)** (`2, 5,
+        10, 15, 21, 28` Buttons) and Grandma's automatic Satchel milestones (`8`
+        Buttons → `3` live bombs, `16` Buttons → reach `2`, `24` Buttons → `4`
+        live bombs, `36` Buttons → Dungeon 999 master mousehole).
+- [ ] **Hybrid scrolling camera for Shrines & large halls (`GAME.md` §1, `ASSETS.md` §1.1):**
+  - [ ] Keep `11 × 13` (`1 × 1`) flip-screens on the Overworld while supporting
+        `1 × 2` (`11 × 26`), `2 × 1` (`22 × 13`), and `2 × 2` (`22 × 26`)
+        continuous scrolling rooms inside Shrines and Major Dungeon chambers with
+        integer pixel-snapped camera follow.
+- [ ] **Rework vertical slice (`Prologue + R1/R2 + Ice Cave`) to Rube Goldberg puzzles:**
+  - [ ] Add **Squeak Bomb** (`2.5 s` clockwork chirp lure + floating `♪` notes +
+        `2.5 s` daze puff), **Relic Shrine 1 (`Hearth Vault → Fire`)**, **Relic
+        Shrine 2 (`Chime Grotto → Squeak`)**, and the first tier of **Trial
+        Shrines (`T01–T12`)**.
+  - [ ] Upgrade **Ice Cave (`10` rooms)** to combine **`Bomb + Fire + Squeak`**
+        (delayed chute-and-crystal crossings, crystal-peg block backstops,
+        lured Brass Beetles, **Ice Golem** Living Puzzle Gate, and **Ice Wraith**
+        3-phase duel awarding the **Cinder Key**).
 
 ---
 
-## Phase 10: Audio, renderer & post-launch polish
+## Phase 9: Multi-Floor, `10 × 10` Overworld & Complete 7-Bomb Arsenal
 
-- [ ] **Music & ambience:** GBC-style chiptune themes (Millbrook, Overworld,
-      Shrine, Miniboss, Boss, Iron Tower, Ending) + mute/volume persistence.
-- [ ] **Renderer optimization (if needed for mid-range phones):** move Canvas2D
-      albedo/G-buffer layers (`gbc.ts`, `gbcAux.ts`) directly onto Pixi sprites
-      and hand-paint hero normal maps.
-- [ ] **Optional relic (`GAME.md` §10):** unlockable **bomb-laying roll** charm for
-      late-game / post-game secret trials.
+Build the remaining 4 Bombs (**Wind, Magnet, Ice, Rock**), multi-floor machinery,
+and Rube Goldberg movers (`PUZZLE_MECHANICS.md`).
+
+- [ ] **`10 × 10` Overworld grid migration & Mouseholes:**
+  - [ ] Shift the built Overworld screens `(+2, +2)` (`Mouse House` at `(5,4)`,
+        `Iron Tower` at `(4,1)`, `Ice Cave Arch` at `(5,7)`) and update minimap
+        rendering for `10 × 10`.
+  - [ ] **Mousehole tile:** passable only by tiny Pip, Squeak Bombs, and
+        Pack-Otters; impassable to heavy bombs and blocks.
+- [ ] **Multi-floor dungeon machinery (`1F / 2F / B1F`):**
+  - [ ] Floor-aware `RoomSpec` coordinates, minimap floor indicator, stairs,
+        cargo lifts, **Vertical Drop Shafts** (dropping Pip, crates, spheres, or
+        bombs to `(x, y)` on the floor below), and upward **Blowholes** (`1F →
+        2F`).
+  - [ ] **Cycling & Triggered Moving Platforms** (carrying Pip, live bombs, and
+        blocks across pits/lava in calm-air rooms; excluded from Wind Cliffs).
+- [ ] **The Remaining 4 Special Bombs & Rube Goldberg Movers:**
+  - [ ] **Wind Bomb (`R3`, `10` Buttons):** `0.8 s` fuse (or early A-pop),
+        `3 × 3` gust, `2`-tile blast-jump over gaps / up **one-way terraces**,
+        **sand piles** (blown clear by Wind, slumping back on Bomb), **wind
+        vanes**, and the **`2.5 s` lingering whirlwind vortex** that catapults
+        thrown bombs `3–4` tiles downwind.
+  - [ ] **Magnet Bomb (`R4`, `15` Buttons):** `1.5 s` magnetic pull field with
+        animated flux arcs pulling aligned **metal blocks**, **rolling iron
+        spheres**, Rail Tortoises, and live cast-iron Bombs `1–2` tiles toward
+        itself; snaps onto and glides along **magnetic floor rails**; pops with
+        an **`N ↔ S` polarity pulse**.
+  - [ ] **Ice Bomb (`R5`, `21` Buttons):** `1.3 s` `3 × 3` frost nova that
+        freezes water and currents (stopping drifting bombs/blocks mid-stream),
+        crusts **lava** into slick **glazed crust** (sliding bombs, blocks, and
+        spheres until they hit a backstop), snuffs **flame jets** and braziers,
+        and freezes Clockwork Creatures for `4 s` into kickable **sliding ice
+        cubes**.
+  - [ ] **Rock Bomb (`R6`, `28` Buttons):** `1.0 s` fuse; spawns one solid
+        carved **Rock block** (making a new one crumbles the old; Bomb shatters
+        it) acting as a button weight, curling backstop on glaze/chutes,
+        `1`-tile stepping stone in `;`/`!`, immovable windbreak in gust lanes,
+        current dam, and dive-stopper.
+
+---
+
+## Phase 10: Campaign Buildout (`36` Shrines, `4` Major Dungeons, `100` Overworld Screens & `Iron Tower`)
+
+Each region ships end-to-end with its Overworld screens, Relic Shrine(s),
+Single-Room Trial Shrines, Major Multi-Room Dungeon, and automated route +
+no-softlock Vitest suites.
+
+- [ ] **10.1 `Bramble Woods` & `Frost Hollow` (`23` Overworld screens, `R1–R2`, `T01–T12`, `Ice Cave`):**
+  - [ ] Complete all `Bramble Woods` and `Frost Hollow` screens, Trial Shrines
+        `T01–T12`, and `Ice Cave` (`Cinder Key`).
+- [ ] **10.2 `Quarry Hills` (`15` Overworld screens, `R3–R4`, `T13–T21`, `Rock Quarry`):**
+  - [ ] `Old Windmill (3,3)` boiler puzzle, `Quarry Lift (1,4)`, Relic Shrines
+        `R3` (**Wind**) & `R4` (**Magnet**), Trial Shrines `T13–T21`, and **Rock
+        Quarry** (`15` rooms, `2F` rim + `1F` pit, **Mole Foreman** Living Gate,
+        **Boulder Golem** boss + **Zephyr Key**).
+- [ ] **10.3 `River Valley`, `Coast` & `Fire Mountain Slopes` (`34` Overworld screens, `R5`, `T22–T28`, `Fire Mountain`):**
+  - [ ] Relic Shrine `R5` (**Ice**), **Pack-Otter Fuse Heist** across `4` Coast
+        screens (`Crescent Cove`, `Tide Pools`, `Driftwood Beach`, `Thief
+        Burrows`), Trial Shrines `T22–T28`, and **Fire Mountain** (`20` rooms,
+        `1F + B1F`, glazed lava crust curling puzzles, **Fire Salamander**
+        Living Gate, **Lava Drake** boss + **Rime Key**).
+- [ ] **10.4 `Wind Cliffs Coast` (`9` Overworld screens, `R6`, `T29`, `Wind Cliffs`):**
+  - [ ] Frozen `River Ford (7,3)` shortcut, `Windmill Bluff (0,2)` waterfall
+        stair, Relic Shrine `R6` (**Rock**), Trial Shrine `T29`, and **Wind
+        Cliffs** (`24` rooms, `1F + 2F`, `Blowhole`, cross-gust windbreaks,
+        **Harpy** Living Gate, **Storm Bird** boss + **Stone Key**).
+- [ ] **10.5 `The Iron Plateau`, `Iron Tower` (`16` rooms) & `Dungeon 999`:**
+  - [ ] `10` Iron Plateau screens, Trial Shrine `T30` (*"The Sevenfold Chain"*),
+        the **Fourfold Seal** (`4` Elemental Keys), and the **`2 × 2` Iron
+        Tower** (`1F–4F`, **Iron Knight** Living Gate, and **The Sorcerer**
+        6-element mirror boss duel).
+  - [ ] **Dungeon 999 (Developer Test Rig):** `?dev=999` (and 36-Button basement
+        mousehole) with wings `A0–A7`, `B1–B21`, and `Toys`.
+
+---
+
+## Phase 11: Real-Phone Polish, Audio & Release Verification
+
+- [ ] **Rube Goldberg visual & audio polish:** travelling fuse sparks, magnetic
+      flux arcs, Squeak Bomb floating `♪` notes, glazed-crust curling trails,
+      and per-element synthesized Web Audio cues.
+- [ ] **Full-campaign automated verification:** end-to-end headless playtest
+      suite solving all `36` Shrines, all `4` Major Dungeons, and the `Iron
+      Tower`, plus `tests/softlock.test.ts` certification across every dungeon.
+- [ ] **Real-phone playtest sign-off:** steady `60 fps`, crisp scrolling camera
+      in `1 × 2` / `2 × 2` Shrines, and one-thumb-per-side comfort across the
+      full campaign.
