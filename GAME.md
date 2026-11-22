@@ -71,8 +71,9 @@ Guided by retired Master Sapper **Bram** of **Millbrook Village**, Pip ventures
 into the four Elemental Shrines in order (**Ice Cave → Rock Quarry → Fire
 Mountain → Wind Cliffs**). Each Shrine holds the bomb that beats it (**Fire, Wind,
 Ice, Rock**): Pip reclaims each **Primeval Core**, learning its bomb along the way, breaks
-the fourfold seal on the Tower, and topples its architect, **Lord Verdigris**
-(alternative: the Rust Regent).
+the fourfold seal on the Tower, and faces the one who raised it: **the Sorcerer**,
+an old mouse who mastered all four elements long ago and never gave a name. He
+fights the way Pip does, with the same four kinds of bomb.
 
 ### Overworld (`6 × 6` screens)
 
@@ -126,12 +127,12 @@ a shortcut, a hint, or a character.
    **Ice Bomb** and the third Core (Rime).
 5. **Chapter 4: River Ford and Wind Cliffs** (Rock). Freeze **River Ford**
    (`4,1`) and the flooded **High Bridge** (`1,1`) with Ice Bombs to reach
-   **Wind Cliffs** (`0,1`), where gusts push you off the ledges. Reward:
+   **Wind Cliffs** (`0,1`), where gusts sweep bombs off the ledges. Reward:
    **Rock Bomb** and the fourth Core (Stone).
 6. **Finale: Iron Tower** (all five bombs). Return to the **Tower
    Causeway** (`2,1`), open the four-element gate (light a brazier, spin a vane,
    freeze a moat, weight a pedestal), and climb `8–10` rooms of combined trials
-   to face Lord Verdigris.
+   to face the Sorcerer.
 
 ## 4. The bombs
 
@@ -141,7 +142,7 @@ puzzles and fights, and opens new overworld routes.
 
 **Keep it simple:** plain names (Bomb, Fire, Ice, Wind, Rock), one clear job
 each, and only the interactions a player would guess: Fire melts Ice, Ice puts
-out Fire, Wind pushes any bomb or block, and a Bomb breaks an Rock block.
+out Fire, Wind pushes any bomb or block, and a Bomb breaks a Rock block.
 
 ### 0. Bomb (starter): it breaks things
 
@@ -183,8 +184,9 @@ out Fire, Wind pushes any bomb or block, and a Bomb breaks an Rock block.
 - **Primary: freezes liquids.** Water in the blast becomes walkable ice, and
   lava crusts over safely, until Fire melts it or you leave the room. No timer.
 - **Puts out fire:** burning patches and lit braziers in the blast go out.
-- **Later:** glazes the floor so pushed blocks and kicked bombs **slide until
-  they hit something**.
+- **Later (Fire Mountain only):** frozen lava crust is glazed, so kicked bombs
+  and shoved blocks on it **slide until they hit something**. No other Shrine's
+  floors glaze (the Sorcerer's Ice form is the one exception).
 - **Combat:** freezes small and medium enemies solid for `4 s`, into pushable
   ice blocks: a temporary weight for a button, a battering ram, or something to
   shatter with a Bomb or Fire for better heart drops.
@@ -244,9 +246,134 @@ out Fire, Wind pushes any bomb or block, and a Bomb breaks an Rock block.
 |---|---|:-:|---|---|---|
 | 1 | **Ice Cave** (Fire) | **10** (`1F`) | Single floor switches, dark rooms, timed and ordered braziers, ice blocks to melt | **Ice Wraith:** a lantern phantom, invisible in the dark; light the braziers with Fire to expose it. | **Ice Golem:** a husk in regrowing ice armour; melt it with Fire, then blast the bare core with a Bomb before it freezes over. |
 | 2 | **Rock Quarry** (Wind) | **16** (`1F + 2F`) | Sand and gravel piles to blow away, terraced ledges, bottomless pits, crumbling floors | **Sand Mole:** burrows under sand piles; blow the sand off with Wind, then bomb it. | **Boulder Golem:** holds the top terrace; gust it off its ledge, or blow bombs up the tiers into its back. |
-| 3 | **Fire Mountain** (Ice) | **20** (`1F + B1F`) | Lava streams to crust over, flame jets to put out, hot floors, crust slides | **Fire Salamander:** wreathed in flame; an Ice blast snuffs it so a Bomb can hurt it. | **Lava Drake:** circles a lava moat; freeze crust bridges to reach it, and ice its breath. |
-| 4 | **Wind Cliffs** (Rock) | **24** (`1F + 2F`) | Steady gusts to block with rock windbreaks, pits to fill, cliff tiers, multi-button doors | **Harpy:** a diving slammer; raise a rock pillar so it dazes itself, then bomb it. | **Storm Bird:** whips gusts that push you off the cliffs; build windbreaks and stepping blocks to reach and bomb it. |
-| 5 | **Iron Tower** | **16** (`1F..4F`) | Four 4-room elemental floors combining all five bombs | **The Rust Warden:** a duellist who copies your last bomb's element; answer each with its opposite. | **Lord Verdigris**, in four phases: Fire (light the braziers to reveal him), Wind (vault the pits and punt bombs up), Ice (bridge the moat, bank a shot), Rock (shield from beams, then a multi-bomb finish). |
+| 3 | **Fire Mountain** (Ice) | **20** (`1F + B1F`) | Lava streams to crust over, flame jets to put out, glazed crust slides | **Fire Salamander:** wreathed in flame; an Ice blast snuffs it so a Bomb can hurt it. | **Lava Drake:** circles a lava moat; freeze crust bridges to reach it, and ice its breath. |
+| 4 | **Wind Cliffs** (Rock) | **24** (`1F + 2F`) | Gusts that carry bombs (blocked by rock windbreaks), gaps to fill, cliff tiers, multi-button doors | **Harpy:** a diving slammer; raise a rock pillar so it dazes itself, then bomb it. | **Storm Bird:** beats gusts that blow bombs back at you; raise windbreaks so a bomb can sit under its nose, then pillar its dive. |
+| 5 | **Iron Tower** | **16** (`1F..4F`) | Four 4-room elemental floors combining all five bombs | **Iron Knight:** a hulking suit of rusted armour; blast its plates off one by one, then bomb the empty suit's core. | **The Sorcerer:** an old mouse who throws your own bombs, cycling Fire, Wind, Ice, Rock; answer each with its counter bomb, then hit him with a Bomb while he's stunned. |
+
+### Shrine plans
+
+Every Shrine follows one arc. **Act 1** is solved with the bombs you already
+carry, while the Shrine's own obstacles keep blocking the way forward. The
+**miniboss** guards the new bomb's chest. **Act 2** teaches the new bomb, sends
+you back past the obstacles that stopped you, and ends at the **Boss Key** and a
+boss that is a test of the new bomb. Each Shrine adds **at most two new puzzle
+pieces**, and every room has one idea: teach it, twist it, then combine it.
+
+#### 1. Ice Cave (Fire), built
+
+- **Look:** pale glacier stone and blue ice rock, braziers for warmth, an old
+  icehouse's storerooms inside.
+- **Pieces:** ice blocks (melted by Fire), braziers (timed and ordered), dark
+  rooms; plus keys, crystal barriers and floor switches.
+- **Miniboss: Ice Wraith.** Invisible in the dark; light the braziers with Fire
+  to expose it, then bomb it.
+- **Boss: Ice Golem.** Ice armour that regrows; melt it with Fire, then blast the
+  bare core with a Bomb before it freezes over.
+- **Opens outside:** brambles across the island burn away.
+
+#### 2. Rock Quarry (Wind)
+
+- **Look:** terraced stone steps cut into a hillside, wooden scaffolds and pulleys,
+  sand drifting into every corner.
+- **New pieces:**
+  1. **Sand piles:** soft mounds that block a tile. A Bomb only scatters them back;
+     Wind blows them clear, and whatever was buried (a switch, a key, a stair)
+     shows.
+  2. **Terraces:** one-tile ledges you can drop down but not climb. Wind's
+     blast-jump takes you up one tier or across a `2`-tile pit.
+- **Act 1 (Bomb, Fire):** drop down the terraces to reach the bottom of the
+  quarry, burning scaffold crates and bombing cracked walls; sand-buried
+  switches you can see but not reach keep shutting doors behind you.
+- **Miniboss: Sand Mole.** Burrows from pile to pile. Bombs make it dive; only
+  when you've blown its last pile away with your first Wind Bomb is it caught in
+  the open. *(The Wind chest sits in its den.)*
+- **Act 2 (Wind):** blast-jump back up the terraces you dropped down, clear the
+  buried switches, and gust bombs across pits onto far cracked walls.
+- **Boss: Boulder Golem.** Holds the top terrace and rolls boulders down the
+  steps at you. Phase 1: blast-jump up to its tier and gust it back to the edge.
+  Phase 2: push it off the edge; it shatters below, exposing a core to bomb.
+- **Opens outside:** pits and gaps on the west cliffs, and ledges up to the
+  Old Windmill.
+
+#### 3. Fire Mountain (Ice)
+
+- **Look:** dark basalt and glowing lava, an old forge dug into the volcano:
+  furnaces, chains, iron grates.
+- **New pieces:**
+  1. **Lava:** deadly to step in. Ice crusts it over into floor until you leave
+     the room (or Fire melts it).
+  2. **Flame jets:** vents that fire on a beat. Ice puts a jet out for good;
+     before that you time your run.
+- **Act 1 (Bomb, Fire, Wind):** time runs past flame jets, blast-jump over thin
+  lava streams, and gust bombs across wide ones onto switches; Fire lights the
+  forge braziers that work its gates.
+- **Miniboss: Fire Salamander.** Wreathed in flame, so Bombs bounce off. Ice
+  snuffs the flames for a few seconds; then bomb it. *(The Ice chest is
+  behind it, so the fight teaches Ice by using it.)*
+- **Act 2 (Ice):** crust over the lava rivers that blocked Act 1, put out the
+  flame jets for good, and on the lower floor (`B1F`) slide bombs across glazed
+  crust into switches.
+- **Boss: Lava Drake.** Swims a lava moat round an island. Phase 1: crust a path
+  across the moat while it surfaces and breathes fire. Phase 2: Ice its breath
+  to cool its throat, then kick a bomb into its mouth.
+- **Opens outside:** the river and the falls to the north freeze into paths.
+
+#### 4. Wind Cliffs (Rock)
+
+- **Look:** sea-cliff caves and ledges, ruined watchtowers, rope bridges, gulls.
+- **New pieces:**
+  1. **Gusts:** steady wind from vents that carries rolling bombs, sand and loose
+     objects (the mouse walks normally). A block in its path makes calm air
+     behind it.
+  2. **Gaps:** one-tile channels and pits. A Rock block dropped in becomes a
+     stepping stone.
+- **Act 1 (Bomb, Fire, Wind, Ice):** ride the gusts to carry bombs to far
+  targets, freeze sea spray into ledges, and blast-jump between outcrops, while
+  gusts that blow the wrong way keep sweeping your bombs off their marks.
+- **Miniboss: Harpy.** Dives at you in a straight line. Bombs miss it in the
+  air; whatever it slams into dazes it. *(The Rock chest is mid-fight: raise a
+  pillar in its path, then bomb it while it's dazed.)*
+- **Act 2 (Rock):** build windbreaks so bombs stay where you put them in rooms
+  the gusts ruled, fill gaps into stepping stones, and weigh down multi-button
+  doors with blocks.
+- **Boss: Storm Bird.** Perches on the clifftop and beats its wings into gusts
+  that blow every bomb back at you. Phase 1: raise a windbreak in front of it so
+  a bomb can sit under the calm and go off. Phase 2: it takes off and dives;
+  raise a pillar so it slams into it, then bomb it.
+- **Opens outside:** the windswept pass to the Tower Causeway.
+
+#### 5. Iron Tower (all bombs)
+
+- **Shape:** four floors of four rooms, one per element, each reprising its
+  Shrine's pieces with one combination twist (for example, freeze lava, then
+  glaze it into a slide; or windbreak a gust, then gust a bomb past it).
+- **Miniboss: Iron Knight.** A hulking suit of rusted armour that marches and
+  swings. Each blast knocks a plate off; once it's bare, bomb the empty suit's
+  core. (Kept plain on purpose: the counter-the-element test is saved for the
+  Sorcerer.)
+- **Boss: the Sorcerer** (a mirror fight). An old mouse in a long robe who
+  fights like Pip: in each element he throws that element's bombs and wears it
+  as a shield. You answer with the **counter bomb** to break the shield, then
+  hit him with a plain Bomb while he's stunned.
+
+  | He shifts into | He attacks with | Your counter | It works because |
+  |---|---|---|---|
+  | **Fire** | Fire Bombs that leave burning patches | **Ice** | Ice puts his flames out |
+  | **Wind** | Gusts that blow your bombs away | **Rock** | A Rock Bomb lands as a block the gust can't move; a Bomb set behind it stays put and goes off beside him |
+  | **Ice** | Ice novas that glaze the floor, so your bombs slide past him | **Fire** | Fire melts the glaze and his ice shield |
+  | **Rock** | Rock walls raised around himself | **Wind** | Wind topples the walls and blows him into the open |
+
+  - **Fixed order** (Fire, Wind, Ice, Rock), the same every time, so it's
+    learnable. Before each shift his robe changes colour and he holds a cast pose
+    for a second.
+  - **Faster each loop:** the first loop is slow and readable; each loop after
+    shortens his windows and adds a bomb to his volleys. About two loops of hits
+    beat him.
+  - **The wrong bomb** is simply absorbed into his shield (a Fire Bomb on the
+    Fire shield fizzles), so a mistake costs time, not hearts.
+  - **Homage check:** duelling a double is a Zelda staple (a dark reflection, or
+    returning a sorcerer's volleys). We keep only the duel; the verb is ours, and
+    the counter-the-element rule is the whole game's lesson in one fight.
 
 ## 6. Upgrades
 
