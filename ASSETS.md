@@ -6,11 +6,12 @@ This plan defines the visual architecture, multi-tile kits, sprite specification
 
 ## 1. Core Architectural Decisions
 
-### 1.1 `11 × 13` Base Viewport (`176 × 208` Logical Pixels) & Scrolling Shrine Rooms
-- **Viewport size:** **`11 × 13` tiles (`176 × 208 px`)**—odd on both axes so doorways, bridges, and altars center cleanly at `(5, 6)`, with a full `2`-tile-deep perimeter leaving a `7 × 9` playable interior on `1 × 1` screens.
-- **Hybrid Camera:**
-  - **Overworld (`10 × 10` screens):** Crisp `11 × 13` (`1 × 1`) flip-screens.
-  - **Single-Room Shrines & Large Dungeon Chambers:** Can span **`1 × 1` (`11 × 13`)**, **`1 × 2` (`11 × 26`)**, **`2 × 1` (`22 × 13`)**, or **`2 × 2` (`22 × 26`)** tiles with **integer pixel-snapped camera follow** clamped to the room bounds, so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous room.
+### 1.1 Two Screen Sizes: `11 × 13` at Grandma's, `22 × 26` Everywhere Else
+- **Grandma's House & basement:** **`11 × 13` tiles (`176 × 208 px`)**—odd on both axes so doorways and altars center cleanly at `(5, 6)`, with a full `2`-tile-deep perimeter leaving a `7 × 9` playable interior.
+- **Everywhere else (Overworld, Shrines, Dungeons, Dungeon 999):** **`22 × 26` tiles (`352 × 416 px`)**, shown whole in the same on-screen space as Grandma's rooms, so tiles draw at half their on-screen size (`GAME.md` §1.1).
+- **Space doubles, objects don't:** a converted room doubles every terrain tile into a `2 × 2` block (walls, so a `2`-tile perimeter becomes `4`), while blocks, switches, crystals, chests, creatures and door openings stay one tile.
+- **Drawn `2×` to keep their on-screen size:** trees (`4 × 4` tiles) and braziers (`2 × 2`). Pip, creatures, bombs and other props keep their pixel size.
+- **Hybrid Camera:** Overworld screens flip; Single-Room Shrines and Large Dungeon Chambers can span more than one screen with **integer pixel-snapped camera follow** clamped to the room bounds, so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous room.
 
 ### 1.2 Authentic `2`-Tile-Deep Dungeon Walls & Recessed Archways
 - Shrine and Dungeon perimeters use `OoA` / `LADX` **`2`-tile (`32px`) beveled wall construction**:

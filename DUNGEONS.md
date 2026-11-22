@@ -13,7 +13,7 @@ The layouts, Rube Goldberg puzzle chains, Miniboss gates, and Boss duels of:
 
 | Category | Count | Rooms | Size per Room | What You Win |
 |---|:-:|:-:|:---:|---|
-| **0. Grandma's Basement** (House + Cellar) | 1 | **5** | `1 × 1` (`11 × 13`) | **Magic Bomb Sack (`Bomb`)** |
+| **0. Grandma's Basement** (House + Cellar) | 1 | **5** | `1 × 1` (`11 × 13`, the one zone that keeps the small screen) | **Magic Bomb Sack (`Bomb`)** |
 | **Relic Shrines (`R1–R6`)** (Button-gated bomb unlocks) | 6 | **6** | `1 × 2` or `2 × 1` scrolling | **Fire, Squeak, Wind, Magnet, Ice, Rock** |
 | **Trial Shrines (`T01–T30`)** (Self-contained Rube Goldberg trials) | 30 | **30** | `1 × 1` to `2 × 2` scrolling | **`30` Grandma's Sewing Buttons** (`1` per Shrine) |
 | **1. Ice Cave** (`Bomb + Fire + Squeak`) | 1 | **10** | `1 × 1` to `1 × 2` | **Cinder Key** (`1/4` Tower Seal) + `1` Button |
@@ -28,9 +28,10 @@ The layouts, Rube Goldberg puzzle chains, Miniboss gates, and Boss duels of:
 - **Zero combat filler, zero hearts:**
   - There are **no bats, no chasing trash mobs, and no `clear-enemies` doors**. Every creature in a puzzle room is a deterministic **Clockwork Creature** (Brass Beetle, Mimic Statue, Rail Tortoise, Pack-Otter).
   - **No hearts anywhere:** your own bomb blasts never hurt you (`1`-tile knockback hop); pits, lava, spikes, and flame jets pop you back to the last safe tile (`0.35 s`); boss hits reset the current 1-of-3 puzzle phase.
-- **Hybrid camera (`11 × 13` base screen, scrolling inside Shrines & large halls):**
-  - Standard rooms are `11 × 13` tiles (`1 × 1`).
-  - Single-Room Shrines and centerpiece Dungeon halls can span **`1 × 2` (`11 × 26`)**, **`2 × 1` (`22 × 13`)**, or **`2 × 2` (`22 × 26`)** with smooth pixel-snapped camera follow so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous space without blind screen cuts.
+- **Screen size (`GAME.md` §1.1):**
+  - A standard Shrine or Dungeon room is one `22 × 26`-tile screen, shown whole. Only Grandma's House and basement keep `11 × 13`.
+  - Centerpiece Dungeon halls can span more than one screen with smooth pixel-snapped camera follow so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous space without blind screen cuts.
+  - The Shrine sizes below (`1 × 1`, `1 × 2`, `2 × 1`, `2 × 2`) count these screens.
 - **Minibosses as Living Puzzle Gates:**
   - In each Major Dungeon, the **Miniboss** sits on the main trunk and acts as an impenetrable **living lock** if approached with brute force. You solve it in a 2- to 3-step Rube Goldberg sequence using the region's bombs, which activates the **midpoint warp pad** back to the dungeon foyer and opens the Act 2 loop.
 - **No-Key-Softlock Invariant (Certified by `tests/softlock.test.ts`):**
@@ -553,7 +554,7 @@ Building real rooms forced four engine decisions, now in the game:
 
 ### 5. Room maps (generated from `src/game/dungeon999.ts`)
 
-Each room is `11` tiles wide by `13` tall, the game's room size. These maps are
+Each room is `22` tiles wide by `26` tall, the game's screen size outside Grandma's House (`GAME.md` §1.1). These maps are
 copied from the code; when a room changes, regenerate them rather than editing
 by hand. `>` is a warp pad, `O` a goal plate, `Q` a momentary switch, `G` an iron
 gate, `X` retractable spikes, `L` a pillar, `M` a metal block, `P` a push block, `R` / `U` the red and blue crystal

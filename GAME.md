@@ -11,7 +11,7 @@ and Dungeon is a clockwork Rube Goldberg puzzle box**.
 |---|---|
 | **Puzzle-first, no filler combat** | There are **no erratic chasing trash mobs** (no bats, no "kill all enemies" doors). Every creature in a puzzle room is a deterministic **Clockwork Creature** (lured beetles, mimic statues, rail tortoises, pack-otters) that acts as a moving puzzle piece. |
 | **Zero hearts anywhere** | **No health bar, no Heart Pieces, no Heart Containers.** Your own bomb blasts **never hurt you** (just a crisp `1`-tile knockback hop). Hazards (pits `^`, lava, deep water `~`, spikes `!`, flame jets) pop you back to the last safe ledge/threshold (`0.35 s`). Boss hits reset the current 1-of-3 puzzle phase rather than killing you. |
-| **Hybrid camera (flip-screen Overworld, scrolling Shrines)** | The Overworld is a `10 × 10` grid of crisp `11 × 13`-tile (`176 × 208 px`) **flip-screens**. Inside **Shrines and Major Dungeon halls**, rooms can span **`1 × 1` (`11 × 13`) up to `1 × 2`, `2 × 1` or `2 × 2` screens** with smooth pixel-snapped camera follow so an entire multi-stage Rube Goldberg chain runs in one continuous room. |
+| **Two screen sizes (flip-screen Overworld, scrolling Shrines)** | Grandma's House and its basement keep cozy `11 × 13`-tile (`176 × 208 px`) screens. Everywhere else, the Overworld's `10 × 10` grid of **flip-screens**, every Shrine and every Dungeon, a screen is **`22 × 26` tiles (`352 × 416 px`)**, shown whole at the same on-screen size, so the world feels twice as roomy around Pip (§1.1). Inside **Shrines and Major Dungeon halls**, rooms can still span more than one screen with smooth pixel-snapped camera follow so an entire multi-stage Rube Goldberg chain runs in one continuous room. |
 | **Bombs only (7 kinds)** | Every switch, mechanism, creature and boss is solved with bombs: **Bomb, Fire, Squeak, Wind, Magnet, Ice, Rock**. |
 | **BotW Shrines + 4 Major Dungeons** | **`100` Overworld screens** (`OVERWORLD.md`), **Grandma's Basement** (`5` rooms, Dungeon Zero), **`36` Single-Room Shrines** (`6` Button-gated **Relic Shrines** that unlock the bombs + `30` **Trial Shrines** that reward Grandma's Buttons), **`4` Major Multi-Room Dungeons** (`Ice Cave 10`, `Rock Quarry 15`, `Fire Mountain 20`, `Wind Cliffs 24`, each combining its region's bombs around a macro architectural gimmick to win one of the **4 Elemental Keys**), and the **Iron Tower** finale (`16` rooms, `DUNGEONS.md`). |
 | **One currency: Grandma's Buttons** | **Grandma's Sewing Buttons (`36`)** are the single collectible currency. Every Trial Shrine awards `1` Button (plus `6` hidden in overworld/dungeon master puzzles). **Relic Shrines (bomb unlocks)** are gated by your **Button count**; once unlocked, that new Bomb gates the rest of the biome and its Major Dungeon. Grandma also stitches your **Magic Bomb Sack upgrades** at Button milestones. |
@@ -20,6 +20,24 @@ and Dungeon is a clockwork Rube Goldberg puzzle box**.
 | **Saving** | **Autosave on every room change and pickup**; reopening the game puts you right where you were. |
 | **Phone first** | Portrait, touch, a thumb on each side above a dedicated control band. Designed for five-minute sessions. |
 | **Look** | Pure-2D Game Boy Color pixel art in the *Oracle of Ages* style (`16 × 16` tiles, `1px` ink outlines, RGB555 colours, 8 BG palettes of 4 colours per zone, 8 OBJ palettes of 6 colours) lit by an **HD-2D WebGL shader** (normal-mapped point lights, directional shadows, water mirror reflections, emissive-only bloom, and polished Rube Goldberg chain animations). |
+
+### 1.1 Screen size (decided 2026-11-22)
+
+- **Grandma's House and the basement** (`zone: 'basement'`) keep `11 × 13`-tile
+  screens at today's on-screen scale.
+- **Everywhere else** (Overworld, Shrines, Dungeons, Dungeon 999) a screen is
+  `22 × 26` tiles, twice as many each way, shown whole in the same space on
+  screen. Its tiles therefore draw at half their on-screen size.
+- **Space doubles; objects don't.** Converting a room, each terrain tile (floor,
+  wall, water, pit, cliff, path, fence, grass) becomes a `2 × 2` block of itself.
+  Interactive things (blocks, switches, plates, crystals, chests, pickups,
+  creatures, pads, door openings) stay one tile, placed at their scaled spot.
+- **Trees and braziers are drawn `2×`**, so they keep the size they had on screen:
+  a tree covers `4 × 4` tiles and a brazier `2 × 2`. Everything else (Pip,
+  creatures, bombs, props) keeps its pixel size and reads half as big.
+- **Distances stay in tiles.** Walking speed, throw length, blast reach and every
+  timing are unchanged, so a screen takes twice as long to cross and every
+  puzzle is re-tuned at the new size.
 
 ## 2. Controls (portrait, two thumbs)
 

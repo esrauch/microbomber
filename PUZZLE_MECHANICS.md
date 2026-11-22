@@ -37,7 +37,7 @@ and turn every room into a **tactile, clockwork Rube Goldberg machine**:
    mirroring Pip's steps, marching a fixed rail, or carrying a bomb down a
    mousehole).
 4. **Continuous scrolling puzzle rooms (`1 × 1` up to `2 × 2`).** While the
-   Overworld uses crisp `11 × 13` flip-screens, Single-Room Shrines and large
+   Overworld uses `22 × 26` flip-screens (`GAME.md` §1.1), Single-Room Shrines and large
    Dungeon chambers can span `1 × 2`, `2 × 1` or `2 × 2` screens with smooth
    pixel-snapped camera follow so an entire Rube Goldberg chain plays out in one
    continuous room.

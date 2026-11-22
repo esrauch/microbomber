@@ -62,11 +62,14 @@ Align the core simulation, HUD, and existing vertical slice (`Grandma's Basement
         10, 15, 21, 28` Buttons) and Grandma's automatic Satchel milestones (`8`
         Buttons → `3` live bombs, `16` Buttons → reach `2`, `24` Buttons → `4`
         live bombs, `36` Buttons → Dungeon 999 master mousehole).
+- [ ] **Two screen sizes (`GAME.md` §1.1, `ASSETS.md` §1.1):**
+  - [ ] Per-zone room size: `11 × 13` in Grandma's House and basement, `22 × 26`
+        everywhere else, each screen shown whole at the same on-screen size.
+  - [ ] Convert every Overworld, Ice Cave and Dungeon 999 room (space doubles,
+        objects don't), with `2×` trees and braziers; re-tune the 999 puzzles.
 - [ ] **Hybrid scrolling camera for Shrines & large halls (`GAME.md` §1, `ASSETS.md` §1.1):**
-  - [ ] Keep `11 × 13` (`1 × 1`) flip-screens on the Overworld while supporting
-        `1 × 2` (`11 × 26`), `2 × 1` (`22 × 13`), and `2 × 2` (`22 × 26`)
-        continuous scrolling rooms inside Shrines and Major Dungeon chambers with
-        integer pixel-snapped camera follow.
+  - [ ] Rooms spanning more than one `22 × 26` screen inside Shrines and Major
+        Dungeon chambers, with integer pixel-snapped camera follow.
 - [ ] **Rework vertical slice (`Prologue + R1/R2 + Ice Cave`) to Rube Goldberg puzzles:**
   - [ ] Add **Squeak Bomb** (`2.5 s` clockwork chirp lure + floating `♪` notes +
         `2.5 s` daze puff), **Relic Shrine 1 (`Hearth Vault → Fire`)**, **Relic

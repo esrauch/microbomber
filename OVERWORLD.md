@@ -9,7 +9,8 @@ Tower.
 ## Core Overworld Rules
 
 1. **Flip-screen Overworld, scrolling Shrines:** Each of the `100` Overworld
-   cells is a crisp `11 × 13`-tile (`176 × 208 px`) **flip-screen**. Stepping
+   cells is a `22 × 26`-tile (`352 × 416 px`) **flip-screen**, shown whole
+   (`GAME.md` §1.1; only Grandma's House keeps `11 × 13`). Stepping
    into a Shrine archway (`R1–R6` or `T01–T30`) or Major Dungeon (`★`) enters an
    interior puzzle space that can span `1 × 1` up to `2 × 2` screens with smooth
    camera follow.
