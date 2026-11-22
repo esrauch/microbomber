@@ -89,9 +89,9 @@ export function computeLighting(
   const baseAmbient: Rgb3 = darkUnlit
     ? [0.07, 0.07, 0.12]
     : crypt
-      ? [0.2, 0.24, 0.3]
+      ? [0.25, 0.3, 0.375]
       : s.zone === 'basement'
-        ? [0.28, 0.24, 0.2]
+        ? [0.35, 0.3, 0.25]
         : [0.24, 0.28, 0.4];
   const ambient: Rgb3 = [baseAmbient[0] * dip, baseAmbient[1] * dip, baseAmbient[2] * dip];
   const sunColor: Rgb3 = indoor || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.42, 0.65];

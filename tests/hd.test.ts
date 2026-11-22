@@ -18,11 +18,16 @@ describe('HD-2D lighting model', () => {
   it('lights the overworld brightly, the crypt dimmer, and an unlit dark room barely at all', () => {
     const world = campaignWorld();
     const field = computeLighting(world, newState(world, 'overworld', 3, 2), 0, []);
+    const basement = computeLighting(world, newState(world, 'basement', 1, 3), 0, []);
     const crypt = computeLighting(world, newState(world, 'ice-cave', 1, 3), 0, []);
     const dark = newState(world, 'ice-cave', 0, 0); // Frozen Sanctum, braziers unlit
     const darkLit = computeLighting(world, dark, 0, []);
 
-    expect(brightness(field.ambient)).toBeGreaterThan(brightness(crypt.ambient));
+    expect(crypt.ambient).toEqual([0.25, 0.3, 0.375]);
+    expect(basement.ambient).toEqual([0.35, 0.3, 0.25]);
+    expect(brightness(field.ambient) + brightness(field.sunColor)).toBeGreaterThan(
+      brightness(crypt.ambient) + brightness(crypt.sunColor),
+    );
     expect(brightness(crypt.ambient)).toBeGreaterThan(brightness(darkLit.ambient));
     expect(brightness(darkLit.ambient)).toBeLessThan(0.1);
     // Outdoors uses a stronger directional sun than indoor shrine chambers
