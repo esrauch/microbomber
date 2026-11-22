@@ -394,6 +394,8 @@ export interface State {
   events: string[];
   bannerText: string | null;
   bannerTimer: number;
+  /** Seconds remaining in item-pickup freeze (locks player & monsters while showing item pose & text). */
+  pickupFreezeTimer?: number;
 }
 
 export interface SaveData {

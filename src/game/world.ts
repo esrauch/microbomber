@@ -317,6 +317,7 @@ export function enterRoom(
   s.rollRecoveryTimer = 0;
   s.rollBufferTimer = 0;
   s.placeBufferTimer = 0;
+  s.pickupFreezeTimer = 0;
   s.bombs = [];
   s.fires = [];
   s.gusts = [];
@@ -500,6 +501,7 @@ export function newState(
     events: [],
     bannerText: null,
     bannerTimer: 0,
+    pickupFreezeTimer: 0,
   };
   enterRoom(world, s, zone, rx, ry, x, y);
   return s;
@@ -1567,16 +1569,24 @@ function applyBombHitToEnemy(
 function collectPickup(s: State, pickup: ActivePickup): void {
   if (pickup.kind !== 'heart-drop') {
     s.collectedPickups.add(pickup.id);
+    // Freeze player and monsters while holding item overhead: quick for small keys, longer for new items with text
+    s.pickupFreezeTimer = pickup.kind === 'small-key' ? 0.45 : 1.25;
+    s.vx = 0;
+    s.vy = 0;
   }
   s.events.push(`pickup-${pickup.kind}`);
   switch (pickup.kind) {
     case 'small-key':
       s.smallKeys++;
-      showBanner(s, 'Found a Small Key! Walk into a locked door to open it.', 3.0);
+      showBanner(s, 'Found a Small Key!', 1.5);
       break;
     case 'boss-key':
       s.hasBossKey = true;
-      showBanner(s, 'Found the Sanctum Boss Key!', 3.2);
+      showBanner(
+        s,
+        'Found the Sanctum Boss Key! Opens the Boss Door in the Sanctum Ante-Room.',
+        3.4,
+      );
       break;
     case 'fire-bomb':
       if (!s.unlockedBombs.includes('fire')) s.unlockedBombs.push('fire');
@@ -1870,6 +1880,15 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (s.portalCooldown > 0) s.portalCooldown = Math.max(0, s.portalCooldown - dt);
 
   if (s.bombCooldown > 0) s.bombCooldown = Math.max(0, s.bombCooldown - dt);
+
+  if ((s.pickupFreezeTimer ?? 0) > 0) {
+    s.pickupFreezeTimer = Math.max(0, (s.pickupFreezeTimer ?? 0) - dt);
+    s.vx = 0;
+    s.vy = 0;
+    s.prevHoldB = Boolean(input.holdB);
+    s.prevHoldA = Boolean(input.holdA);
+    return false;
+  }
 
   // 1. Continuous 360° aim, B = Roll + recovery + input buffer, walking + corner slide + knockback
   const inLen = Math.hypot(input.dx, input.dy);

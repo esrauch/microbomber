@@ -1576,8 +1576,9 @@ export function makeGbcView(): GbcView {
         } else if (ev === 'ice-storm') {
           iceStormUntil = time + 0.65;
         } else if (ev.startsWith('pickup-') && ev !== 'pickup-heart-drop') {
-          holdAnimUntil = time + 1.05;
-          heldKind = ev.replace('pickup-', '') as PickupKind;
+          const kind = ev.replace('pickup-', '') as PickupKind;
+          holdAnimUntil = time + (kind === 'small-key' ? 0.45 : 1.25);
+          heldKind = kind;
         }
       }
 

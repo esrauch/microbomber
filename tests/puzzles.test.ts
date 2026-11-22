@@ -290,9 +290,10 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     // R at (4, 6) is flat while crystalColor === 'blue' -> walk East to dead center (5.5, 6.5) for crypt-key-2
     s.x = 3.5;
     s.y = 6.5;
-    stepSeconds(world, s, 0.65, { dx: 1, dy: 0 });
+    stepSeconds(world, s, 0.85, { dx: 1, dy: 0 });
     expect(s.smallKeys).toBe(1);
     expect(s.collectedPickups.has('crypt-key-2')).toBe(true);
+    expect(s.pickupFreezeTimer).toBe(0);
 
     // Stage 1: kick bomb from (3.2, 5.5) East to break '%' at (5, 5)
     expect(tileAt(world, s, 'ice-cave', 2, 2, 5, 5)).toBe('%');
@@ -328,9 +329,41 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
 
     // --- 5. Alchemist Reliquary (2, 1): claim Fire Bomb & kick Fire up both North lanes ---
     const s = newState(world, 'ice-cave', 2, 1, 5.5, 6.5);
+    s.enemies.push({
+      id: 99,
+      kind: 'slime',
+      x: 5.5,
+      y: 9.5,
+      vx: 0,
+      vy: 0,
+      fx: 0,
+      fy: -1,
+      hp: 2,
+      maxHp: 2,
+      armored: false,
+      exposedTimer: 0,
+      invulnTimer: 0,
+      aiTimer: 0.5,
+      phase: 1,
+      aiState: 'chase',
+      stateTimer: 0,
+      stumbleTimer: 0,
+      homeX: 5.5,
+      homeY: 9.5,
+    });
     stepSeconds(world, s, 0.15);
     expect(s.unlockedBombs).toContain('fire');
     expect(s.equipped).toBe('fire');
+    expect(s.pickupFreezeTimer).toBeGreaterThan(1.0);
+    // While pickupFreezeTimer is active, monsters and player movement are frozen
+    const slimeXBefore = s.enemies[0]!.x;
+    const slimeYBefore = s.enemies[0]!.y;
+    tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    expect(s.x).toBe(5.5);
+    expect([s.enemies[0]!.x, s.enemies[0]!.y]).toEqual([slimeXBefore, slimeYBefore]);
+    stepSeconds(world, s, 1.25);
+    expect(s.pickupFreezeTimer).toBe(0);
+    s.enemies = [];
     expect(s.roomSolved).toBe(false);
 
     // Kick Fire North into NW brazier (2, 2) from (2.5, 4.5)
@@ -569,10 +602,10 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     // Sweep across (4.2, 6.5) and (6.8, 6.5) to collect any remaining boss reward pickup
     s.x = 4.2;
     s.y = 6.5;
-    stepSeconds(world, s, 0.2);
+    stepSeconds(world, s, 1.35);
     s.x = 6.8;
     s.y = 6.5;
-    stepSeconds(world, s, 0.2);
+    stepSeconds(world, s, 1.35);
     expect(s.collectedPickups.has('boss-heart-container')).toBe(true);
     expect(s.cores).toContain('cinder');
   });
@@ -632,6 +665,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     expect(tileAt(world, s, 'overworld', 3, 4, 7, 7)).toBe('.');
     stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
     expect(s.collectedPickups.has('ow-trail-satchel')).toBe(true);
+    stepSeconds(world, s, 1.3);
 
     s.x = 7.5;
     s.y = 5.5;
