@@ -96,26 +96,26 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     // Ordered braziers in Hall of Three Flames (0, 2): (2,9)=1, (2,2)=2, (8,2)=3
     enterRoom(world, s, 'ember-crypt', 0, 2, 2.5, 5.5);
     s.enemies = [];
-    // Bowling torch #2 first along the NW 'n' chute fizzles back to 0!
+    // Kicking into torch #2 first fizzles back to 0!
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
-    tapA(world, s);
+    kickA(world, s, 0, -1);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(0);
     expect(s.torches.filter((t) => !t.decor).every((t) => !t.lit)).toBe(true);
 
-    // Now bowl 1 -> 2 -> 3 in order down the three slope chutes to spawn the Boss Key!
-    const chuteDrops: [number, number][] = [
-      [4.5, 9.5], // 'w' chute into I (2, 9)
-      [2.5, 5.5], // 'n' chute past water into II (2, 2)
-      [6.5, 4.5], // 'n' -> 'e' banked chute into III (8, 2)
+    // Now kick 1 -> 2 -> 3 in order to spawn the Boss Key!
+    const shots: [number, number, number, number][] = [
+      [4.5, 9.5, -1, 0], // kick West into I (2, 9)
+      [2.5, 5.5, 0, -1], // kick North into II (2, 2)
+      [6.2, 2.5, 1, 0], // kick East into III (8, 2)
     ];
-    for (const [px, py] of chuteDrops) {
+    for (const [px, py, kdx, kdy] of shots) {
       s.x = px;
       s.y = py;
       s.vx = 0;
       s.vy = 0;
       s.bombCooldown = 0; // staged setup, not a test of the cooldown
-      tapA(world, s);
+      kickA(world, s, kdx, kdy);
       stepSeconds(world, s, EMBER_FUSE + 0.15);
     }
     expect(s.roomSolved).toBe(true);

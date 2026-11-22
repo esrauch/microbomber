@@ -13,7 +13,7 @@ minute campaign.
 | **One screen per room** | The world is a grid of rooms, each exactly one phone screen. **No scrolling, ever**: walking off an edge cuts to the next room with a quick fade. |
 | **Room size** | About **9 × 11 to 10 × 12 tiles**, settled on a real phone. The room sits *above* a dedicated control band, never under the thumbs. (The prototype is still 9 × 15.) |
 | **Bombs only** | Every puzzle, fight and route is solved with bombs. Five kinds, earned in order. |
-| **Campaign** | **60–90 minutes:** a `6 × 6` overworld (~36 screens), **4 Elemental Shrines** (9–12 rooms each) and **1 Final Spire** (8–10 rooms). |
+| **Campaign** | **Half of *Oracle* in physical size (~120 rooms total):** a `6 × 6` overworld (~36 screens), **4 Elemental Shrines** scaling along the half-*Oracle* dungeon curve (`10 → 16 → 20 → 24` rooms, introducing two-floor `1F + B1F/2F` layouts from Shrine 2 onward), and **1 Final Spire** (`16` rooms). Because traversal and quest backtracking multiply runtime non-linearly with world size, half the physical size of *Oracle* (~12–15 h) naturally plays in under a quarter of the time (~1.5–2.5 h blind, ~45–60 min known). |
 | **World** | One interconnected island in a single state (no time or world swapping): all the depth comes from the bombs and how they combine. |
 | **Tone** | An earnest storybook adventure with a light touch. Original world, characters, monsters and lore. |
 | **Bomb economy** | **Bottomless satchel**, limited only by how many bombs can be live at once (`2`, upgradeable to `3`, then `4`). Never grind bushes for ammo; never soft-lock. |
@@ -217,27 +217,29 @@ puzzles and fights, and opens new overworld routes.
 
 ## 5. Shrines and bosses
 
-### Shrine template (9–12 rooms, no filler)
+### Shrine template (Half-*Oracle* curve: `10 → 16 → 20 → 24` rooms, no filler)
 
+- **Scaled like half of *Oracle of Ages / Seasons*:** *Oracle* dungeons grow from ~20 rooms in Dungeon 1 to ~32–40 in mid dungeons and ~46–64 in late dungeons. Our four Shrines follow half that curve: **10 rooms** in *Ember Crypt* (`1F`), **16 rooms** in *Gale Eyrie* (`1F + 2F`), **20 rooms** in *Glacier Grotto* (`1F + B1F`), **24 rooms** in *Basalt Vault* (`1F + B1F`), plus **16 rooms** in *Ironblight Spire* (`1F..4F`).
+- **Graduated mechanics (no kitchen-sink Dungeon 1):** *Ember Crypt* uses simple single floor switches, crystal barriers, braziers, and dark rooms — saving directional treadmills/chutes and multi-switch block-shoving puzzles for the later Shrines.
 - **Automatic minimap:** visited rooms and locked doors appear in a small corner
   map, with the current objective ("Ember Crypt ▸ south-west"). No map or
   compass chests.
-- **Act 1 (`4–5` rooms):** teaches the Shrine's gimmick with small keys, crystal
+- **Act 1:** teaches the Shrine's gimmick with small keys, crystal
   barriers and earlier bombs, then a **miniboss** (which opens a warp back to
   the entrance) and the **new bomb's chest**.
-- **Act 2 (`4–6` rooms):** a room that teaches the new bomb, then revisits `1–2`
-  Act 1 rooms in a new light for a secret upgrade and the **Boss Key**, then a
+- **Act 2:** teaches the new bomb, then revisits
+  Act 1 rooms or a second floor (`B1F` / `2F`) in a new light for a secret upgrade and the **Boss Key**, then a
   **puzzle boss**, then a **Heart Container** and the Core.
 
 ### Lineup
 
-| # | Shrine | Gimmicks | Miniboss | Boss |
-|---|---|---|---|---|
-| 1 | **Ember Crypt** | Dark rooms, timed and ordered braziers, bramble webs | **Wickgeist:** a lantern phantom, invisible in the dark; light the braziers with Ember to expose it. | **Cinderhull:** an armoured husk wrapped in regrowing thorn-vines; burn the wraps with Ember, then blast the bare core with Blackpowder before they grow back. |
-| 2 | **Gale Eyrie** | Bottomless pits, cliff tiers, wind-vane bridges, crumbling floors | **Swoopclaw:** a diving harpy whose slams crack the floor; blast-jump to safe tiles and punt bombs up when it roosts. | **The Squall Matron:** a storm-bird riding four nest platforms that drift on the wind; gust the platforms together to strand her, then bomb her while she's grounded. |
-| 3 | **Glacier Grotto** | Flooded rooms, water-level gates, ice-slide tracks, angled ice bumpers | **Rimeback:** a crab whose shell guards its front; glaze the floor and bank a sliding bomb off the bumpers into its back. | **The Berggeist:** a slime that splits into skaters across a moat; freeze the moat and the skaters into blocks, slide them back together, and shatter the merged core. |
-| 4 | **Basalt Vault** | Multi-button doors, eye-beam turrets, synchronised statues, slide-and-stop puzzles | **The Ironclad Bull:** an invulnerable charger; make a basalt pillar so it stuns itself, then bomb it. | **The Prism Golem:** sweeps beams round a shielded core; block beams with basalt, freeze its track with Frost, and bank blasts behind its guard. |
-| 5 | **Ironblight Spire** | `8–10` rooms combining all five bombs | **The Rust Warden:** a duellist who copies your last bomb's element; answer each with its opposite. | **Lord Verdigris**, in four phases: Ember (light the braziers to reveal him), Gale (vault the pits and punt bombs up), Frost (bridge the moat, bank a shot), Basalt (shield from beams, then a multi-bomb finish). |
+| # | Shrine | Rooms | Gimmicks | Miniboss | Boss |
+|---|---|:-:|---|---|---|
+| 1 | **Ember Crypt** | **10** (`1F`) | Single floor switches, dark rooms, timed and ordered braziers, bramble webs | **Wickgeist:** a lantern phantom, invisible in the dark; light the braziers with Ember to expose it. | **Cinderhull:** an armoured husk wrapped in regrowing thorn-vines; burn the wraps with Ember, then blast the bare core with Blackpowder before they grow back. |
+| 2 | **Gale Eyrie** | **16** (`1F + 2F`) | Bottomless pits, cliff tiers, wind-vane bridges, directional chutes/treadmills, crumbling floors | **Swoopclaw:** a diving harpy whose slams crack the floor; blast-jump to safe tiles and punt bombs up when it roosts. | **The Squall Matron:** a storm-bird riding four nest platforms that drift on the wind; gust the platforms together to strand her, then bomb her while she's grounded. |
+| 3 | **Glacier Grotto** | **20** (`1F + B1F`) | Flooded rooms, water-level sluice gates, ice-slide tracks, angled ice bumpers | **Rimeback:** a crab whose shell guards its front; glaze the floor and bank a sliding bomb off the bumpers into its back. | **The Berggeist:** a slime that splits into skaters across a moat; freeze the moat and the skaters into blocks, slide them back together, and shatter the merged core. |
+| 4 | **Basalt Vault** | **24** (`1F + B1F`) | Multi-button doors with bomb-shoved blocks, eye-beam turrets, synchronised statues, slide-and-stop puzzles | **The Ironclad Bull:** an invulnerable charger; make a basalt pillar so it stuns itself, then bomb it. | **The Prism Golem:** sweeps beams round a shielded core; block beams with basalt, freeze its track with Frost, and bank blasts behind its guard. |
+| 5 | **Ironblight Spire** | **16** (`1F..4F`) | Four 4-room elemental floors combining all five bombs | **The Rust Warden:** a duellist who copies your last bomb's element; answer each with its opposite. | **Lord Verdigris**, in four phases: Ember (light the braziers to reveal him), Gale (vault the pits and punt bombs up), Frost (bridge the moat, bank a shot), Basalt (shield from beams, then a multi-bomb finish). |
 
 ## 6. Upgrades
 

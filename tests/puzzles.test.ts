@@ -222,18 +222,17 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     }
   });
 
-  it('solves Room 1 (Crypt Foyer) & Room 2 (Block Antechamber) via slope chutes and blast-shove to claim crypt-key-1', () => {
+  it('solves Room 1 (Crypt Foyer) & Room 2 (Switch Antechamber) via bomb place/kick and single floor switch to claim crypt-key-1', () => {
     const world = campaignWorld();
 
-    // --- 1. Crypt Foyer (1, 3): drop bomb on East 'ee' chute (6..7, 6) to smash crate W at (8, 6) ---
+    // --- 1. Crypt Foyer (1, 3): kick/place bomb to smash crate W at (8, 6) ---
     const s = newState(world, 'ember-crypt', 1, 3, 6.5, 6.5);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 8, 6)).toBe('W');
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.35, { dx: -1, dy: 0 });
-    stepSeconds(world, s, POWDER_FUSE);
+    kickA(world, s, 1, 0);
+    stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 8, 6)).toBe('.');
 
-    // Walk East through the newly opened chute into Block Antechamber (2, 3)
+    // Walk East through the newly opened corridor into Switch Antechamber (2, 3)
     let transitioned = false;
     for (let i = 0; i < 120 && !transitioned; i++) {
       transitioned = tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
@@ -242,31 +241,15 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect([s.rx, s.ry]).toEqual([2, 3]);
     expect(s.roomSolved).toBe(false);
 
-    // --- 2. Block Antechamber (2, 3): walking cannot push P (4, 4); only a bomb blast shoves P -> O (4, 3) ---
+    // --- 2. Switch Antechamber (2, 3): step onto the single floor switch O at (5, 3) ---
     s.enemies = [];
-    s.x = 4.5;
-    s.y = 5.4;
+    s.x = 5.5;
+    s.y = 4.5;
     stepSeconds(world, s, 0.5, { dx: 0, dy: -1 });
-    expect(s.blocks[0]).toMatchObject({ x: 4, y: 4 });
-    s.x = 4.5;
-    s.y = 5.5;
-    s.bombCooldown = 0;
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.35, { dx: 0, dy: 1 });
-    stepSeconds(world, s, POWDER_FUSE);
-    expect(s.blocks[0]).toMatchObject({ x: 4, y: 3 });
-    expect(s.roomSolved).toBe(false); // East button (8, 2) still needs to be bowled!
-
-    // Drop a bomb at the foot of the East 'n' chute (8.5, 5.5): rolls up into O (8, 2) & locks roomSolved!
-    s.x = 8.5;
-    s.y = 5.5;
-    s.bombCooldown = 0;
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.8);
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.some((p) => p.id === 'crypt-key-1')).toBe(true);
 
-    // Collect crypt-key-1 at (5.5, 6.5)
+    // Collect crypt-key-1 at dead center (5.5, 6.5)
     s.x = 5.5;
     s.y = 6.5;
     stepSeconds(world, s, 0.2);
@@ -282,14 +265,13 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('.');
   });
 
-  it('solves Room 3 (Crystal Crossroads) & Room 4 (Vault of Sparks) via L-bank chute and 2-stage slope cannon', () => {
+  it('solves Room 3 (Crystal Crossroads) & Room 4 (Vault of Sparks) via bomb place and orthogonal kicks', () => {
     const world = campaignWorld();
 
-    // --- 3. Crystal Crossroads (1, 2): drop bomb on 'n' -> 'ee' L-chute (3.5, 7.5) to bank into C (5, 5) ---
-    const s = newState(world, 'ember-crypt', 1, 2, 3.5, 7.5);
+    // --- 3. Crystal Crossroads (1, 2): kick bomb East down row 5 into C (5, 5) ---
+    const s = newState(world, 'ember-crypt', 1, 2, 3.2, 5.5);
     expect(s.crystalColor).toBe('red');
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.25, { dx: 0, dy: 1 });
+    kickA(world, s, 1, 0);
     stepSeconds(world, s, POWDER_FUSE + 0.15);
     expect(s.crystalColor).toBe('blue'); // East 'R' barriers at (8, 5..7) are now flat!
 
@@ -303,7 +285,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(enteredVault).toBe(true);
     expect([s.rx, s.ry]).toEqual([2, 2]);
 
-    // --- 4. Vault of Sparks (2, 2): grab center crypt-key-2, bowl % (5, 5), then bowl C (8, 5) & unlock N door ---
+    // --- 4. Vault of Sparks (2, 2): grab center crypt-key-2, blast % (5, 5), then kick bomb into C (8, 5) & unlock N door ---
     s.enemies = [];
     // R at (4, 6) is flat while crystalColor === 'blue' -> walk East to dead center (5.5, 6.5) for crypt-key-2
     s.x = 3.5;
@@ -312,22 +294,20 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(s.smallKeys).toBe(1);
     expect(s.collectedPickups.has('crypt-key-2')).toBe(true);
 
-    // Stage 1 cannon shot from (3.5, 5.5) down 'ee' breaks '%' at (5, 5)
+    // Stage 1: kick bomb from (3.2, 5.5) East to break '%' at (5, 5)
     expect(tileAt(world, s, 'ember-crypt', 2, 2, 5, 5)).toBe('%');
-    s.x = 3.5;
+    s.x = 3.2;
     s.y = 5.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.25, { dx: -1, dy: 0 });
+    kickA(world, s, 1, 0);
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(tileAt(world, s, 'ember-crypt', 2, 2, 5, 5)).toBe('.');
 
-    // Stage 2 cannon shot from the exact same mouth (3.5, 5.5) rockets across (5, 5) & 'ee' into C (8, 5)!
-    s.x = 3.5;
+    // Stage 2: step onto the cleared (5.5, 5.5) gap and kick bomb East into C (8, 5)!
+    s.x = 5.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.25, { dx: -1, dy: 0 });
+    kickA(world, s, 1, 0);
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(s.crystalColor).toBe('red'); // 'U' barriers at (5, 2..3) are now flat!
 
@@ -343,29 +323,29 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(s.smallKeys).toBe(0);
   });
 
-  it('solves Room 5 (Alchemist Reliquary) & Room 6 (Lantern Hall) via Ember slope chutes to unlock midpoint warp', () => {
+  it('solves Room 5 (Alchemist Reliquary) & Room 6 (Lantern Hall) via Ember kicks to unlock midpoint warp', () => {
     const world = campaignWorld();
 
-    // --- 5. Alchemist Reliquary (2, 1): claim Ember Bomb & bowl both North 'n' chutes ---
+    // --- 5. Alchemist Reliquary (2, 1): claim Ember Bomb & kick Ember up both North lanes ---
     const s = newState(world, 'ember-crypt', 2, 1, 5.5, 6.5);
     stepSeconds(world, s, 0.15);
     expect(s.unlockedBombs).toContain('ember');
     expect(s.equipped).toBe('ember');
     expect(s.roomSolved).toBe(false);
 
-    // Bowl NW brazier (2, 2) via West 'n' chute (2.5, 4.5)
+    // Kick Ember North into NW brazier (2, 2) from (2.5, 4.5)
     s.x = 2.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 0, -1);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.torches.find((t) => t.x === 2 && t.y === 2)?.lit).toBe(true);
 
-    // Bowl NE brazier (8, 2) via East 'n' chute (8.5, 4.5) -> opens West 'S' shutters!
+    // Kick Ember North into NE brazier (8, 2) from (8.5, 4.5) -> opens West 'S' shutters!
     s.x = 8.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 0, -1);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.torches.every((t) => t.lit)).toBe(true);
     expect(s.roomSolved).toBe(true);
@@ -385,20 +365,19 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(enteredLantern).toBe(true);
     expect([s.rx, s.ry]).toEqual([1, 1]);
 
-    // --- 6. Lantern Hall (1, 1): bowl corner 'n'/'s' feeders with Ember & defeat Wickgeist ---
+    // --- 6. Lantern Hall (1, 1): kick Ember into corner brazier & defeat Wickgeist ---
     expect(s.cryptWarpUnlocked).toBe(false);
-    // Bowl NW brazier (2, 2) from safe feeder (2.5, 4.5)
     equipBomb(s, 'ember');
     s.x = 2.5;
     s.y = 4.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 0, -1);
     stepSeconds(world, s, 0.4);
     expect(s.torches.some((t) => t.lit)).toBe(false);
     stepSeconds(world, s, EMBER_FUSE);
     expect(s.torches.some((t) => t.lit)).toBe(true);
 
-    // Defeat Wickgeist with Blackpowder (re-bowling SE 's' feeder (8.5, 8.5) when Phase 2 snuffs a torch)
+    // Defeat Wickgeist with Blackpowder (re-lighting SE brazier (8, 10) when Phase 2 snuffs a torch)
     equipBomb(s, 'powder');
     for (let volley = 0; volley < 10 && s.enemies.length > 0; volley++) {
       if (!s.torches.some((t) => t.lit)) {
@@ -408,7 +387,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        placeDownChute(world, s);
+        kickA(world, s, 0, 1);
         stepSeconds(world, s, EMBER_FUSE + 0.15);
         equipBomb(s, 'powder');
       }
@@ -429,10 +408,10 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(s.cryptWarpUnlocked).toBe(true);
   });
 
-  it('solves Room 7 (Bramble Crypt) & Room 8 (Hall of Three Flames) via rapid banked chutes & ordered shots', () => {
+  it('solves Room 7 (Bramble Crypt) & Room 8 (Hall of Three Flames) via timed & ordered Ember kicks', () => {
     const world = campaignWorld();
 
-    // --- 7. Bramble Crypt (0, 3): strip & defeat 2 Shielders, then bowl both 7s banked chutes ---
+    // --- 7. Bramble Crypt (0, 3): strip & defeat 2 Shielders, then light both 7s North braziers ---
     const s = newState(world, 'ember-crypt', 0, 3, 5.5, 6.5);
     s.unlockedBombs.push('ember');
     s.maxBombs = 3;
@@ -470,52 +449,52 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     }
     expect(s.enemies).toHaveLength(0);
 
-    // Bowl West banked chute (3.5, 4.5) -> (3, 2) 'w' -> (2, 2) 'T', roll East, and bowl East chute (7.5, 4.5) -> (8, 2) 'T'
+    // Kick Ember West into NW torch (2, 2), roll East, and kick Ember East into NE torch (8, 2)
     equipBomb(s, 'ember');
-    s.x = 3.5;
-    s.y = 4.5;
+    s.x = 4.5;
+    s.y = 2.5;
     s.vx = 0;
     s.vy = 0;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
-    rollB(world, s, 1, 0); // dodges 2 tiles East to ~5.5 while bomb #1 banks into NW torch!
-    stepSeconds(world, s, 0.5, { dx: 1, dy: 0 }); // arrives at ~7.5 right as cooldown clears
-    s.x = 7.5;
-    s.y = 4.5;
+    kickA(world, s, -1, 0);
+    rollB(world, s, 1, 0);
+    stepSeconds(world, s, 0.5, { dx: 1, dy: 0 });
+    s.x = 6.5;
+    s.y = 2.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 1, 0);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
 
     expect(s.torches.every((t) => t.lit)).toBe(true);
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.some((p) => p.id === 'crypt-shard')).toBe(true);
 
-    // --- 8. Hall of Three Flames (0, 2): ordered physics shots I (SW) -> II (NW) -> III (NE) ---
+    // --- 8. Hall of Three Flames (0, 2): ordered Ember kicks I (SW) -> II (NW) -> III (NE) ---
     enterRoom(world, s, 'ember-crypt', 0, 2, 5.5, 10.5);
     s.enemies = [];
     equipBomb(s, 'ember');
 
-    // Shot I: SW 'ww' chute from (4.5, 9.5) into (2, 9)
+    // Shot I: kick West from (4.5, 9.5) into (2, 9)
     s.x = 4.5;
     s.y = 9.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, -1, 0);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(1);
 
-    // Shot II: NW 'n' chute past '~' water from (2.5, 5.5) into (2, 2)
+    // Shot II: kick North past '~' water from (2.5, 5.5) into (2, 2)
     s.x = 2.5;
     s.y = 5.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 0, -1);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(2);
 
-    // Shot III: NE 'n' -> 'ee' banked chute from (6.5, 4.5) into (8, 2)
-    s.x = 6.5;
-    s.y = 4.5;
+    // Shot III: kick East from (6.2, 2.5) into (8, 2)
+    s.x = 6.2;
+    s.y = 2.5;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 1, 0);
     stepSeconds(world, s, EMBER_FUSE + 0.15);
     expect(s.orderedStep).toBe(3);
     expect(s.roomSolved).toBe(true);
@@ -528,10 +507,10 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(s.hasBossKey).toBe(true);
   });
 
-  it('solves Room 9 (Sanctum Ante-Room) & Room 10 (Sanctum of Ash) using slope launch pads against Cinderhull', () => {
+  it('solves Room 9 (Sanctum Ante-Room) & Room 10 (Sanctum of Ash) using orthogonal kicks against Cinderhull', () => {
     const world = campaignWorld();
 
-    // --- 9. Sanctum Ante-Room (0, 1): bowl open West crate cache (3, 8) via 'ww' chute & unlock Boss Door K ---
+    // --- 9. Sanctum Ante-Room (0, 1): kick bomb West into crate cache (3, 8) & unlock Boss Door K ---
     const s = newState(world, 'ember-crypt', 0, 1, 5.5, 8.5);
     s.unlockedBombs.push('ember');
     s.hasBossKey = true;
@@ -539,8 +518,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(tileAt(world, s, 'ember-crypt', 0, 1, 3, 8)).toBe('W');
 
     equipBomb(s, 'powder');
-    placeDownChute(world, s);
-    stepSeconds(world, s, 0.25, { dx: 1, dy: 0 });
+    kickA(world, s, -1, 0);
     stepSeconds(world, s, POWDER_FUSE + 0.1);
     expect(tileAt(world, s, 'ember-crypt', 0, 1, 3, 8)).toBe('.');
 
@@ -560,28 +538,27 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
     expect(enteredBoss).toBe(true);
     expect([s.rx, s.ry]).toEqual([0, 0]);
 
-    // --- 10. Sanctum of Ash (0, 0): verify slope launch pad bowls Ember torpedo north into Cinderhull ---
+    // --- 10. Sanctum of Ash (0, 0): verify kicked Ember shot burns Cinderhull's thorn wraps ---
     const boss = s.enemies[0]!;
     expect(boss.kind).toBe('cinderhull');
     expect(boss.armored).toBe(true);
 
-    // Position Cinderhull north of the West 'n' launch pad (3, 7..8) and bowl an Ember shot uphill!
     boss.x = 3.5;
     boss.y = 5.2;
     boss.vx = 0;
     boss.vy = 0;
     equipBomb(s, 'ember');
     s.x = 3.5;
-    s.y = 8.5;
+    s.y = 8.2;
     s.bombCooldown = 0;
-    placeDownChute(world, s);
+    kickA(world, s, 0, -1);
     for (let i = 0; i < 95 && boss.armored; i++) {
       boss.x = 3.5;
       boss.y = 5.2;
       s.hp = s.maxHp;
       tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
     }
-    expect(boss.armored).toBe(false); // Slope-launched Ember burned away Cinderhull's thorn wraps!
+    expect(boss.armored).toBe(false);
 
     // Finish all remaining boss phases to claim Heart Container & Cinder Core
     equipBomb(s, 'powder');
@@ -594,11 +571,11 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ember Crypt phys
         b.y = 5.2;
         equipBomb(s, 'ember');
         s.x = 7.5;
-        s.y = 8.5;
+        s.y = 8.2;
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        placeDownChute(world, s);
+        kickA(world, s, 0, -1);
         for (let i = 0; i < 95 && b.armored; i++) {
           b.x = 7.5;
           b.y = 5.2;
