@@ -41,8 +41,8 @@ export type {
 };
 
 export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
-export const SPEED = 4.2; // tiles / second
-export const BOMB_FUSE = 1.5; // seconds
+export const SPEED = 3.15; // tiles / second
+export const BOMB_FUSE = 3.0; // seconds
 export const FIRE_FUSE = 1.3; // seconds
 export const ALL_BOMBS: readonly BombKind[] = [
   'bomb',
@@ -272,6 +272,7 @@ export function tileAt(
     | 'crystalColor'
     | 'roomSolved'
     | 'solvedRooms'
+    | 'gatesOpen'
   >,
   zone: ZoneId,
   rx: number,
@@ -291,6 +292,7 @@ export function tileAt(
   if ((t === ',' || t === 'B' || t === 'W') && s.burnedTiles.has(ck)) return '.';
   if ((t === 'D' || t === 'K') && s.openedDoors.has(ck)) return '.';
   if (t === 'S' && (s.roomSolved || s.solvedRooms.has(roomKey(zone, rx, ry)))) return '.';
+  if (t === 'G' && s.gatesOpen) return '.';
   return t;
 }
 
@@ -303,6 +305,7 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
     t === '_' ||
     t === ';' ||
     t === 'O' ||
+    t === 'Q' ||
     t === '!' ||
     t === '>' ||
     slopeVector(t) !== null
@@ -316,12 +319,22 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
 
 /** Whether a push block (`'P'`) may slide onto tile `t`. */
 function isPushBlockFloor(t: Tile): boolean {
-  return t === '.' || t === ',' || t === ':' || t === '_' || t === 'O' || slopeVector(t) !== null;
+  return (
+    t === '.' ||
+    t === ',' ||
+    t === ':' ||
+    t === '_' ||
+    t === 'O' ||
+    t === 'Q' ||
+    slopeVector(t) !== null
+  );
 }
 
 /** Whether tile `t` is a tall wall that stops an airborne bomb. */
 function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
-  if (t === '#' || t === 'Y' || t === '%' || t === 'D' || t === 'K' || t === 'S') return true;
+  if (t === '#' || t === 'Y' || t === '%' || t === 'D' || t === 'K' || t === 'S' || t === 'G') {
+    return true;
+  }
   if (t === 'R') return crystalColor === 'red';
   if (t === 'U') return crystalColor === 'blue';
   return false;
@@ -388,6 +401,7 @@ export function enterRoom(
     s.crystalColor = 'red';
   }
   s.frozenTiles = new Set();
+  s.gatesOpen = false;
   if (prevZone === 'dungeon-999' || zone === 'dungeon-999') {
     for (const set of [
       s.brokenTiles,
@@ -403,12 +417,14 @@ export function enterRoom(
     s.crystalColor = 'red';
   }
   if (zone === 'dungeon-999') {
-    if (s.unlockedBombs.length < ALL_BOMBS.length) {
-      s.unlockedBombs = [...ALL_BOMBS];
+    // A puzzle room hands over its own campaign-sized kit; the Lobby hands over everything
+    const kit = world.rooms.get(roomKey(zone, rx, ry))?.kit;
+    s.unlockedBombs = kit ? [...kit.bombs] : [...ALL_BOMBS];
+    if (!s.equipped || !s.unlockedBombs.includes(s.equipped)) {
+      s.equipped = s.unlockedBombs[0] ?? null;
     }
-    s.equipped ??= 'bomb';
-    s.maxBombs = Math.max(s.maxBombs, 4);
-    s.blastRadius = Math.max(s.blastRadius, 2);
+    s.maxBombs = kit ? (kit.maxBombs ?? 2) : 4;
+    s.blastRadius = kit ? (kit.blastRadius ?? 1) : 2;
   }
   s.zone = zone;
   s.rx = rx;
@@ -504,8 +520,8 @@ export function enterRoom(
         y: es.y,
         vx: 0,
         vy: 0,
-        fx: 0,
-        fy: 1,
+        fx: es.facing?.dx ?? 0,
+        fy: es.facing?.dy ?? 1,
         hp,
         maxHp: hp,
         armored: es.unarmoredStart
@@ -969,7 +985,7 @@ function tryUnlockDoor(world: World, s: State, tx: number, ty: number): boolean 
 
 /** Tiles that can end up under the player (a barrier rising, a shove over a pit edge). */
 function canStandInside(t: Tile): boolean {
-  return t === 'R' || t === 'U' || t === '^' || isWaterTile(t);
+  return t === 'R' || t === 'U' || t === 'G' || t === '^' || isWaterTile(t);
 }
 
 function playerBlockedAt(
@@ -1048,8 +1064,13 @@ function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln =
 }
 
 /** Continuous contact-radius check (`BUTTON_CONTACT_RADIUS`) for `'O'` floor buttons. */
+/**
+ * Whether the `'O'` button or `'Q'` switch at `(bx, by)` is weighted. A live bomb holds a
+ * momentary `'Q'` for one fuse but is too light to latch an `'O'` plate.
+ */
 export function isButtonPressed(world: World, s: State, bx: number, by: number): boolean {
-  if (tileAt(world, s, s.zone, s.rx, s.ry, bx, by) !== 'O') return false;
+  const plate = tileAt(world, s, s.zone, s.rx, s.ry, bx, by);
+  if (plate !== 'O' && plate !== 'Q') return false;
   const cx = bx + 0.5;
   const cy = by + 0.5;
   if (Math.hypot(s.x - cx, s.y - cy) <= BUTTON_CONTACT_RADIUS) return true;
@@ -1058,7 +1079,10 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
   ) {
     return true;
   }
-  if (s.bombs.some((b) => b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS)) {
+  if (
+    plate === 'Q' &&
+    s.bombs.some((b) => b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS)
+  ) {
     return true;
   }
   if (
@@ -1075,6 +1099,21 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
     return true;
   }
   return false;
+}
+
+/** Lower every `'G'` gate exactly while all `'Q'` switches are weighted. */
+function updateGates(world: World, s: State): void {
+  const room = currentRoom(world, s);
+  if (!room?.rows.some((row) => row.includes('G'))) return;
+  const switches: [number, number][] = [];
+  room.rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (row[x] === 'Q') switches.push([x, y]);
+  });
+  // Read the switches with the gates up, so a weight standing in a gate never counts
+  const wasOpen = s.gatesOpen ?? false;
+  s.gatesOpen = false;
+  s.gatesOpen = switches.length > 0 && switches.every(([x, y]) => isButtonPressed(world, s, x, y));
+  if (s.gatesOpen !== wasOpen) s.events.push(s.gatesOpen ? 'gate-open' : 'gate-close');
 }
 
 function checkSolveCondition(world: World, s: State): void {
@@ -1096,12 +1135,15 @@ function checkSolveCondition(world: World, s: State): void {
     const puzzle = s.torches.filter((t) => !t.decor);
     solved = puzzle.length > 0 && puzzle.every((t) => t.lit);
   } else if (room.condition === 'hold-buttons') {
+    // Only a raw 'O' can read as a button (tileAt never turns another tile into one)
     const buttons: [number, number][] = [];
-    for (let y = 0; y < ROOM_H; y++) {
-      for (let x = 0; x < ROOM_W; x++) {
-        if (tileAt(world, s, s.zone, s.rx, s.ry, x, y) === 'O') buttons.push([x, y]);
+    room.rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        if (row[x] === 'O' && tileAt(world, s, s.zone, s.rx, s.ry, x, y) === 'O') {
+          buttons.push([x, y]);
+        }
       }
-    }
+    });
     solved = buttons.length > 0 && buttons.every(([bx, by]) => isButtonPressed(world, s, bx, by));
   }
 
@@ -2501,8 +2543,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
   const knockDx = s.vx * dt;
   const knockDy = s.vy * dt;
-  const pipStepDx = s.x - prevPipX;
-  const pipStepDy = s.y - prevPipY;
+  // Tiles Pip stepped across this tick (the Mimic copies whole steps, not slides)
+  const pipStepDx = Math.floor(s.x) - Math.floor(prevPipX);
+  const pipStepDy = Math.floor(s.y) - Math.floor(prevPipY);
   s.vx *= Math.pow(0.001, dt);
   s.vy *= Math.pow(0.001, dt);
   if (Math.hypot(s.vx, s.vy) < 0.08) {
@@ -3101,16 +3144,29 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
     // Deterministic Clockwork Creatures ('beetle', 'mimic', 'tortoise', 'otter')
     if (e.kind === 'beetle' || e.kind === 'mimic' || e.kind === 'tortoise' || e.kind === 'otter') {
-      if (
-        e.kind === 'mimic' &&
-        e.stumbleTimer <= 0 &&
-        !luredEnemyIds.has(e.id) &&
-        (Math.abs(pipStepDx) > 1e-5 || Math.abs(pipStepDy) > 1e-5)
-      ) {
-        if (!enemyBlocked(e.x + pipStepDx, e.y)) e.x += pipStepDx;
-        if (!enemyBlocked(e.x, e.y + pipStepDy)) e.y += pipStepDy;
-        e.homeX = e.x;
-        e.homeY = e.y;
+      if (e.kind === 'mimic' && e.stumbleTimer <= 0 && !luredEnemyIds.has(e.id)) {
+        // The Mimic walks tile to tile: each tile Pip steps into, it steps the same way
+        // from its own tile if that one is free, then glides there at Pip's pace
+        const tx = Math.floor(e.homeX) + 0.5;
+        const ty = Math.floor(e.homeY) + 0.5;
+        e.homeX = tx;
+        e.homeY = ty;
+        if (pipStepDx !== 0 && !enemyBlocked(e.homeX + pipStepDx, e.homeY)) {
+          e.homeX += pipStepDx;
+        }
+        if (pipStepDy !== 0 && !enemyBlocked(e.homeX, e.homeY + pipStepDy)) {
+          e.homeY += pipStepDy;
+        }
+        const gx = e.homeX - e.x;
+        const gy = e.homeY - e.y;
+        const gLen = Math.hypot(gx, gy);
+        if (gLen > 1e-4) {
+          const stepLen = Math.min(gLen, SPEED * 1.25 * dt);
+          e.x += (gx / gLen) * stepLen;
+          e.y += (gy / gLen) * stepLen;
+          e.fx = gx / gLen;
+          e.fy = gy / gLen;
+        }
       } else if (e.kind === 'tortoise' && e.stumbleTimer <= 0) {
         if (Math.hypot(e.fx, e.fy) < 0.1) {
           e.fx = 1;
@@ -3499,6 +3555,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   s.projectiles = keptProjectiles;
 
   // 8. Check puzzle/combat completion, wind-drifted light objects & magnetized pickup collection
+  updateGates(world, s);
   checkSolveCondition(world, s);
 
   const canPickupStand = (nx: number, ny: number): boolean => {

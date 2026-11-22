@@ -121,13 +121,14 @@ gives Pip a `1`-tile knockback hop.
 
 ### 0. Bomb (starter — Grandma's Basement): it breaks & shoves
 
-- **Fuse and shape:** `1.5 s`, a `+` cross reaching `1` tile (upgraded to `2` at
+- **Fuse and shape:** `3 s`, a `+` cross reaching `1` tile (upgraded to `2` at
   `16` Buttons).
 - **Primary:** breaks cracked `%` walls and cracked floor plugs; shoves heavy
   stone `Push blocks` (`P`) `1` tile along the blast axis.
 - **Chain & physics rules:**
   - Flip crystal switches (`C`, `red ↔ blue`).
-  - Weigh down a floor button (`O`) for `1.5 s` (one fuse duration).
+  - Weigh down a momentary switch (`Q`) for `3 s` (one fuse duration); too light
+    to latch a goal plate (`O`).
   - **2-Hit Bomb Shove & Chain:** the `1st` blast to hit another live bomb
     **shoves** it across the floor (`SHOVE_BOMB_SPEED`, clamping its fuse to
     `≥ 0.35 s`); a `2nd` blast hitting an already-shoved bomb **chain-detonates**

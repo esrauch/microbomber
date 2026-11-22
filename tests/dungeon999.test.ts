@@ -1,509 +1,457 @@
 import { describe, expect, it } from 'vitest';
+import { DUNGEON_999_ENTRIES, DUNGEON_999_ROOMS } from '../src/game/dungeon999';
 import {
   ALL_BOMBS,
   BOMB_FUSE,
-  BOMB_FUSES,
-  FIRE_DURATION,
-  FIRE_FUSE,
-  FIXED_DT,
+  type State,
   campaignWorld,
   currentRoom,
   enterDungeon999,
   enterRoom,
-  equipBomb,
   isButtonPressed,
   newState,
   tick,
   tileAt,
-  windVectorAt,
 } from '../src/game/world';
-import { idle, placeDownChute, pullA, stepSeconds, stepTicks, tapA } from './input';
+import { stepTicks } from './input';
+import { arrive, standAt, useBomb, wait, walkPath, walkable } from './rig';
 
-describe('Dungeon 999: The Developer Dungeon & 7-Bomb Rube Goldberg Rig', () => {
+const TRIALS = DUNGEON_999_ROOMS.filter((r) => r.rx !== 0 || r.ry !== 0);
+
+/** The trial room whose name starts with `n.` */
+function trial(n: number): { rx: number; ry: number } {
+  const room = TRIALS.find((r) => r.name.startsWith(`${n}.`));
+  if (!room) throw new Error(`no trial ${n}`);
+  return { rx: room.rx, ry: room.ry };
+}
+
+describe('Dungeon 999: the trial rooms', () => {
   const world = campaignWorld();
+  const enter = (n: number): State => {
+    const { rx, ry } = trial(n);
+    return arrive(world, rx, ry);
+  };
 
-  it('starts in Lobby: Measuring Hall (0, 0) with all 7 bombs unlocked, maxBombs=4, blastRadius=2, and zero self-blast damage', () => {
+  it('the Lobby has a pad to every trial, landing on its arrival point, plus the exit', () => {
     const s = newState(world);
     enterDungeon999(world, s);
-    expect([s.zone, s.rx, s.ry]).toEqual(['dungeon-999', 0, 0]);
-    expect(currentRoom(world, s)?.name).toBe('Lobby: Measuring Hall');
+    const lobby = currentRoom(world, s)!;
     expect(s.unlockedBombs).toEqual([...ALL_BOMBS]);
-    expect(s.maxBombs).toBe(4);
-    expect(s.blastRadius).toBe(2);
-
-    const direct = newState(world, 'dungeon-999', 0, 0);
-    expect(direct.unlockedBombs).toEqual([...ALL_BOMBS]);
-    expect(direct.maxBombs).toBe(4);
-    expect(direct.blastRadius).toBe(2);
-
-    // Standing right next to own Bomb detonation deals zero HP damage in dungeon-999
-    const hpBefore = direct.hp;
-    tapA(world, direct);
-    expect(direct.bombs).toHaveLength(1);
-    stepSeconds(world, direct, BOMB_FUSE + 0.15);
-    expect(direct.hp).toBe(hpBefore);
-  });
-
-  it('resets broken/burned/frozen tiles, blocks, solved state, and crystal colour when leaving and re-entering any dungeon-999 room', () => {
-    const s = newState(world, 'dungeon-999', 0, -1, 5.5, 8.5);
-    expect(tileAt(world, s, 'dungeon-999', 0, -1, 7, 8)).toBe('%');
-
-    // Break '%' at (7, 8), flip crystal to blue, and freeze a tile
-    s.x = 6.2;
-    s.y = 8.5;
-    s.fx = 1;
-    s.fy = 0;
-    s.aimX = 1;
-    s.aimY = 0;
-    tapA(world, s);
-    stepSeconds(world, s, BOMB_FUSE + 0.15);
-    expect(tileAt(world, s, 'dungeon-999', 0, -1, 7, 8)).toBe('.');
-    s.crystalColor = 'blue';
-    s.frozenTiles?.add('dungeon-999:0,-1:4,4');
-    s.solvedRooms.add('dungeon-999:0,-1');
-    s.blocks[0]!.x = 4;
-
-    // Leave to Lobby (0, 0) and re-enter A1 (0, -1)
-    enterRoom(world, s, 'dungeon-999', 0, 0, 5.5, 6.5);
-    enterRoom(world, s, 'dungeon-999', 0, -1, 5.5, 8.5);
-
-    expect(tileAt(world, s, 'dungeon-999', 0, -1, 7, 8)).toBe('%');
-    expect(s.crystalColor).toBe('red');
-    expect(s.frozenTiles?.size ?? 0).toBe(0);
-    expect(s.solvedRooms.has('dungeon-999:0,-1')).toBe(false);
-    expect(s.blocks[0]?.x).toBe(3);
-  });
-
-  it('A1 (0, -1): Bomb rolls down sloped e -> s chutes into crystal C to flip red -> blue', () => {
-    const s = newState(world, 'dungeon-999', 0, -1, 3.5, 3.5);
-    expect(s.crystalColor).toBe('red');
-    equipBomb(s, 'bomb');
-    placeDownChute(world, s);
-    expect(s.bombs).toHaveLength(1);
-    stepSeconds(world, s, BOMB_FUSE + 0.2);
-    expect(s.crystalColor).toBe('blue');
-  });
-
-  it('A2 (1, -1): Fire Bomb ignites a dry-grass (,) fuse line that spreads tile-by-tile to light a distant brazier T', () => {
-    const s = newState(world, 'dungeon-999', 1, -1, 2.5, 3.5);
-    equipBomb(s, 'fire');
-    s.fx = 1;
-    s.fy = 0;
-    s.aimX = 1;
-    s.aimY = 0;
-
-    const topTorch = (): boolean => s.torches.find((t) => t.x === 7 && t.y === 3)?.lit ?? false;
-    expect(topTorch()).toBe(false);
-
-    // Drop Fire Bomb at the west mouth of the 4-tile ',' dry-grass fuse line (x=3..6 -> T at 7,3)
-    tapA(world, s);
-    stepSeconds(world, s, FIRE_FUSE + 0.1);
-    // Immediately after detonation, fire starts at x=3 and has not yet spread all 4 tiles to (7,3)
-    expect(s.fires.length).toBeGreaterThan(0);
-    expect(topTorch()).toBe(false);
-
-    // Advance for tile-by-tile fire spread across (3,3)->(4,3)->(5,3)->(6,3) to ignite T at (7,3)
-    stepSeconds(world, s, 2.0);
-    expect(topTorch()).toBe(true);
-  });
-
-  it('A3 (1, 0): Wind Bomb (0.8s fuse) blast-jumps Pip across a 2-tile gap and leaves a 2.5s whirlwind vortex that catapults a thrown Bomb across a 3-tile chasm', () => {
-    const s = newState(world, 'dungeon-999', 1, 0, 3.5, 3.5);
-    expect(BOMB_FUSES.wind).toBe(0.8);
-    equipBomb(s, 'wind');
-    s.fx = 1;
-    s.fy = 0;
-    s.aimX = 1;
-    s.aimY = 0;
-
-    // 1. Place Wind Bomb at Pip's feet / ahead while facing East across the 2-tile pit (x=4..5, y=3)
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'wind',
-      x: 3.3,
-      y: 3.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: BOMB_FUSES.wind,
-      graceOverlap: true,
-      shoveCount: 0,
-    });
-    const events = stepSeconds(world, s, BOMB_FUSES.wind + 0.1);
-    expect(events).toContain('boom-wind');
-    expect(events).toContain('wind-jump');
-    expect(s.x).toBeGreaterThan(6.0);
-    expect(isButtonPressed(world, s, 7, 3)).toBe(false);
-
-    // Verify a 2.5s lingering whirlwind vortex was spawned
-    const vortex = s.gusts.find((g) => g.vortex);
-    expect(vortex).toBeDefined();
-    expect(vortex!.remaining).toBeGreaterThan(2.0);
-
-    // 2. Spawn a whirlwind vortex at (3.5, 8.5) facing East across the 3-tile chasm (x=4..6, y=8)
-    s.gusts = [];
-    s.x = 2.2;
-    s.y = 8.5;
-    s.fx = 1;
-    s.fy = 0;
-    s.aimX = 1;
-    s.aimY = 0;
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'wind',
-      x: 3.5,
-      y: 8.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(s.gusts.some((g) => g.vortex)).toBe(true);
-
-    // Throw a regular Bomb East into the whirlwind vortex -> catapults across x=4..6 to flip C (8,8) & break % (8,9)
-    equipBomb(s, 'bomb');
-    s.bombCooldown = 0;
-    pullA(world, s);
-    const catEvents = [
-      ...stepTicks(world, s, 1, { dx: 0, dy: 0, holdA: true }),
-      ...stepSeconds(world, s, BOMB_FUSE + 0.25),
-    ];
-    expect(catEvents).toContain('wind-catapult');
-    expect(s.crystalColor).toBe('blue');
-    expect(tileAt(world, s, 'dungeon-999', 1, 0, 8, 9)).toBe('.');
-  });
-
-  it('A4 (1, 1): Ice Bomb (3x3 nova) freezes water currents to stop a drifting Bomb on target, and freezes a Brass Beetle into a kickable 4s sliding ice-cube that holds down O', () => {
-    const s = newState(world, 'dungeon-999', 1, 1, 3.5, 5.5);
-
-    // 1. Float a regular Bomb into the east water current '3' at (3.5, 4.5), let it drift near C (7, 3), then freeze the stream with an Ice Bomb
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'bomb',
-      x: 3.5,
-      y: 4.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 2.2,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.85);
-    const drifting = s.bombs[0]!;
-    expect(drifting.x).toBeGreaterThan(5.2);
-    expect(drifting.vx).toBeGreaterThan(1.0);
-
-    // Detonate an Ice Bomb on (Math.floor(drifting.x), 4) to freeze the 3x3 water current patch
-    const freezeCx = Math.floor(drifting.x);
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'ice',
-      x: freezeCx + 0.5,
-      y: 4.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(s.frozenTiles?.has(`dungeon-999:1,1:${freezeCx},4`)).toBe(true);
-    expect(tileAt(world, s, 'dungeon-999', 1, 1, freezeCx, 4)).toBe('.');
-    expect(drifting.vx).toBe(0);
-
-    // 2. Freeze the Brass Beetle ('beetle') at (4.5, 8.5) into a 4s ice cube and kick-slide it East onto button O (7, 8)
-    const beetle = s.enemies.find((e) => e.kind === 'beetle')!;
-    expect(beetle).toBeDefined();
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'ice',
-      x: beetle.x,
-      y: beetle.y,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(beetle.frozenTimer).toBeGreaterThan(3.8);
-
-    // Walk Pip East into the frozen beetle to kick it along row 8 onto O at (7, 8)
-    s.x = beetle.x - 0.8;
-    s.y = 8.5;
-    stepSeconds(world, s, 1.0, { dx: 1, dy: 0 });
-    expect(isButtonPressed(world, s, 7, 8)).toBe(true);
-    expect(s.roomSolved).toBe(true);
-  });
-
-  it('A5 (0, 1): Rock Bomb spawns 1 solid Rock block (second crumbles first; Bomb shatters it) as an anchored windbreak and fills a 1-tile hazard channel', () => {
-    const s = newState(world, 'dungeon-999', 0, 1, 3.5, 4.5);
-
-    // Without a Rock windbreak, ambient wind at button O (6.5, 4.5) is strong east gale (dx = 2.2)
-    expect(windVectorAt(world, s, 6.5, 4.5).dx).toBeCloseTo(2.2, 2);
-
-    // 1. Detonate first Rock Bomb at (3.5, 4.5) -> spawns 1 rock block at (3, 4)
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'rock',
-      x: 3.5,
-      y: 4.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(s.blocks.filter((b) => b.rock)).toHaveLength(1);
-    expect([s.blocks[0]!.x, s.blocks[0]!.y]).toEqual([3, 4]);
-
-    // 2. Detonate second Rock Bomb at (4.5, 4.5) -> first rock block crumbles, replaced by new one at (4, 4)
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'rock',
-      x: 4.5,
-      y: 4.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    const rocks = s.blocks.filter((b) => b.rock);
-    expect(rocks).toHaveLength(1);
-    expect([rocks[0]!.x, rocks[0]!.y]).toEqual([4, 4]);
-
-    // Calm lee downwind of Rock block at (4, 4) covers button O at (6.5, 4.5)
-    expect(windVectorAt(world, s, 6.5, 4.5)).toEqual({ dx: 0, dy: 0 });
-
-    // 3. Regular Bomb blast shatters the Rock block
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'bomb',
-      x: 4.5,
-      y: 5.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(s.blocks.filter((b) => b.rock)).toHaveLength(0);
-
-    // 4. Detonating a Rock Bomb on/ahead of a 1-tile hazard channel (';' at 4,8 or '!' at 7,8) fills it into walkable '.' floor
-    expect(tileAt(world, s, 'dungeon-999', 0, 1, 7, 8)).toBe('!');
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'rock',
-      x: 7.5,
-      y: 8.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.02,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.05);
-    expect(tileAt(world, s, 'dungeon-999', 0, 1, 7, 8)).toBe('.');
-  });
-
-  it('A6 (-1, 1): Magnet Bomb continuously pulls a rolling Bomb off a chute into a side target and pulls an aligned metal block (M) onto floor button O', () => {
-    const s = newState(world, 'dungeon-999', -1, 1, 4.5, 2.5);
-    expect(s.crystalColor).toBe('red');
-
-    // 1. Place a Magnet Bomb east of the 's' chute at (6.5, 3.5) and drop a Bomb at top of the 's' chute (4.5, 2.5)
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'magnet',
-      x: 6.5,
-      y: 3.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: BOMB_FUSES.magnet,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'bomb',
-      x: 4.5,
-      y: 2.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.9,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, 0.95);
-    // The rolling Bomb is curved sideways off col 4 toward col 6 to flip Crystal C (6, 4)!
-    expect(s.crystalColor).toBe('blue');
-
-    // 2. Place a Magnet Bomb at (2.5, 5.5) on/north of button O (2, 5) to pull aligned metal block M from (2, 7) -> (2, 6) -> (2, 5)
-    const metal = s.blocks.find((b) => b.metal)!;
-    expect(metal).toBeDefined();
-    expect([metal.x, metal.y]).toEqual([2, 7]);
-    s.bombs = [
-      {
-        id: s.nextEntityId++,
-        kind: 'magnet',
-        x: 2.5,
-        y: 5.5,
-        vx: 0,
-        vy: 0,
-        z: 0,
-        vz: 0,
-        fuse: BOMB_FUSES.magnet,
-        graceOverlap: false,
-        shoveCount: 0,
-      },
-    ];
-    stepSeconds(world, s, 1.0);
-    expect([metal.x, metal.y]).toEqual([2, 5]);
-    expect(isButtonPressed(world, s, 2, 5)).toBe(true);
-    expect(s.roomSolved).toBe(true);
-  });
-
-  it('A7 (-1, 0): Squeak Bomb (2.5s chirp) lures a Brass Beetle onto floor button O and dazes it for 2.5s on pop without breaking tiles, and Mimic Statue steps with Pip', () => {
-    const s = newState(world, 'dungeon-999', -1, 0, 3.5, 6.5);
-    const beetle = s.enemies.find((e) => e.kind === 'beetle')!;
-    const mimic = s.enemies.find((e) => e.kind === 'mimic')!;
-    expect(beetle).toBeDefined();
-    expect(mimic).toBeDefined();
-
-    // 1. Mimic Statue steps in lockstep with Pip when Pip walks East
-    const mimicStartX = mimic.x;
-    const pipStartX = s.x;
-    for (let i = 0; i < 15; i++) {
-      tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    expect([s.maxBombs, s.blastRadius]).toEqual([4, 2]);
+    for (const room of TRIALS) {
+      const pad = lobby.portals!.find((p) => p.targetRx === room.rx && p.targetRy === room.ry)!;
+      expect(pad.label).toBe(room.name);
+      expect([pad.targetX, pad.targetY]).toEqual(DUNGEON_999_ENTRIES.get(`${room.rx},${room.ry}`));
+      expect(tileAt(world, s, 'dungeon-999', 0, 0, pad.x, pad.y)).toBe('>');
     }
-    expect(s.x).toBeGreaterThan(pipStartX + 0.5);
-    expect(mimic.x - mimicStartX).toBeCloseTo(s.x - pipStartX, 2);
+    expect(lobby.portals!.some((p) => p.targetZone === 'basement')).toBe(true);
+  });
 
-    // Walk back west, then south: the Mimic copies each step onto its plate at (3, 10)
-    for (let i = 0; i < 15; i++) tick(world, s, { dx: -1, dy: 0 }, FIXED_DT);
-    for (let i = 0; i < 90 && !isButtonPressed(world, s, 3, 10); i++) {
-      tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+  it('every trial hands over its own campaign-sized kit, and its pad leads back', () => {
+    for (const room of TRIALS) {
+      const s = arrive(world, room.rx, room.ry);
+      expect(s.unlockedBombs).toEqual(room.kit!.bombs);
+      expect([s.maxBombs, s.blastRadius]).toEqual([2, 1]);
+      expect(room.portals!.length).toBeGreaterThan(0);
+      expect(room.portals!.every((p) => p.targetRx === 0 && p.targetRy === 0)).toBe(true);
     }
-    expect(isButtonPressed(world, s, 3, 10)).toBe(true);
-
-    // 2. Place a Squeak Bomb next to crate W (6, 9) and button O (7, 3) to verify it lures the Beetle onto O and pops with 2.5s daze without breaking W
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'squeak',
-      x: 7.5,
-      y: 3.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: BOMB_FUSES.squeak,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    // Also place a Squeak Bomb adjacent to wooden crate W at (6, 9) to confirm pop breaks nothing
-    s.bombs.push({
-      id: s.nextEntityId++,
-      kind: 'squeak',
-      x: 6.5,
-      y: 8.5,
-      vx: 0,
-      vy: 0,
-      z: 0,
-      vz: 0,
-      fuse: 0.2,
-      graceOverlap: false,
-      shoveCount: 0,
-    });
-    stepSeconds(world, s, BOMB_FUSES.squeak + 0.1);
-    expect(tileAt(world, s, 'dungeon-999', -1, 0, 6, 9)).toBe('W');
-    expect(isButtonPressed(world, s, 7, 3)).toBe(true);
-    expect(s.roomSolved).toBe(true);
-    expect(beetle.stumbleTimer).toBeGreaterThan(2.3);
   });
 
-  it('A2 keeps its fuse lines apart: lighting only the 5-tile line leaves the 4-tile line unburned', () => {
-    const s = newState(world, 'dungeon-999', 1, -1, 5.5, 6.5);
-    s.fires.push({ x: 3, y: 5, remaining: FIRE_DURATION, tickCooldown: 0, generation: 0 });
-    stepSeconds(world, s, 8);
-    expect(s.torches.find((t) => t.x === 8 && t.y === 5)?.lit).toBe(true);
-    expect(s.torches.find((t) => t.x === 7 && t.y === 3)?.lit).toBe(false);
-    expect(tileAt(world, s, 'dungeon-999', 1, -1, 3, 3)).toBe(',');
-  });
-
-  it('A4 needs Ice: a drifting Bomb misses C on its own, and hits it when frozen beneath it', () => {
-    const drift = (freeze: boolean): string => {
-      const s = newState(world, 'dungeon-999', 1, 1, 3.5, 5.5);
-      s.bombs.push({
-        id: s.nextEntityId++,
-        kind: 'bomb',
-        x: 3.5,
-        y: 4.5,
-        vx: 0,
-        vy: 0,
-        z: 0,
-        vz: 0,
-        fuse: BOMB_FUSE,
-        graceOverlap: false,
-        shoveCount: 0,
-      });
-      if (freeze) {
-        for (let i = 0; i < 60 && (s.bombs[0]?.x ?? 0) < 4.3; i++) tick(world, s, idle, FIXED_DT);
-        s.bombs.push({
-          id: s.nextEntityId++,
-          kind: 'ice',
-          x: 4.5,
-          y: 4.5,
-          vx: 0,
-          vy: 0,
-          z: 0,
-          vz: 0,
-          fuse: 0.02,
-          graceOverlap: false,
-          shoveCount: 0,
-        });
+  it('no trial can be solved by walking: no plate is reachable on foot, and standing anywhere solves nothing', () => {
+    for (const room of TRIALS) {
+      const base = arrive(world, room.rx, room.ry);
+      const tiles = walkable(world, base);
+      expect(tiles.length).toBeGreaterThan(5);
+      for (const [x, y] of tiles) {
+        expect(tileAt(world, base, base.zone, room.rx, room.ry, x, y)).not.toBe('O');
+        const s = arrive(world, room.rx, room.ry);
+        standAt(s, x, y, 0, -1);
+        tick(world, s, { dx: 0, dy: 0 });
+        expect(s.roomSolved, `${room.name} at (${x},${y})`).toBe(false);
       }
-      stepSeconds(world, s, BOMB_FUSE + 0.5);
-      return s.crystalColor;
-    };
-    expect(drift(false)).toBe('red');
-    expect(drift(true)).toBe('blue');
+    }
   });
 
-  it('B1 is a chain: the Magnet plate alone does not solve it; the beetle pen is shut until C flips', () => {
-    const s = newState(world, 'dungeon-999', -1, -1, 3.5, 6.5);
-    const metal = s.blocks.find((b) => b.metal)!;
-    metal.x = 8;
-    metal.y = 5;
-    stepSeconds(world, s, 0.2);
-    expect(isButtonPressed(world, s, 8, 5)).toBe(true);
+  it('a room resets when Pip leaves and comes back', () => {
+    const { rx, ry } = trial(7);
+    const s = enter(7);
+    standAt(s, 2, 8, 0, -1);
+    s.y = 8.2;
+    useBomb(world, s, 'ice', 'drop', 0, -1);
+    wait(world, s, 1.6);
+    expect(s.frozenTiles?.size).toBeGreaterThan(0);
+    enterRoom(world, s, 'dungeon-999', 0, 0, 5.5, 6.5);
+    enterRoom(world, s, 'dungeon-999', rx, ry, 5.5, 9.5);
+    expect(s.frozenTiles?.size ?? 0).toBe(0);
     expect(s.roomSolved).toBe(false);
-    expect(tileAt(world, s, 'dungeon-999', -1, -1, 6, 7)).toBe('R');
-    expect(s.crystalColor).toBe('red');
+  });
+
+  it('a gate is down exactly while every switch is weighted; a bomb holds a switch but not a plate', () => {
+    const s = enter(2);
+    const q1 = [2, 10] as const;
+    const q2 = [5, 5] as const;
+    expect(tileAt(world, s, s.zone, s.rx, s.ry, 5, 3)).toBe('G');
+    standAt(s, ...q2, 0, -1);
+    wait(world, s, 0.1);
+    expect(isButtonPressed(world, s, ...q2)).toBe(true);
+    expect(s.gatesOpen).toBe(false);
+    standAt(s, ...q1, 0, -1);
+    useBomb(world, s, 'bomb', 'drop', 0, -1);
+    expect(isButtonPressed(world, s, ...q1)).toBe(true);
+    wait(world, s, 0.1);
+    expect(s.gatesOpen).toBe(false);
+    standAt(s, ...q2, 0, -1);
+    // The renderer redraws the room on these events, so the gate art follows the gate
+    expect(stepTicks(world, s, 6)).toContain('gate-open');
+    expect(s.gatesOpen).toBe(true);
+    expect(tileAt(world, s, s.zone, s.rx, s.ry, 5, 3)).toBe('.');
+
+    // A bomb sitting on the goal plate does not press it
+    s.bombs.push({ ...s.bombs[0]!, id: 999, x: 5.5, y: 2.5, z: 0 });
+    expect(isButtonPressed(world, s, 5, 2)).toBe(false);
+
+    expect(stepTicks(world, s, Math.ceil((BOMB_FUSE + 0.2) * 60))).toContain('gate-close');
+    expect(s.gatesOpen).toBe(false);
+  });
+
+  describe('1. A Delayed Flip', () => {
+    it('solves when Pip throws from the top of the chute and reaches the pen before the flip', () => {
+      const s = enter(1);
+      standAt(s, 6, 6, 1, 0);
+      useBomb(world, s, 'bomb', 'throw', 1, 0);
+      expect(
+        walkPath(world, s, [
+          [5, 5],
+          [5, 4],
+          [5, 3],
+          [5, 2],
+        ]),
+      ).toBe(true);
+      expect(s.crystalColor).toBe('red');
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(s.crystalColor).toBe('blue');
+      expect(
+        walkPath(world, s, [
+          [4, 2],
+          [3, 2],
+          [2, 2],
+        ]),
+      ).toBe(true);
+      expect(s.roomSolved).toBe(true);
+    });
+
+    it('fails from the bottom of the chute: the flip raises U before Pip is inside', () => {
+      const s = enter(1);
+      standAt(s, 6, 10, 1, 0);
+      useBomb(world, s, 'bomb', 'throw', 1, 0);
+      const route: [number, number][] = [
+        [2, 9],
+        [2, 7],
+        [5, 7],
+        [5, 4],
+        [5, 3],
+        [5, 2],
+      ];
+      walkPath(world, s, route, BOMB_FUSE + 1);
+      expect(s.crystalColor).toBe('blue');
+      expect(Math.floor(s.y)).toBeGreaterThan(3);
+      expect(walkPath(world, s, [[5, 3]], 2)).toBe(false);
+    });
+  });
+
+  describe('2. Two Switches, One Breath', () => {
+    const run = (first: [number, number], second: [number, number]): State => {
+      const s = enter(2);
+      standAt(s, first[0], first[1], 0, -1);
+      useBomb(world, s, 'bomb', 'drop', 0, -1);
+      walkPath(world, s, [second]);
+      useBomb(world, s, 'bomb', 'drop', 0, -1);
+      walkPath(
+        world,
+        s,
+        [
+          [5, 4],
+          [5, 3],
+          [5, 2],
+        ],
+        3,
+      );
+      return s;
+    };
+    it('solves with the far switch first', () => {
+      expect(run([2, 10], [5, 5]).roomSolved).toBe(true);
+    });
+    it('fails with the near switch first: its bomb bursts before Pip reaches the gate', () => {
+      expect(run([5, 5], [2, 10]).roomSolved).toBe(false);
+    });
+  });
+
+  describe('3. Shove It Home', () => {
+    it('solves with a dropped shove, a thrown shove, and a shove from the north', () => {
+      const s = enter(3);
+      const block = (): string => s.blocks.map((b) => `${b.x},${b.y}`).join(' ');
+      standAt(s, 2, 4, 1, 0);
+      useBomb(world, s, 'bomb', 'drop', 1, 0);
+      walkPath(world, s, [[2, 6]]);
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(block()).toBe('5,4');
+      walkPath(world, s, [[2, 4]]);
+      useBomb(world, s, 'bomb', 'throw', 1, 0);
+      walkPath(world, s, [[2, 8]]);
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(block()).toBe('6,4');
+      walkPath(world, s, [
+        [2, 2],
+        [6, 2],
+      ]);
+      useBomb(world, s, 'bomb', 'drop', 0, 1);
+      walkPath(world, s, [[8, 2]]);
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(block()).toBe('6,5');
+      expect(s.roomSolved).toBe(true);
+    });
+  });
+
+  describe('4. Long Fuse First', () => {
+    const run = (headStart: number): State => {
+      const s = enter(4);
+      walkPath(world, s, [[6, 8]]);
+      useBomb(world, s, 'fire', 'throw', 0, -1);
+      walkPath(world, s, [[8, 8]]);
+      wait(world, s, headStart);
+      useBomb(world, s, 'fire', 'throw', 0, -1);
+      wait(world, s, 4);
+      return s;
+    };
+    it('solves when the long fuse gets a head start', () => {
+      expect(run(1.5).roomSolved).toBe(true);
+    });
+    it('fails when both fuses are lit back to back: II catches first and the braziers sputter', () => {
+      expect(run(0).roomSolved).toBe(false);
+    });
+  });
+
+  describe('5. Pull of the Rail', () => {
+    it('solves by reeling the block east along the top, then south onto the plate', () => {
+      const s = enter(5);
+      walkPath(world, s, [
+        [8, 8],
+        [8, 4],
+      ]);
+      useBomb(world, s, 'magnet', 'throw', -1, 0);
+      wait(world, s, 1.7);
+      expect(s.blocks.map((b) => [b.x, b.y])).toEqual([[6, 4]]);
+      walkPath(world, s, [
+        [8, 8],
+        [6, 8],
+      ]);
+      useBomb(world, s, 'magnet', 'throw', 0, -1);
+      wait(world, s, 1.7);
+      expect(s.roomSolved).toBe(true);
+    });
+    it('cannot go the short way: the pit stops a pull south', () => {
+      const s = enter(5);
+      walkPath(world, s, [[4, 8]]);
+      useBomb(world, s, 'magnet', 'throw', 0, -1);
+      wait(world, s, 1.7);
+      expect(s.blocks.map((b) => [b.x, b.y])).toEqual([[4, 4]]);
+    });
+  });
+
+  describe('6. Mirror Steps', () => {
+    const walkTiles = (s: State, tiles: [number, number][]): void => {
+      for (const t of tiles) walkPath(world, s, [t], 2);
+      wait(world, s, 0.5);
+    };
+    it('solves by pinning the Mimic against its walls to shift it into line', () => {
+      const s = enter(6);
+      walkTiles(s, [
+        [3, 9],
+        [2, 9],
+        [2, 8],
+        [2, 7],
+        [3, 7],
+        [3, 6],
+        [3, 5],
+        [2, 5],
+        [2, 4],
+        [2, 3],
+        [2, 2],
+        [3, 2],
+        [4, 2],
+        [4, 3],
+        [4, 4],
+        [4, 3],
+        [4, 2],
+      ]);
+      expect(s.roomSolved).toBe(true);
+    });
+    it('fails walking straight up: the Mimic is stuck at the foot of its maze', () => {
+      const s = enter(6);
+      walkTiles(s, [
+        [4, 8],
+        [4, 2],
+      ]);
+      expect(s.roomSolved).toBe(false);
+    });
+  });
+
+  describe('7. Bridge on the Race', () => {
+    it('solves with one Ice patch on each current, letting each drift before it freezes', () => {
+      const s = enter(7);
+      standAt(s, 2, 8, 0, -1);
+      s.y = 8.2;
+      useBomb(world, s, 'ice', 'drop', 0, -1);
+      wait(world, s, 1.6);
+      walkPath(world, s, [
+        [5, 7],
+        [5, 6],
+      ]);
+      s.y = 6.2;
+      useBomb(world, s, 'ice', 'drop', 0, -1);
+      wait(world, s, 1.6);
+      const path: [number, number][] = [
+        [4, 6],
+        [3, 6],
+        [3, 5],
+        [3, 4],
+        [3, 3],
+        [2, 2],
+      ];
+      expect(walkPath(world, s, path, 4)).toBe(true);
+      expect(s.roomSolved).toBe(true);
+    });
+  });
+
+  describe('8. Catch It in the Gale', () => {
+    it('a Fire Bomb dropped under a brazier blows past it', () => {
+      const s = enter(8);
+      walkPath(world, s, [[5, 3]]);
+      useBomb(world, s, 'fire', 'drop', 0, -1);
+      wait(world, s, 1.6);
+      expect(s.torches.some((t) => t.lit)).toBe(false);
+    });
+    it('solves with a Rock block downwind of each brazier to catch the Fire Bomb', () => {
+      const s = enter(8);
+      walkPath(world, s, [[3, 3]]);
+      useBomb(world, s, 'rock', 'drop', 1, 0);
+      wait(world, s, 1.1);
+      walkPath(world, s, [
+        [5, 4],
+        [5, 3],
+      ]);
+      useBomb(world, s, 'fire', 'drop', 0, -1);
+      wait(world, s, 1.6);
+      walkPath(world, s, [[3, 9]]);
+      useBomb(world, s, 'rock', 'drop', 1, 0);
+      wait(world, s, 1.1);
+      walkPath(world, s, [
+        [5, 8],
+        [5, 9],
+      ]);
+      useBomb(world, s, 'fire', 'drop', 0, 1);
+      wait(world, s, 1.6);
+      expect(s.roomSolved).toBe(true);
+    });
+  });
+
+  describe('9. Eye of the Gale', () => {
+    const jumpTheFence = (s: State): void => {
+      walkPath(world, s, [[6, 9]]);
+      s.y = 9.2;
+      useBomb(world, s, 'wind', 'drop', 0, -1);
+      wait(world, s, 1);
+      expect([Math.floor(s.x), Math.floor(s.y)]).toEqual([6, 7]);
+    };
+    it('solves by jumping the fence, then catapulting a Bomb off a whirlwind into the crystal', () => {
+      const s = enter(9);
+      jumpTheFence(s);
+      useBomb(world, s, 'wind', 'drop', 0, -1);
+      walkPath(world, s, [[8, 7]]);
+      tick(world, s, { dx: 0, dy: -1 });
+      wait(world, s, 0.6);
+      useBomb(world, s, 'bomb', 'throw', -1, 0);
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(s.crystalColor).toBe('blue');
+      expect(
+        walkPath(
+          world,
+          s,
+          [
+            [5, 7],
+            [3, 7],
+          ],
+          3,
+        ),
+      ).toBe(true);
+      expect(s.roomSolved).toBe(true);
+    });
+    it('a plain throw from the lip falls into the chasm', () => {
+      const s = enter(9);
+      jumpTheFence(s);
+      wait(world, s, 2.5);
+      useBomb(world, s, 'bomb', 'throw', 0, -1);
+      wait(world, s, BOMB_FUSE + 0.2);
+      expect(s.crystalColor).toBe('red');
+    });
+  });
+
+  describe('10. Follow the Chirp', () => {
+    const chirp = (s: State, col: number): void => {
+      walkPath(world, s, [[col, 8]]);
+      useBomb(world, s, 'squeak', 'throw', 0, -1);
+      wait(world, s, 2.8);
+    };
+    it('solves with a relay: one chirp to the middle, one at the plate', () => {
+      const s = enter(10);
+      chirp(s, 4);
+      chirp(s, 8);
+      expect(s.roomSolved).toBe(true);
+    });
+    it('a chirp at the plate alone is out of earshot of the beetle', () => {
+      const s = enter(10);
+      chirp(s, 8);
+      expect(s.roomSolved).toBe(false);
+    });
+  });
+
+  describe('11. Tortoise Time', () => {
+    it('one crossing of the switch is too short to run the six gates', () => {
+      const s = enter(11);
+      walkPath(world, s, [[7, 4]]);
+      for (let i = 0; i < 1200 && !isButtonPressed(world, s, 5, 2); i++) wait(world, s, 1 / 60);
+      wait(world, s, 1 / 30);
+      expect(s.gatesOpen).toBe(true);
+      expect(
+        walkPath(
+          world,
+          s,
+          [
+            [8, 4],
+            [8, 10],
+          ],
+          3,
+        ),
+      ).toBe(false);
+      expect(s.roomSolved).toBe(false);
+    });
+    it('solves by freezing the Tortoise on its switch', () => {
+      const s = enter(11);
+      const tortoise = s.enemies[0]!;
+      walkPath(world, s, [[5, 4]]);
+      for (let i = 0; i < 1200 && !(tortoise.fx > 0 && tortoise.x >= 4.1); i++) {
+        wait(world, s, 1 / 60);
+      }
+      useBomb(world, s, 'ice', 'throw', 0, -1);
+      walkPath(world, s, [[7, 4]]);
+      wait(world, s, 0.9);
+      expect(s.gatesOpen).toBe(true);
+      const corridor: [number, number][] = [
+        [8, 4],
+        [8, 10],
+      ];
+      expect(walkPath(world, s, corridor, 4)).toBe(true);
+      expect(s.roomSolved).toBe(true);
+    });
   });
 });

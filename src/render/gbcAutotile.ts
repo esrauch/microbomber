@@ -615,6 +615,23 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
             transparentZero: true,
           });
         }
+      } else if (t === 'G' || (t === '.' && room?.rows[y]?.[x] === 'G')) {
+        // Iron gate: the crystal barrier art in steel, flat while every 'Q' switch is held
+        const tile = t === 'G' ? BG.barrierUp : BG.barrierDown;
+        const steel = recolorQuads(tile, ['steel', 'steel', 'steel', 'steel']);
+        if (t === 'G') {
+          props.push({ x, y, tile: steel, transparentZero: true });
+        } else {
+          decals.push({ x, y, tile: steel, transparentZero: true });
+        }
+      } else if (t === 'Q') {
+        const tile = s.gatesOpen ? BG.buttonDown : BG.buttonUp;
+        decals.push({
+          x,
+          y,
+          tile: recolorQuads(tile, ['steel', 'steel', 'steel', 'steel']),
+          transparentZero: true,
+        });
       } else if (t === 'C') {
         const col: BgPaletteId = s.crystalColor === 'red' ? 'red' : 'blue';
         props.push({

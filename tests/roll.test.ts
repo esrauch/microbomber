@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BOMB_FUSE,
   FIXED_DT,
   INPUT_BUFFER_WINDOW,
   PICKUP_MAGNET_RADIUS,
@@ -195,7 +196,7 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     expect(b.vx).toBeGreaterThan(0);
     expect(b.vy).toBe(0);
 
-    stepSeconds(world, s, 1.55);
+    stepSeconds(world, s, BOMB_FUSE + 0.05);
     expect(s.crystalColor).toBe('blue');
   });
 

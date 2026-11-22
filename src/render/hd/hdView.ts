@@ -352,7 +352,8 @@ function isShadowCasterTile(t: Tile, crystalColor: 'red' | 'blue'): boolean {
     t === 'C' ||
     t === 'D' ||
     t === 'K' ||
-    t === 'S'
+    t === 'S' ||
+    t === 'G'
   ) {
     return true;
   }
@@ -632,12 +633,12 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   const flashes: Flash[] = [];
   let slide: { dx: number; dy: number; start: number } | null = null;
 
-  // The mask only changes with the room, its tiles, the crystal colour or a push block, so it
-  // is rebuilt and uploaded when that signature changes rather than every frame
+  // The mask only changes with the room, its tiles, the crystal colour, the gates or a push
+  // block, so it is rebuilt and uploaded when that signature changes rather than every frame
   let wallSig = '';
   function syncWallMask(world: World, s: State): void {
     if (!wallCtx || !wallImg) return;
-    let sig = `${s.zone}${s.rx},${s.ry}|${s.crystalColor}|${s.brokenTiles.size}|${s.burnedTiles.size}|${s.openedDoors.size}|${s.roomSolved ? 1 : 0}`;
+    let sig = `${s.zone}${s.rx},${s.ry}|${s.crystalColor}|${s.gatesOpen ? 1 : 0}|${s.brokenTiles.size}|${s.burnedTiles.size}|${s.openedDoors.size}|${s.roomSolved ? 1 : 0}`;
     for (const blk of s.blocks) sig += `|${Math.round(blk.x)},${Math.round(blk.y)}`;
     if (sig === wallSig) return;
     wallSig = sig;

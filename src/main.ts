@@ -6,6 +6,7 @@
  */
 import buildInfo from 'virtual:build-info';
 import type { BlastVisual, BombKind } from './game/types';
+import { DUNGEON_999_ENTRIES } from './game/dungeon999';
 import {
   FIXED_DT,
   HEART_PIECES_PER_HEART,
@@ -104,8 +105,9 @@ function loadInitialState(): State {
     const room = /^999:(-?\d+),(-?\d+)$/.exec(
       new URLSearchParams(window.location.search).get('room') ?? '',
     );
-    if (room && world.rooms.has(roomKey('dungeon-999', Number(room[1]), Number(room[2])))) {
-      enterRoom(world, devState, 'dungeon-999', Number(room[1]), Number(room[2]), 5.5, 6.5);
+    const arrival = room && DUNGEON_999_ENTRIES.get(`${room[1]},${room[2]}`);
+    if (room && arrival) {
+      enterRoom(world, devState, 'dungeon-999', Number(room[1]), Number(room[2]), ...arrival);
     }
     return devState;
   }
@@ -1044,18 +1046,22 @@ function syncHud(force = false): void {
   // Auto-drawn minimap (`GAME.md` §5)
   minimapEl.replaceChildren();
   const cols =
-    state.zone === 'ice-cave' || state.zone === 'dungeon-999'
-      ? 3
-      : state.zone === 'basement'
-        ? 2
-        : 4;
+    state.zone === 'dungeon-999'
+      ? 5
+      : state.zone === 'ice-cave'
+        ? 3
+        : state.zone === 'basement'
+          ? 2
+          : 4;
   const rows =
-    state.zone === 'ice-cave' || state.zone === 'dungeon-999'
-      ? 4
-      : state.zone === 'basement'
+    state.zone === 'dungeon-999'
+      ? 3
+      : state.zone === 'ice-cave'
         ? 4
-        : 6;
-  const minX = state.zone === 'overworld' ? 2 : state.zone === 'dungeon-999' ? -1 : 0;
+        : state.zone === 'basement'
+          ? 4
+          : 6;
+  const minX = state.zone === 'overworld' ? 2 : 0;
   const minY = state.zone === 'dungeon-999' ? -1 : 0;
   minimapEl.style.gridTemplateColumns = `repeat(${cols}, 7px)`;
   for (let my = minY; my < minY + rows; my++) {
@@ -1188,6 +1194,8 @@ const REBUILD_EVENTS = new Set([
   'tile-break',
   'tile-burn',
   'crystal-flip',
+  'gate-open',
+  'gate-close',
   'door-unlock',
   'room-solved',
   'player-respawn',

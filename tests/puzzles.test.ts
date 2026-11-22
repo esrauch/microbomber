@@ -11,6 +11,7 @@ import {
   campaignWorld,
   enterRoom,
   equipBomb,
+  isButtonPressed,
   newState,
   roomKey,
   tick,
@@ -49,7 +50,7 @@ function setCell(rows: string[], x: number, y: number, ch: Tile | 'P'): void {
 }
 
 describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics solves, and Overworld secrets', () => {
-  it('triggers C, T, %, and O by continuous contact radius rather than strict grid alignment', () => {
+  it('triggers C, T, %, and Q by continuous contact radius rather than strict grid alignment', () => {
     expect(SLOPE_ACCEL).toBe(22);
 
     // 1. Off-axis continuous blast contact flips 'C', breaks '%', and lights 'T' (unless blocked by '#')
@@ -136,9 +137,11 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     expect(ts.torches[0]?.lit).toBe(true);
     expect(ts.roomSolved).toBe(true);
 
-    // 3. Grounded bomb rolling onto 'O' floor button triggers and solves 'hold-buttons'
+    // 3. A grounded bomb rolling over a 'Q' switch holds it by contact radius, but is too
+    // light to latch an 'O' plate
     const bRows = [...OPEN_CRYPT];
     setCell(bRows, 7, 6, 'O');
+    setCell(bRows, 6, 6, 'Q');
     const bWorld = sandboxWorld(bRows, { condition: 'hold-buttons' });
     const bs = newState(bWorld, 'ice-cave', 0, 0, 3.5, 6.5);
     expect(bs.roomSolved).toBe(false);
@@ -155,8 +158,13 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
       graceOverlap: false,
       shoveCount: 0,
     });
-    stepSeconds(bWorld, bs, 0.5);
-    expect(bs.roomSolved).toBe(true);
+    let heldQ = false;
+    for (let i = 0; i < 30; i++) {
+      tick(bWorld, bs, idle, FIXED_DT);
+      heldQ ||= isButtonPressed(bWorld, bs, 6, 6);
+    }
+    expect(heldQ).toBe(true);
+    expect(bs.roomSolved).toBe(false);
   });
 
   it('rolls stationary dropped bombs downhill along all 4 directional slopes (n, s, e, w)', () => {
@@ -844,7 +852,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     placeDownChute(world, s);
     stepSeconds(world, s, BOMB_FUSE + 0.15);
     expect(tileAt(world, s, 'overworld', 3, 4, 7, 7)).toBe('.');
-    stepSeconds(world, s, 0.6, { dx: 1, dy: 0 });
+    stepSeconds(world, s, 0.8, { dx: 1, dy: 0 });
     expect(s.collectedPickups.has('ow-trail-satchel')).toBe(true);
     stepSeconds(world, s, 1.3);
 

@@ -112,7 +112,7 @@ describe('movement feel', () => {
       const dy = Math.sin((a * Math.PI) / 8);
       const x0 = s.x;
       const y0 = s.y;
-      for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx, dy }, 1 / 60);
+      for (let i = 0; i < 27; i++) tick(world, s, { ...idle, dx, dy }, 1 / 60);
       expect(Math.hypot(s.x - x0, s.y - y0), `angle ${a}`).toBeGreaterThan(1.1);
     }
   });

@@ -33,7 +33,9 @@ export type BombKind = 'bomb' | 'fire' | 'squeak' | 'wind' | 'magnet' | 'ice' | 
  * 'D' locked key door (solid until unlocked with 1 Small Key)
  * 'K' boss key door (solid until unlocked with the Shrine's Boss Key)
  * 'S' shutter door (solid while the room's puzzle/combat lock is active)
- * 'O' floor button (opens shutter / spawns reward when stepped on or weighted by a push block)
+ * 'O' floor button (opens shutter / spawns reward under Pip, a block or a creature; a bomb is too light)
+ * 'Q' momentary floor switch (held by Pip, a block, a creature, or a live bomb for one fuse; opens 'G')
+ * 'G' iron gate (raised while any 'Q' in the room is unweighted; flat while every 'Q' is held)
  * '!' floor spikes (deal 1 half-heart hazard damage on contact)
  * '>' stair / warp portal (transitions between zones or midpoint warp pad)
  * 'n' | 's' | 'e' | 'w' directional stone slope / chute (rolls grounded bombs downhill N/S/E/W)
@@ -66,6 +68,8 @@ export type Tile =
   | 'K'
   | 'S'
   | 'O'
+  | 'Q'
+  | 'G'
   | '!'
   | '>'
   | 'n'
@@ -135,6 +139,8 @@ export interface EnemySpawn {
   kind: EnemyKind;
   x: number;
   y: number;
+  /** Starting facing (default south); an Iron Tortoise patrols along it. */
+  facing?: { dx: number; dy: number };
   /** Phase 1 Shrine miniboss: starts unarmored so Act 1 bombs can damage it. */
   unarmoredStart?: boolean;
   /** Phase 1 Shrine miniboss: flees at half HP, unsealing `spawnOnMinibossFlee` pickups. */
@@ -195,6 +201,8 @@ export interface RoomSpec {
   stamps?: StampSpec[];
   /** Optional ambient wind vector `(dx, dy)` in tiles/s carrying smoke, fire & light objects. */
   wind?: { dx: number; dy: number };
+  /** Dungeon 999 only: the bombs, satchel size and blast reach this room hands Pip on entry. */
+  kit?: { bombs: BombKind[]; maxBombs?: number; blastRadius?: number };
   /** Fourfold Tower barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
   spireSeal?: boolean;
 }
@@ -396,6 +404,8 @@ export interface State {
   brokenTiles: Set<string>;
   burnedTiles: Set<string>;
   frozenTiles?: Set<string>;
+  /** True while every 'Q' switch in the room is weighted, so its 'G' gates lie flat. */
+  gatesOpen?: boolean;
   openedDoors: Set<string>;
   solvedRooms: Set<string>;
   fledMinibossRooms: Set<string>;
