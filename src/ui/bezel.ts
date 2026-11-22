@@ -47,8 +47,8 @@ export function computeIntegerFrame(stageCssW: number, stageCssH: number, dpr = 
   const stageDevW = stageW * safeDpr;
   const stageDevH = stageH * safeDpr;
 
-  // Tiny window fallback: if even 1x native exceeds the stage, clamp CSS size keeping aspect.
-  if (stageW < NATIVE_W || stageH < NATIVE_H || stageDevW < NATIVE_W || stageDevH < NATIVE_H) {
+  // Tiny window fallback: if even 1x native exceeds the physical stage, clamp CSS size keeping aspect.
+  if (stageDevW < NATIVE_W || stageDevH < NATIVE_H) {
     const fit = Math.min(stageW / NATIVE_W, stageH / NATIVE_H);
     const cssWidth = Math.max(1, Math.floor(NATIVE_W * fit));
     const cssHeight = Math.max(1, Math.floor(NATIVE_H * fit));
