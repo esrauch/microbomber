@@ -15,10 +15,35 @@ const REACH = SIZE / 2 - 18; // max travel of knob centre, px
 export const DEAD = 0.22; // inner dead-zone fraction (no facing change, no walk)
 export const TURN = 0.44; // middle facing-only zone outer fraction (turns in place, no walk)
 export const FULL = 0.78; // fraction of reach that already gives full walk speed
+/** Half-angle (in radians, ~10°) of each of the 8 cardinal/diagonal snap cones. */
+export const SNAP_CONE_RAD = (10 * Math.PI) / 180;
 const TURN_MAG = 0.3; // output magnitude inside the facing-only ring (AIM_MIN_INPUT <= m < WALK_MIN_INPUT)
 
 /**
- * Map normalized stick deflection `(dx, dy)` (`0..1` of `REACH`) across three concentric zones:
+ * Snap an angle (in radians) to the nearest of the 8 compass directions (`k * π/4`) when it
+ * falls within `±SNAP_CONE_RAD`, and blend smoothly across the remaining gap between cones.
+ */
+export function snapEightWayAngle(angle: number): { angle: number; lockedIndex: number | null } {
+  const sector = Math.PI / 4;
+  const halfSector = Math.PI / 8;
+  const nearestIdx = Math.round(angle / sector);
+  const nearestAngle = nearestIdx * sector;
+  const diff = angle - nearestAngle;
+  const absDiff = Math.abs(diff);
+  const normIdx = ((nearestIdx % 8) + 8) % 8;
+  if (absDiff <= SNAP_CONE_RAD) {
+    return { angle: nearestAngle, lockedIndex: normIdx };
+  }
+  const t = (absDiff - SNAP_CONE_RAD) / (halfSector - SNAP_CONE_RAD);
+  return {
+    angle: nearestAngle + Math.sign(diff) * t * halfSector,
+    lockedIndex: null,
+  };
+}
+
+/**
+ * Map normalized stick deflection `(dx, dy)` (`0..1` of `REACH`) across three concentric zones,
+ * locking to the 8 cardinal/diagonal directions within `±SNAP_CONE_RAD`:
  * - `m < DEAD`: `{ dx: 0, dy: 0 }` (dead zone)
  * - `DEAD <= m < TURN`: facing-only vector of magnitude `TURN_MAG` (rotates Pip in place)
  * - `m >= TURN`: walk vector ramping from `WALK_MIN_INPUT` to `1` at `FULL`
@@ -26,14 +51,17 @@ const TURN_MAG = 0.3; // output magnitude inside the facing-only ring (AIM_MIN_I
 export function mapJoystickDeflection(dx: number, dy: number): { dx: number; dy: number } {
   const m = Math.hypot(dx, dy);
   if (m < DEAD) return { dx: 0, dy: 0 };
+  const { angle } = snapEightWayAngle(Math.atan2(dy, dx));
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  const uxClean = Math.abs(ux) < 1e-12 ? 0 : ux;
+  const uyClean = Math.abs(uy) < 1e-12 ? 0 : uy;
   if (m < TURN) {
-    const k = TURN_MAG / m;
-    return { dx: dx * k, dy: dy * k };
+    return { dx: uxClean * TURN_MAG, dy: uyClean * TURN_MAG };
   }
   const u = Math.min(1, (m - TURN) / (FULL - TURN));
   const mag = WALK_MIN_INPUT + u * (1 - WALK_MIN_INPUT);
-  const k = mag / m;
-  return { dx: dx * k, dy: dy * k };
+  return { dx: uxClean * mag, dy: uyClean * mag };
 }
 
 export interface Joystick {
@@ -42,6 +70,8 @@ export interface Joystick {
    * so movement starts from zero, and saturating at `FULL` of the stick's reach.
    */
   read(): { dx: number; dy: number };
+  /** Show or hide the Dungeon 999 debug overlay (concentric zone rings and 8-way snap cones). */
+  setDebug?(show: boolean): void;
 }
 
 let cachedRingUrl: string | null = null;
@@ -194,6 +224,20 @@ export function mountJoystick(host: HTMLElement): Joystick {
     userSelect: 'none',
   });
 
+  const debugCanvas = document.createElement('canvas');
+  debugCanvas.width = SIZE;
+  debugCanvas.height = SIZE;
+  Object.assign(debugCanvas.style, {
+    position: 'absolute',
+    left: '0',
+    top: '0',
+    width: `${SIZE}px`,
+    height: `${SIZE}px`,
+    pointerEvents: 'none',
+    display: 'none',
+    zIndex: '2',
+  });
+
   const knob = document.createElement('div');
   Object.assign(knob.style, {
     position: 'absolute',
@@ -207,12 +251,68 @@ export function mountJoystick(host: HTMLElement): Joystick {
     backgroundRepeat: 'no-repeat',
     imageRendering: 'pixelated',
     pointerEvents: 'none',
+    zIndex: '1',
   });
-  ring.append(knob);
+  ring.append(knob, debugCanvas);
   host.append(ring);
 
   let pointer: number | null = null;
   let offset = { x: 0, y: 0 };
+  let showDebug = false;
+
+  const drawDebugOverlay = (): void => {
+    if (!showDebug) return;
+    const ctx = debugCanvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    const cx = SIZE / 2;
+    const cy = SIZE / 2;
+    const rDead = DEAD * REACH;
+    const rTurn = TURN * REACH;
+    const rFull = FULL * REACH;
+    const rMax = REACH;
+
+    const normDx = offset.x / REACH;
+    const normDy = offset.y / REACH;
+    const m = Math.hypot(normDx, normDy);
+    const activeSnap = m >= DEAD ? snapEightWayAngle(Math.atan2(normDy, normDx)) : null;
+
+    // 1. 8 cardinal & diagonal snap cones from rDead out to rMax
+    for (let i = 0; i < 8; i++) {
+      const centerAngle = i * (Math.PI / 4);
+      const a0 = centerAngle - SNAP_CONE_RAD;
+      const a1 = centerAngle + SNAP_CONE_RAD;
+      const isLocked = activeSnap?.lockedIndex === i;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rMax, a0, a1);
+      ctx.arc(cx, cy, rDead, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = isLocked
+        ? 'rgba(248, 216, 88, 0.34)'
+        : i % 2 === 0
+          ? 'rgba(104, 184, 248, 0.18)'
+          : 'rgba(160, 120, 232, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = isLocked ? 'rgba(248, 216, 88, 0.85)' : 'rgba(168, 200, 224, 0.38)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // 2. Concentric zone rings: DEAD (red/amber), TURN (cyan), FULL (green), REACH (outer)
+    const rings: Array<{ r: number; color: string; active: boolean }> = [
+      { r: rDead, color: '#f88868', active: m < DEAD },
+      { r: rTurn, color: '#68b8f8', active: m >= DEAD && m < TURN },
+      { r: rFull, color: '#60c878', active: m >= TURN },
+      { r: rMax, color: 'rgba(168, 200, 224, 0.45)', active: false },
+    ];
+    for (const rg of rings) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rg.r, 0, Math.PI * 2);
+      ctx.strokeStyle = rg.color;
+      ctx.lineWidth = rg.active ? 1.75 : 1;
+      ctx.stroke();
+    }
+  };
 
   const place = (e: PointerEvent): void => {
     const box = ring.getBoundingClientRect();
@@ -225,6 +325,7 @@ export function mountJoystick(host: HTMLElement): Joystick {
     }
     offset = { x, y };
     knob.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    drawDebugOverlay();
   };
 
   const release = (e: PointerEvent): void => {
@@ -232,6 +333,7 @@ export function mountJoystick(host: HTMLElement): Joystick {
     pointer = null;
     offset = { x: 0, y: 0 };
     knob.style.transform = '';
+    drawDebugOverlay();
   };
 
   ring.addEventListener('pointerdown', (e) => {
@@ -253,6 +355,12 @@ export function mountJoystick(host: HTMLElement): Joystick {
   return {
     read() {
       return mapJoystickDeflection(offset.x / REACH, offset.y / REACH);
+    },
+    setDebug(show: boolean) {
+      if (show === showDebug) return;
+      showDebug = show;
+      debugCanvas.style.display = show ? 'block' : 'none';
+      if (show) drawDebugOverlay();
     },
   };
 }

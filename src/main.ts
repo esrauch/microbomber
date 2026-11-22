@@ -934,6 +934,7 @@ let prevBannerActive: boolean | null = null;
 
 function syncZoneChrome(force = false): void {
   const bannerActive = Boolean(state.bannerText);
+  joystick.setDebug?.(state.zone === 'dungeon-999');
   if (force || state.zone !== prevSkinnedZone) {
     prevSkinnedZone = state.zone;
     const isCrypt = state.zone === 'ice-cave' || state.zone === 'dungeon-999';

@@ -46,6 +46,21 @@ describe('movement feel', () => {
     // Joystick movement ring (m >= TURN): faces and walks
     tick(world, s, mapJoystickDeflection(0, TURN + 0.1), 1 / 60);
     expect(s.y).toBeGreaterThan(y0);
+
+    // 8-way cone locking: a slight angle within the cone locks onto exact cardinal or diagonal
+    const nearEast = mapJoystickDeflection(Math.cos(0.12) * 0.8, Math.sin(0.12) * 0.8);
+    expect(nearEast.dy).toBe(0);
+    expect(nearEast.dx).toBeGreaterThan(0.99);
+    const diagAngle = Math.PI / 4 + 0.1;
+    const nearSE = mapJoystickDeflection(Math.cos(diagAngle) * 0.8, Math.sin(diagAngle) * 0.8);
+    expect(nearSE.dx).toBeCloseTo(nearSE.dy, 6);
+    const betweenAngle = Math.PI / 8;
+    const between = mapJoystickDeflection(
+      Math.cos(betweenAngle) * 0.8,
+      Math.sin(betweenAngle) * 0.8,
+    );
+    expect(between.dy).toBeGreaterThan(0.1);
+    expect(between.dx).toBeGreaterThan(between.dy);
   });
 
   it('corner assist settles on the lane centre without overshooting', () => {
