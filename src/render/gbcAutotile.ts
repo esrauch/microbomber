@@ -98,7 +98,8 @@ function cellHash(x: number, y: number, rx: number, ry: number): number {
 
 export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const room = currentRoom(world, s);
-  const isCrypt = s.zone === 'ice-cave';
+  const isCrypt = s.zone === 'ice-cave' || s.zone === 'basement';
+  const isIceCave = s.zone === 'ice-cave';
   const solved = s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry));
 
   const grid: Tile[][] = [];
@@ -235,12 +236,12 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S';
 
   // Grounded cobble foundations (`st.y + 1`) and welcoming doorstep aprons (`st.y + 2`)
-  // under the Mouse House & the Rusted Smithy
+  // under the Mouse House & the Old Smithy
   const apronCells = new Set<string>();
   const plinthTiles = [BG.buildingPlinthW, BG.buildingPlinthM, BG.buildingPlinthE] as const;
   const apronTiles = [BG.buildingApronW, BG.buildingApronDoor, BG.buildingApronE] as const;
   for (const st of room?.stamps ?? []) {
-    if (st.id !== 'mouse-house' && st.id !== 'rusted-smithy') continue;
+    if (st.id !== 'mouse-house' && st.id !== 'smithy') continue;
     const fy = st.y + 1;
     if (fy >= 0 && fy < ROOM_H) {
       for (let dx = 0; dx < 3; dx++) {
@@ -258,7 +259,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         const aTile = apronTiles[dx];
         if (ax < 0 || ax >= ROOM_W || !aTile) continue;
         const wt = at(ax, ay);
-        if (wt === '.' || wt === ':' || wt === ',') {
+        if (wt === '.' || wt === ':' || wt === ',' || wt === '>') {
           const castShadow = ay > 0 && isTallCaster(at(ax, ay - 1)) && !isTallCaster(wt);
           decals.push({
             x: ax,
@@ -561,7 +562,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       } else if (t === '=') {
         const hasW = x > 0 && at(x - 1, y) === '=';
         const hasE = x < ROOM_W - 1 && at(x + 1, y) === '=';
-        if (isCrypt) {
+        if (isIceCave) {
           const bt =
             hasW && hasE
               ? BG.balusterMidH
@@ -582,7 +583,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
                   : BG.fenceSingle;
           props.push({ x, y, tile: ft, transparentZero: true });
         }
-      } else if (t === 'B' && isCrypt) {
+      } else if (t === 'B' && isIceCave) {
         // In the Ice Cave the meltable obstacle is a single block of ice
         props.push({ x, y, tile: BG.iceBlock, transparentZero: true });
       } else if (t === 'B') {
@@ -661,7 +662,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
           const active = s.cryptWarpUnlocked;
           decals.push({ x, y, tile: active ? BG.warp0 : BG.warpOff, transparentZero: true });
           warpPads.push({ x, y, active });
-        } else {
+        } else if (!apronCells.has(key)) {
           decals.push({ x, y, tile: BG.stairs, transparentZero: true });
         }
       }
@@ -676,7 +677,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     decals.push({ x: 5, y: 6, tile: BG.sealRingCenter, transparentZero: true });
   }
 
-  // --- 7. Bespoke Multi-Tile Landmark Stamps (`mouse-house`, `rusted-smithy`, `crypt-mausoleum`, `spire-gate`, `spire-seal`) ---
+  // --- 7. Bespoke Multi-Tile Landmark Stamps (`mouse-house`, `smithy`, `crypt-mausoleum`, `spire-gate`, `spire-seal`) ---
   const cinderLit = s.spireCinderSlotted || s.cores.includes('cinder');
   for (const st of room?.stamps ?? []) {
     for (const cell of STAMP_DEFS[st.id]) {

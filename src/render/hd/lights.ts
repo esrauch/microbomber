@@ -52,9 +52,11 @@ const CYAN: Rgb3 = [0.45, 0.85, 1.0];
 /** Clean moon-ivory lantern pool so dark-room violet flagstones keep their true hues. */
 const LANTERN: Rgb3 = [0.96, 0.94, 0.98];
 
-/** Deep chromatic GBC shadow ink per zone (forest-pine teal outdoors, plum-indigo in shrines). */
+/** Deep chromatic GBC shadow ink per zone (forest-pine teal outdoors, warm umber in house/cellar, glacier-indigo in Ice Cave). */
 export function zoneShadowInk(zone: ZoneId): Rgb3 {
-  return zone === 'ice-cave' ? [0.03, 0.07, 0.18] : [0.04, 0.09, 0.16];
+  if (zone === 'ice-cave') return [0.03, 0.07, 0.18];
+  if (zone === 'basement') return [0.1, 0.05, 0.04];
+  return [0.04, 0.09, 0.16];
 }
 
 /** Deterministic flicker in roughly [0.85, 1.1] that differs per light. */
@@ -70,11 +72,11 @@ export function computeLighting(
 ): Lighting {
   const room = currentRoom(world, s);
   const crypt = s.zone === 'ice-cave';
+  const indoor = crypt || s.zone === 'basement';
   const darkUnlit = Boolean(room?.dark) && !isRoomLit(world, s);
 
-  // Stark moonlit night outdoors (~25% cool silver-blue ambient), moody shadow in the crypt,
-  // and near black in an unlit dark room. Active bomb flashes dip ambient by up to 35% so
-  // radial blast shadows pop across the entire room.
+  // Stark moonlit night outdoors (~25% cool silver-blue ambient), cozy hearth in basement,
+  // moody shadow in the crypt, and near black in an unlit dark room.
   let flashPeak = 0;
   for (const fl of flashes) {
     const age = time - fl.born;
@@ -88,10 +90,12 @@ export function computeLighting(
     ? [0.07, 0.07, 0.12]
     : crypt
       ? [0.2, 0.24, 0.3]
-      : [0.24, 0.28, 0.4];
+      : s.zone === 'basement'
+        ? [0.28, 0.24, 0.2]
+        : [0.24, 0.28, 0.4];
   const ambient: Rgb3 = [baseAmbient[0] * dip, baseAmbient[1] * dip, baseAmbient[2] * dip];
-  const sunColor: Rgb3 = crypt || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.42, 0.65];
-  const sunDir: Rgb3 = crypt || darkUnlit ? [-0.45, -0.62, 0.64] : [-0.64, -0.56, 0.52];
+  const sunColor: Rgb3 = indoor || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.42, 0.65];
+  const sunDir: Rgb3 = indoor || darkUnlit ? [-0.45, -0.62, 0.64] : [-0.64, -0.56, 0.52];
   const shadowInk = zoneShadowInk(s.zone);
 
   const lights: PointLight[] = [];
@@ -140,9 +144,9 @@ export function computeLighting(
       x: (t.x + 0.5) * TILE,
       y: (t.y + 0.2) * TILE,
       z: 18,
-      radius: crypt ? 92 : 78,
+      radius: indoor ? 92 : 78,
       color: WARM,
-      intensity: (crypt ? 0.98 : 0.92) * flicker(time, t.x * 13 + t.y),
+      intensity: (indoor ? 0.98 : 0.92) * flicker(time, t.x * 13 + t.y),
     });
   }
   for (const f of s.fires) {
@@ -214,7 +218,7 @@ export function computeLighting(
     add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 58, color: LANTERN, intensity: 1.05 });
   }
   for (const st of room?.stamps ?? []) {
-    if (st.id === 'mouse-house' || st.id === 'rusted-smithy') {
+    if (st.id === 'mouse-house' || st.id === 'smithy') {
       add({
         x: (st.x + 1.5) * TILE,
         y: (st.y + 2.2) * TILE,

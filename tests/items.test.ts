@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   FIXED_DT,
   campaignWorld,
+  cycleEquippedBomb,
   equipBomb,
   exportSave,
   importSave,
   newState,
   tick,
 } from '../src/game/world';
-import { tapA } from './input';
+import { stepSeconds, tapA } from './input';
 
 describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () => {
   it('A places the equipped bomb directly in front of Pip along the cardinal aim without snapping to the grid', () => {
@@ -51,9 +52,41 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
     expect(b.z).toBeGreaterThan(0.22); // high enough to clear '=' fences!
   });
 
+  it('starts a fresh game inside Mouse House Interior with Roll only (no bombs until the basement)', () => {
+    const world = campaignWorld();
+    const fresh = newState(world);
+    expect([fresh.zone, fresh.rx, fresh.ry]).toEqual(['basement', 1, 3]);
+    expect(fresh.unlockedBombs).toEqual([]);
+    expect(fresh.equipped).toBeNull();
+    expect(cycleEquippedBomb(fresh)).toBeNull();
+
+    const saved = exportSave(fresh);
+    const restored = importSave(world, JSON.parse(JSON.stringify(saved)));
+    expect(restored?.zone).toBe('basement');
+    expect(restored?.unlockedBombs).toEqual([]);
+    expect(restored?.equipped).toBeNull();
+  });
+
+  it('cycleEquippedBomb fast-swaps unlocked bombs in play without disarming to null, including held bombs', () => {
+    const world = campaignWorld();
+    const s = newState(world, 'overworld');
+    expect(s.equipped).toBe('bomb');
+    s.unlockedBombs.push('fire');
+
+    expect(cycleEquippedBomb(s)).toBe('fire');
+    expect(s.events).toContain('bomb-swap');
+
+    // Pull Fire overhead, then fast-swap while holding -> swaps heldBomb in place!
+    tick(world, s, { dx: 0, dy: 0, holdA: true }, FIXED_DT);
+    tick(world, s, { dx: 0, dy: 0 }, FIXED_DT);
+    expect(s.heldBomb).toBe('fire');
+    expect(cycleEquippedBomb(s)).toBe('bomb');
+    expect(s.heldBomb).toBe('bomb');
+  });
+
   it('START menu equipBomb selects an unlocked bomb or None (null), and v3 saves round-trip it', () => {
     const world = campaignWorld();
-    const s = newState(world);
+    const s = newState(world, 'overworld');
     equipBomb(s, 'fire'); // not unlocked yet
     expect(s.equipped).toBe('bomb');
 
@@ -73,7 +106,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
 
   it('loads saves from before the rename (powder, ember) as Bomb and Fire', () => {
     const world = campaignWorld();
-    const s = newState(world);
+    const s = newState(world, 'overworld');
     s.unlockedBombs.push('fire');
     equipBomb(s, 'fire');
     const old = JSON.parse(
@@ -98,7 +131,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
 
   it('migrates version 2 saves (slots or legacy selectedBomb) cleanly to equipped', () => {
     const world = campaignWorld();
-    const s = newState(world);
+    const s = newState(world, 'overworld');
     s.unlockedBombs.push('fire');
     const base = exportSave(s);
 
@@ -110,5 +143,20 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
 
     const v2Legacy = { ...base, version: 2, equipped: undefined, selectedBomb: 'fire' };
     expect(importSave(world, JSON.parse(JSON.stringify(v2Legacy)))?.equipped).toBe('fire');
+  });
+});
+
+describe('Heart Pieces', () => {
+  it('adds a heart for every four pieces', () => {
+    const world = campaignWorld();
+    const s = newState(world);
+    const startMax = s.maxHp;
+    for (let i = 0; i < 4; i++) {
+      s.pickups.push({ id: `test-piece-${i}`, kind: 'heart-shard', x: s.x, y: s.y });
+      // Each pickup holds the game for a beat; step past it
+      stepSeconds(world, s, 1.5);
+      expect(s.heartShards).toBe(i + 1);
+      expect(s.maxHp).toBe(i < 3 ? startMax : startMax + 2);
+    }
   });
 });

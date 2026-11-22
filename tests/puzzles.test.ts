@@ -324,11 +324,192 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     expect(s.smallKeys).toBe(0);
   });
 
-  it('solves Room 5 (Alchemist Reliquary) & Room 6 (Lantern Hall) via Fire kicks to unlock midpoint warp', () => {
+  it('solves Grandma’s Basement (Dungeon Zero, 5 rooms) from zero bombs to Overworld exit', () => {
+    const world = campaignWorld();
+    const s = newState(world);
+    expect([s.zone, s.rx, s.ry]).toEqual(['basement', 1, 3]);
+    expect(s.unlockedBombs).toEqual([]);
+    expect(s.equipped).toBeNull();
+
+    // Front door portal (5, 10) is sealed behind '%' rubble at (5, 9)
+    expect(tileAt(world, s, 'basement', 1, 3, 5, 9)).toBe('%');
+
+    // Walk onto cellar stair '>' at (8, 4) -> Cellar Stairs (1, 1)
+    s.x = 7.5;
+    s.y = 4.5;
+    let moved = false;
+    for (let i = 0; i < 60 && !moved; i++) {
+      moved = tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    }
+    expect(moved).toBe(true);
+    expect([s.zone, s.rx, s.ry]).toEqual(['basement', 1, 1]);
+    // Return stair '>' at (8, 3) is blocked by raised 'R' at (8, 4) while crystalColor === 'red'
+    expect(s.crystalColor).toBe('red');
+    expect(tileAt(world, s, 'basement', 1, 1, 8, 4)).toBe('R');
+
+    // Walk West into Root Pantry (0, 1)
+    s.x = 2.0;
+    s.y = 6.5;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: -1, dy: 0 }, FIXED_DT);
+    }
+    expect([s.zone, s.rx, s.ry]).toEqual(['basement', 0, 1]);
+    s.enemies = [];
+
+    // Roll West across '!' spikes (4, 8) onto floor switch 'O' (3, 8) without taking damage!
+    const hpBefore = s.hp;
+    s.x = 5.4;
+    s.y = 8.5;
+    s.fx = -1;
+    s.fy = 0;
+    s.aimX = -1;
+    s.aimY = 0;
+    tick(world, s, { dx: -1, dy: 0, holdB: true }, FIXED_DT);
+    stepSeconds(world, s, 0.28, { dx: -1, dy: 0 });
+    expect(s.hp).toBe(hpBefore);
+    expect(s.roomSolved).toBe(true);
+    expect(s.pickups.some((p) => p.id === 'basement-key-1')).toBe(true);
+
+    // Collect Small Key 1 on centre seal ring (5.5, 6.5)
+    s.x = 5.5;
+    s.y = 6.5;
+    stepSeconds(world, s, 0.6);
+    expect(s.smallKeys).toBe(1);
+
+    // Walk East back to Cellar Stairs (1, 1), then North to unlock 'D' into Grandpa's Workroom (1, 0)
+    s.x = 8.5;
+    s.y = 6.5;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    }
+    expect([s.rx, s.ry]).toEqual([1, 1]);
+    s.x = 5.5;
+    s.y = 2.5;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: 0, dy: -1 }, FIXED_DT);
+    }
+    expect([s.rx, s.ry]).toEqual([1, 0]);
+    expect(s.smallKeys).toBe(0);
+
+    // Claim the Magic Bomb Sack at (5.5, 6.5) -> unlocks 'bomb'!
+    s.x = 5.5;
+    s.y = 6.5;
+    stepSeconds(world, s, 1.4);
+    expect(s.unlockedBombs).toEqual(['bomb']);
+    expect(s.equipped).toBe('bomb');
+
+    // Pull & Drop Bomb on West '%' cracked wall (2, 6) -> opens passage to Coal Chute (0, 0)
+    s.x = 3.5;
+    s.y = 6.5;
+    s.fx = -1;
+    s.fy = 0;
+    s.aimX = -1;
+    s.aimY = 0;
+    s.bombCooldown = 0;
+    placeDownChute(world, s);
+    stepSeconds(world, s, BOMB_FUSE + 0.15);
+    expect(tileAt(world, s, 'basement', 1, 0, 2, 6)).toBe('.');
+
+    // Walk West into Coal Chute (0, 0)
+    moved = false;
+    for (let i = 0; i < 120 && !moved; i++) {
+      moved = tick(world, s, { dx: -1, dy: 0 }, FIXED_DT);
+    }
+    expect([s.rx, s.ry]).toEqual([0, 0]);
+    s.enemies = [];
+
+    // Pull & Throw Bomb North over '=======' fence (y=4) into Crystal Switch 'C' (5, 3)!
+    s.x = 5.5;
+    s.y = 5.6;
+    s.bombCooldown = 0;
+    kickA(world, s, 0, -1);
+    stepSeconds(world, s, BOMB_FUSE + 0.15);
+    expect(s.crystalColor).toBe('blue');
+
+    // Walk South through lowered 'R' shortcut in Root Pantry (0, 1), East to Cellar Stairs (1, 1), and climb '>' (8, 3)!
+    s.x = 5.5;
+    s.y = 10.5;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+    }
+    expect([s.rx, s.ry]).toEqual([0, 1]);
+
+    s.x = 8.5;
+    s.y = 6.5;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
+    }
+    expect([s.rx, s.ry]).toEqual([1, 1]);
+
+    // Climb '>' at (8, 3) (now unblocked since R at (8, 4) is flat!)
+    s.x = 8.5;
+    s.y = 4.6;
+    moved = false;
+    for (let i = 0; i < 90 && !moved; i++) {
+      moved = tick(world, s, { dx: 0, dy: -1 }, FIXED_DT);
+    }
+    expect([s.zone, s.rx, s.ry]).toEqual(['basement', 1, 3]);
+
+    // Bomb '%' rubble at (5, 9) and step outside through '>' (5, 10) into Overworld Mouse House (3, 2)!
+    s.x = 5.5;
+    s.y = 8.2;
+    s.fx = 0;
+    s.fy = 1;
+    s.aimX = 0;
+    s.aimY = 1;
+    s.bombCooldown = 0;
+    placeDownChute(world, s);
+    stepSeconds(world, s, BOMB_FUSE + 0.15);
+    expect(tileAt(world, s, 'basement', 1, 3, 5, 9)).toBe('.');
+
+    s.x = 5.5;
+    s.y = 8.8;
+    moved = false;
+    for (let i = 0; i < 120 && !moved; i++) {
+      moved = tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+    }
+    expect(moved).toBe(true);
+    expect([s.zone, s.rx, s.ry]).toEqual(['overworld', 3, 2]);
+  });
+
+  it('solves Room 5 (Alchemist Reliquary — Ice Golem Phase 1 + Fire Bomb) & Room 6 (Lantern Hall — Phase 2) to unlock midpoint warp', () => {
     const world = campaignWorld();
 
-    // --- 5. Alchemist Reliquary (2, 1): claim Fire Bomb & kick Fire up both North lanes ---
-    const s = newState(world, 'ice-cave', 2, 1, 5.5, 6.5);
+    // --- 5. Alchemist Reliquary (2, 1): crack Ice Golem Phase 1 to half HP -> flees & unseals Fire Bomb ---
+    const s = newState(world, 'ice-cave', 2, 1, 5.5, 9.5);
+    expect(s.pickups).toHaveLength(0);
+    const golemP1 = s.enemies[0]!;
+    expect(golemP1.kind).toBe('cinderhull');
+    expect(golemP1.armored).toBe(false);
+    expect(golemP1.fleeOnDefeat).toBe(true);
+
+    for (let hit = 0; hit < 6 && s.enemies.some((e) => e.kind === 'cinderhull'); hit++) {
+      golemP1.invulnTimer = 0;
+      golemP1.x = 5.5;
+      golemP1.y = 5.0;
+      s.x = 5.5;
+      s.y = 7.2;
+      s.hp = s.maxHp;
+      s.bombCooldown = 0;
+      kickA(world, s, 0, -1);
+      for (let i = 0; i < 100 && s.bombs.length > 0; i++) {
+        golemP1.x = 5.5;
+        golemP1.y = 5.0;
+        s.hp = s.maxHp;
+        tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+      }
+    }
+    expect(s.fledMinibossRooms.has('ice-cave:2,1')).toBe(true);
+    expect(s.pickups.some((p) => p.id === 'crypt-ember-bomb')).toBe(true);
+
+    // Claim the unsealed Fire Bomb at (5.5, 6.5) and verify pickupFreezeTimer freezes monsters & Pip
+    s.x = 5.5;
+    s.y = 6.5;
     s.enemies.push({
       id: 99,
       kind: 'slime',
@@ -613,7 +794,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
   it('keeps every Overworld cracked-wall (%) and bramble (B) secret solvable with physics bombs', () => {
     const world = campaignWorld();
 
-    // 1. Mouse House (3, 2): rusted smithy '%' at (7, 1) -> ow-smithy-shard at (8.5, 1.5)
+    // 1. Mouse House (3, 2): old smithy '%' at (7, 1) -> ow-smithy-shard at (8.5, 1.5)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
     s.unlockedBombs.push('fire');
     placeDownChute(world, s);

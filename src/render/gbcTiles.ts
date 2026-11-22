@@ -2393,7 +2393,7 @@ export const BG_TILES = {
     '3333333333333330',
   ]),
 
-  // --- Rusted Smithy (3x2 = 48x32 px: weathered terracotta roof + stone forge + rusted anvil) ---
+  // --- Old Smithy (3x2 = 48x32 px: weathered terracotta roof + stone forge + old anvil) ---
   smithy_0_0: bg(allQuads('red'), [
     '0003333333333333',
     '0031111111111111',
@@ -2991,7 +2991,7 @@ export const STAMP_DEFS: Record<StampId, readonly StampTilePlacement[]> = {
     { dx: 1, dy: 1, tile: 'workshop_1_1' },
     { dx: 2, dy: 1, tile: 'workshop_2_1' },
   ],
-  'rusted-smithy': [
+  smithy: [
     { dx: 0, dy: 0, tile: 'smithy_0_0', overhead: true },
     { dx: 1, dy: 0, tile: 'smithy_1_0', overhead: true },
     { dx: 2, dy: 0, tile: 'smithy_2_0', overhead: true },

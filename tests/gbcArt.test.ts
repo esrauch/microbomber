@@ -289,7 +289,7 @@ describe('GBC colour and multi-tile rules', () => {
     expect(seenDecals.has(BG.cryptDecalRug)).toBe(true);
   });
 
-  it('grounds Mouse House and Rusted Smithy with stone plinths and cobble doorstep aprons', () => {
+  it('grounds Mouse House and Old Smithy with stone plinths and cobble doorstep aprons', () => {
     // Bottom row (row 15) of both buildings has a solid dark mortar foundation plinth
     for (const bTile of [
       BG.workshop_0_1,

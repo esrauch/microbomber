@@ -8,7 +8,7 @@
 export const ROOM_W = 11;
 export const ROOM_H = 13;
 
-export type ZoneId = 'overworld' | 'ice-cave';
+export type ZoneId = 'overworld' | 'basement' | 'ice-cave';
 
 export type BombKind = 'bomb' | 'fire';
 
@@ -73,8 +73,7 @@ export type Tile =
   | 'e'
   | 'w';
 
-export type StampId =
-  'mouse-house' | 'rusted-smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';
+export type StampId = 'mouse-house' | 'smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';
 
 export interface StampSpec {
   id: StampId;
@@ -87,6 +86,7 @@ export type CrystalColor = 'red' | 'blue';
 export type EnemyKind = 'slime' | 'bat' | 'shielder' | 'wickgeist' | 'cinderhull';
 
 export type PickupKind =
+  | 'bomb-sack'
   | 'small-key'
   | 'boss-key'
   | 'fire-bomb'
@@ -126,6 +126,12 @@ export interface EnemySpawn {
   kind: EnemyKind;
   x: number;
   y: number;
+  /** Phase 1 Shrine miniboss: starts unarmored so Act 1 bombs can damage it. */
+  unarmoredStart?: boolean;
+  /** Phase 1 Shrine miniboss: flees at half HP, unsealing `spawnOnMinibossFlee` pickups. */
+  fleeOnDefeat?: boolean;
+  /** Banner shown when it flees (names the room it flees to and what it unseals). */
+  fleeBanner?: string;
 }
 
 export interface NpcSpec {
@@ -145,6 +151,8 @@ export interface PickupSpec {
   y: number;
   /** If true, spawns only after the room's puzzle/combat condition completes. */
   spawnOnSolve?: boolean;
+  /** If true, spawns when the room's Phase 1 miniboss flees at half HP. */
+  spawnOnMinibossFlee?: boolean;
 }
 
 export type RoomCondition =
@@ -284,6 +292,9 @@ export interface Enemy {
   homeY: number;
   /** Generation count for fire-split slimes (`0`/undefined = full slime, `1` = mini-slime). */
   splitGen?: number;
+  /** Phase 1 Shrine miniboss: flees into the inner arena at half health. */
+  fleeOnDefeat?: boolean;
+  fleeBanner?: string;
 }
 
 export interface ActivePickup {
@@ -373,6 +384,7 @@ export interface State {
   burnedTiles: Set<string>;
   openedDoors: Set<string>;
   solvedRooms: Set<string>;
+  fledMinibossRooms: Set<string>;
   collectedPickups: Set<string>;
   crystalColor: CrystalColor;
   spireCinderSlotted: boolean;
@@ -422,6 +434,7 @@ export interface SaveData {
   burnedTiles: string[];
   openedDoors: string[];
   solvedRooms: string[];
+  fledMinibossRooms?: string[];
   collectedPickups: string[];
   crystalColor: CrystalColor;
   spireCinderSlotted: boolean;

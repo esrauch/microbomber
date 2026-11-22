@@ -1,14 +1,226 @@
 /**
  * Handcrafted Vertical Slice campaign (`GAME.md` §3–§6 & §9.1, `ASSETS.md` §1–§2):
  * - 11×13 tile screens (`7×9` interior inside 2-tile-deep trees, cliffs, or dungeon walls)
- * - Prologue & Chapter 1 Overworld (9 screens on the canonical 6×6 Cinderholm map)
- * - Shrine 1: Ice Cave (10 rooms in a two-act layout with Wickgeist & Cinderhull)
+ * - Prologue & Chapter 1 Overworld (9 screens, still at the old 6×6 coordinates; OVERWORLD.md
+ *   moves them by (+2, +2) onto the 10×10 island)
+ * - Dungeon 0: Grandma's Basement (5 rooms: Mouse House Interior + 4-room cellar)
+ * - Shrine 1: Ice Cave (10 rooms in a two-act layout with 2-phase Ice Golem & Ice Wraith)
  */
 import { type RoomSpec, type World, type ZoneId } from './types';
 
 export const roomKey = (zone: ZoneId, rx: number, ry: number): string => `${zone}:${rx},${ry}`;
 
 const ROOM_LIST: RoomSpec[] = [
+  // =========================================================================
+  // DUNGEON 0: GRANDMA'S BASEMENT (Mouse House Interior + 4-Room Cellar)
+  // =========================================================================
+  {
+    zone: 'basement',
+    rx: 1,
+    ry: 3,
+    name: 'Mouse House Interior',
+    objective: 'Talk to Grandma, then take the NE stairs down to the basement',
+    rows: [
+      '###########',
+      '###########',
+      '##T.....T##',
+      '##......###',
+      '##......>##',
+      '##......###',
+      '##.......##',
+      '##.......##',
+      '##.......##',
+      '##..#%#..##',
+      '##T.#>#..##',
+      '###########',
+      '###########',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+    ],
+    npcs: [
+      {
+        // The only one in the game who speaks: her advice follows Pip's progress (world.ts)
+        id: 'grandma',
+        name: 'Grandma',
+        x: 3.8,
+        y: 4.8,
+        color: 0xd8b890,
+        dialogue: 'Grandma: Off you go, dear. Mind the slimes!',
+      },
+    ],
+    portals: [
+      {
+        x: 8,
+        y: 4,
+        targetZone: 'basement',
+        targetRx: 1,
+        targetRy: 1,
+        targetX: 6.5,
+        targetY: 4.5,
+        label: 'Grandma’s Basement (B1F)',
+      },
+      {
+        x: 5,
+        y: 10,
+        targetZone: 'overworld',
+        targetRx: 3,
+        targetRy: 2,
+        targetX: 2.5,
+        targetY: 4.5,
+        label: 'Millbrook Vale',
+      },
+    ],
+  },
+  {
+    zone: 'basement',
+    rx: 1,
+    ry: 1,
+    name: 'Cellar Stairs',
+    objective: 'Head West to Root Pantry for a Small Key to unlock the North door',
+    rows: [
+      '#####D#####',
+      '#####.#####',
+      '##T....####',
+      '##.....#>##',
+      '##.....#R##',
+      '##.......##',
+      '.........##',
+      '##.......##',
+      '##.....W.##',
+      '##.......##',
+      '##T.....T##',
+      '###########',
+      '###########',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
+    ],
+    portals: [
+      {
+        x: 8,
+        y: 3,
+        targetZone: 'basement',
+        targetRx: 1,
+        targetRy: 3,
+        targetX: 6.5,
+        targetY: 4.5,
+        label: 'Up to Mouse House',
+      },
+    ],
+  },
+  {
+    zone: 'basement',
+    rx: 0,
+    ry: 1,
+    name: 'Root Pantry',
+    objective: 'Press [B] to Roll across the spikes onto the switch for a Small Key',
+    condition: 'hold-buttons',
+    rows: [
+      '#####.#####',
+      '#####.#####',
+      '#####R#####',
+      '##T.....T##',
+      '##.......##',
+      '##.......##',
+      '##.........',
+      '##===....##',
+      '##.O!....##',
+      '##===....##',
+      '##T.....T##',
+      '###########',
+      '###########',
+    ],
+    torches: [
+      { x: 2, y: 3, initiallyLit: true },
+      { x: 8, y: 3, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
+    ],
+    enemies: [{ kind: 'slime', x: 6.5, y: 4.5 }],
+    pickups: [
+      {
+        id: 'basement-key-1',
+        kind: 'small-key',
+        x: 5.5,
+        y: 6.5,
+        spawnOnSolve: true,
+      },
+    ],
+  },
+  {
+    zone: 'basement',
+    rx: 1,
+    ry: 0,
+    name: 'Grandpa’s Workroom',
+    objective: 'Claim the Magic Bomb Sack, then [A] Pull & [B] Drop a Bomb on the West % wall',
+    rows: [
+      '###########',
+      '###########',
+      '##T.....T##',
+      '##.......##',
+      '##.......##',
+      '###......##',
+      '..%......##',
+      '###......##',
+      '##......W##',
+      '##.......##',
+      '##T.....T##',
+      '#####.#####',
+      '#####.#####',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
+    ],
+    pickups: [
+      {
+        id: 'basement-bomb-sack',
+        kind: 'bomb-sack',
+        x: 5.5,
+        y: 6.5,
+      },
+    ],
+  },
+  {
+    zone: 'basement',
+    rx: 0,
+    ry: 0,
+    name: 'Coal Chute',
+    objective: '[A] Pull & [A] Throw a Bomb over the fence into the Crystal Switch!',
+    rows: [
+      '###########',
+      '###########',
+      '##T.....T##',
+      '##...C...##',
+      '##=======##',
+      '##.......##',
+      '##.........',
+      '##.......##',
+      '##.......##',
+      '##.......##',
+      '##T.....T##',
+      '#####.#####',
+      '#####.#####',
+    ],
+    torches: [
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
+    ],
+    enemies: [
+      { kind: 'slime', x: 4.5, y: 7.5 },
+      { kind: 'slime', x: 6.5, y: 8.5 },
+    ],
+  },
+
   // =========================================================================
   // OVERWORLD (Cinderholm Isle — Prologue & Chapter 1)
   // =========================================================================
@@ -22,7 +234,7 @@ const ROOM_LIST: RoomSpec[] = [
       '####:::YYYY',
       '####:::%.YY',
       '####:::####',
-      'YY.::::####',
+      'YY>::::####',
       'YY.::::..YY',
       '::::::.T;YY',
       '::::::.;;YY',
@@ -35,22 +247,23 @@ const ROOM_LIST: RoomSpec[] = [
     ],
     stamps: [
       { id: 'mouse-house', x: 1, y: 1 },
-      { id: 'rusted-smithy', x: 7, y: 2 },
+      { id: 'smithy', x: 7, y: 2 },
     ],
     torches: [
       { x: 7, y: 5, initiallyLit: true },
       { x: 2, y: 10, initiallyLit: true },
       { x: 7, y: 10, initiallyLit: true },
     ],
-    npcs: [
+    portals: [
       {
-        // The only one in the game who speaks: her advice follows Pip's progress (world.ts)
-        id: 'grandma',
-        name: 'Grandma',
-        x: 2.5,
-        y: 3.6,
-        color: 0xd8b890,
-        dialogue: 'Grandma: Off you go, dear. Mind the slimes!',
+        x: 2,
+        y: 3,
+        targetZone: 'basement',
+        targetRx: 1,
+        targetRy: 3,
+        targetX: 5.5,
+        targetY: 8.2,
+        label: 'Enter Mouse House',
       },
     ],
     pickups: [
@@ -469,7 +682,7 @@ const ROOM_LIST: RoomSpec[] = [
     objective: 'Grab Center Key, blast the cracked wall (%), and kick a bomb into the Crystal',
     rows: [
       '#####D#####',
-      '#####.#####',
+      '#####.C####',
       '##...U..T##',
       '##...U...##',
       '##..###..##',
@@ -501,7 +714,7 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 2,
     ry: 1,
     name: 'Alchemist Reliquary',
-    objective: 'Claim Fire Bomb, then light both North braziers to open the shutters!',
+    objective: 'Crack the Ice Golem with Bombs, claim Fire, and light both North braziers!',
     condition: 'all-torches',
     rows: [
       '###########',
@@ -523,12 +736,23 @@ const ROOM_LIST: RoomSpec[] = [
       { x: 2, y: 2 },
       { x: 8, y: 2 },
     ],
+    enemies: [
+      {
+        kind: 'cinderhull',
+        x: 5.5,
+        y: 4.5,
+        unarmoredStart: true,
+        fleeOnDefeat: true,
+        fleeBanner: 'Ice Golem retreats into Lantern Hall, unsealing the FIRE BOMB!',
+      },
+    ],
     pickups: [
       {
         id: 'crypt-ember-bomb',
         kind: 'fire-bomb',
         x: 5.5,
         y: 6.5,
+        spawnOnMinibossFlee: true,
       },
     ],
   },

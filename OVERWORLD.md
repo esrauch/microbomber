@@ -77,8 +77,7 @@ Bramble Woods `(5,5)`, Cinder Trail `(5,6)`, Ice Cave Arch `(5,7)`.
 
 - **You start inside the Mouse House (`5,4`)**, where **Grandma** tells you your
   brother is making trouble again and sends you down to **Grandma's Basement**
-  (**Dungeon Zero**, `DUNGEONS.md` §0) to fetch the **magic bomb sack** (**Spark
-  Satchel**). Once you learn Small Keys and the Bomb down in the cellar, you
+  (**Dungeon Zero**, `DUNGEONS.md` §0) to fetch the **Magic Bomb Sack**. Once you learn Small Keys and the Bomb down in the cellar, you
   step outside into the village yard, and the **Iron Tower stands a short walk
   north**: you see the sealed goal from the Tower Courtyard in the first
   minutes.
@@ -315,14 +314,14 @@ four-element gate opens the Tower.
 
 ## Rewards: what the secrets hold
 
-There is no money, no shop and no ammo (the satchel never runs out), so every
+There is no money, no shop and no ammo (the Magic Bomb Sack never runs out), so every
 secret on the island (`*`) is one of four things, and nothing else:
 
 | Reward | How many | Where |
 |---|:-:|---|
 | **Button** | `36` | Grandma's lost sewing buttons, scattered over the island the night the Tower rose. Bring them home: every `12` she sews you a **Heart Piece** (`3` in all). |
 | **Heart Piece** | `5` hidden + `3` from Grandma = `8` | A quarter heart; four make a heart. Mouse House `(5,4)`, Bramble Woods `(5,5)`, Old Icehouse `(3,7)`, Stone Steps `(2,2)`, Thief Burrows `(9,6)`. |
-| **Bomb reach `1 → 2`** | `1` | Millbrook West `(4,4)` (Fire), as built. The other two satchel upgrades are in Shrines (`DUNGEONS.md`). |
+| **Bomb reach `1 → 2`** | `1` | Millbrook West `(4,4)` (Fire), as built. The other two Magic Bomb Sack upgrades are in Shrines (`DUNGEONS.md`). |
 | **Mousehole shortcut** | `2` | Fern Glade `(6,6)` ↔ River Mouth `(7,6)`, Hollow's End `(5,9)` ↔ South Beach `(6,9)`. Three more mouseholes lead to buttons (Millbrook East, Rubble Gully, Reed Marsh). |
 
 That is `44` marked screens of `100`, a reward about every two screens.

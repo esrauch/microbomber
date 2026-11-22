@@ -16,8 +16,8 @@ minute campaign.
 | **Campaign** | **Half of *Oracle* in physical size (~190 rooms total):** a `10 × 10` overworld (`100` screens, `OVERWORLD.md`), **Grandma's Basement** (`5` rooms: the Mouse House interior + 4-room cellar **Dungeon Zero** where you learn Small Keys and fetch the Magic Bomb Sack), **4 Elemental Shrines** scaling along the half-*Oracle* dungeon curve (`10 → 15 → 20 → 24` rooms, introducing two-floor `1F + B1F/2F` layouts from Shrine 2 onward), and **1 Final Tower** (`16` rooms; `90` interior/dungeon rooms in all, `DUNGEONS.md`). Because traversal and quest backtracking multiply runtime non-linearly with world size, half the physical size of *Oracle* (~12–15 h) plays in a fraction of the time (~2–3 h blind, ~1 h known). |
 | **World** | One interconnected island in a single state (no time or world swapping): all the depth comes from the bombs and how they combine. |
 | **Tone** | An earnest storybook adventure with a light touch. Original world, characters, monsters and lore. |
-| **One voice** | The game opens **inside the Mouse House** with **Grandma**, the only character who speaks in the whole game. She tells you that **your brother is making trouble again** and sends you down to the basement to get the **magic bomb sack** (**Spark Satchel**) and make sure he doesn't cause too much trouble. Talk to her any time you're home and she says where to go next, and she takes the lost buttons you find and sews them into Heart Pieces. Everything else is told without words: the room's objective line, the map, and what you can see. |
-| **Bomb economy** | **Bottomless satchel**, limited only by how many bombs can be live at once (`2`, upgradeable to `3`, then `4`). Never grind bushes for ammo; never soft-lock. |
+| **One voice** | The game opens **inside the Mouse House** with **Grandma**, the only character who speaks in the whole game. She tells you that **your brother is making trouble again** and sends you down to the basement to get the **Magic Bomb Sack** and make sure he doesn't cause too much trouble. Talk to her any time you're home and she says where to go next, and she takes the lost buttons you find and sews them into Heart Pieces. Everything else is told without words: the room's objective line, the map, and what you can see. |
+| **Bomb economy** | **Bottomless Magic Bomb Sack**, limited only by how many bombs can be live at once (`2`, upgradeable to `3`, then `4`). Never grind bushes for ammo; never soft-lock. |
 | **Self-blast** | Your own blast deals **`1/4` heart splashback** and **knockback** (about `1` tile), **except** when the blast directly hits an enemy (`0` splashback). Stepping on burning fire on the ground also hurts. |
 | **Health and retry** | Start with **3 hearts**, up to **10** (4 boss Heart Containers, plus 12 Heart Pieces at 4 per heart). On death inside a dungeon, respawn at the **dungeon foyer**; on death outside a dungeon, respawn at the **Mouse House**. |
 | **Saving** | **Autosave on every room change**; reopening the game puts you exactly where you were. |
@@ -36,7 +36,7 @@ All controls live in a **band below the room**:
     - **B = Roll:** dodges about `2` tiles in `0.25 s` along the stick (or current
       facing when idle), with invulnerability frames during the middle `0.15 s`
       and `0.35 s` recovery. It lays no bomb.
-    - **A = Pull:** pulls the equipped bomb from your satchel and holds it **over
+    - **A = Pull:** pulls the equipped bomb from your Magic Bomb Sack and holds it **over
       Pip's head**. While held overhead, the fuse timer does not tick down, and
       Pip's walking speed is halved.
   - **While holding a bomb overhead (`B = Drop`, `A = Throw`):**
@@ -72,7 +72,7 @@ You play **Pip**, waking up **inside the Mouse House** at the edge of
 **Millbrook**. **Grandma** tells you that **your brother is making trouble
 again**—he raided the old alchemy notes, mastered the four elements, and raised
 the Iron Tower himself—and tells you to go down into **Grandma's Basement**
-(**Dungeon Zero**), fetch the **magic bomb sack** (**Spark Satchel**), and make
+(**Dungeon Zero**), fetch the **Magic Bomb Sack**, and make
 sure he doesn't cause too much trouble.
 
 After learning Small Keys and claiming the **Bomb** in the basement, Pip steps
@@ -108,8 +108,7 @@ progression and every screen: **`OVERWORLD.md`**.
 1. **Prologue: Grandma's Basement (Dungeon Zero), Millbrook and the Tower
    Courtyard** (Bomb). Wake **inside the Mouse House**, where Grandma tells you
    your brother is making trouble again and sends you down to **Grandma's
-   Basement** (`DUNGEONS.md` §0) to learn **Small Keys** and fetch the **magic
-   bomb sack** (**Spark Satchel**). Bomb your way out of the cellar into the
+   Basement** (`DUNGEONS.md` §0) to learn **Small Keys** and fetch the **Magic Bomb Sack**. Bomb your way out of the cellar into the
    **Mouse House yard** (`5,4`), test the Bomb on the old smithy behind the
    house, see the fourfold barrier seal the Tower (`4,2`), and blast open the
    cracked **Orchard Gate** (`4,5`).
@@ -124,7 +123,7 @@ progression and every screen: **`OVERWORLD.md`**.
    **Wind Bomb** and the second Core (Zephyr).
 4. **Chapter 3: Crescent Cove and Fire Mountain** (Ice). Wind-hop the broken
    bridge east to **Crescent Cove** (`9,4`), where a band of **Pack-Otters**
-   steal the satchel's **fuses**: every bomb is a dud until you corner the otter
+   steal the Magic Bomb Sack's **fuses**: every bomb is a dud until you corner the otter
    holding its fuse, across `4` tight beach and burrow rooms, each recovered
    fuse helping you corner the next. Winning them back frees the old ferry
    north to **Fire Mountain** (`7,1`): lava streams and flame jets. Reward:
@@ -399,10 +398,10 @@ island puzzles:
 - **Buttons (`36`):** Grandma's lost sewing buttons, the island's collectible.
   Every `12` you bring home, she sews you a Heart Piece. Where each one is:
   `OVERWORLD.md`.
-- **Satchel upgrades (`3`):** `2 → 3` live bombs; `3 → 4` live bombs; and
+- **Magic Bomb Sack upgrades (`3`):** `2 → 3` live bombs; `3 → 4` live bombs; and
   Bomb's reach `1 → 2` tiles.
 
-No money, no shop and no ammo drops (the satchel is bottomless), so every secret
+No money, no shop and no ammo drops (the Magic Bomb Sack is bottomless), so every secret
 is one of these, or a mousehole shortcut.
 
 ## 7. Secrets and signposting
@@ -462,7 +461,7 @@ interactions) may go well beyond what even the GBA could do.
 
 A roll that leaves the equipped bomb where it started was tried in Phase 1 and
 dropped as the default (2026-11-22). Keep it as a possible **unlockable** (a
-satchel upgrade or a Shrine relic) used by specific puzzles, such as laying a
+Magic Bomb Sack upgrade or a Shrine relic) used by specific puzzles, such as laying a
 bomb mid-dodge beside a cracked wall while a hazard sweeps past, rather than as
 standard roll behaviour.
 

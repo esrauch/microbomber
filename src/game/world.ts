@@ -44,6 +44,8 @@ export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
 export const SPEED = 4.2; // tiles / second
 export const BOMB_FUSE = 1.5; // seconds
 export const FIRE_FUSE = 1.3; // seconds
+/** Heart Pieces (quarters) that make one more heart. */
+export const HEART_PIECES_PER_HEART = 4;
 export const FIRE_DURATION = 2.5; // seconds a Fire hearth patch burns
 export const BOMB_COOLDOWN = 0.7; // seconds between placing new bombs
 export const ROLL_DURATION = 0.25; // seconds in dodge roll
@@ -307,6 +309,10 @@ export function enterRoom(
   x: number,
   y: number,
 ): void {
+  const prevZone = s.zone;
+  if (prevZone !== zone) {
+    s.crystalColor = 'red';
+  }
   s.zone = zone;
   s.rx = rx;
   s.ry = ry;
@@ -369,6 +375,7 @@ export function enterRoom(
   }
 
   // Spawn enemies (bosses/minibosses & clear-enemies rooms stay cleared once solved)
+  const minibossFled = s.fledMinibossRooms.has(rk);
   const skipEnemies =
     alreadySolved &&
     (room.condition === 'clear-enemies' ||
@@ -376,6 +383,7 @@ export function enterRoom(
       room.condition === 'boss');
   if (!skipEnemies) {
     for (const es of room.enemies ?? []) {
+      if (es.fleeOnDefeat && minibossFled) continue;
       const hp =
         es.kind === 'cinderhull'
           ? 12
@@ -397,7 +405,9 @@ export function enterRoom(
         fy: 1,
         hp,
         maxHp: hp,
-        armored: es.kind === 'shielder' || es.kind === 'cinderhull' || es.kind === 'wickgeist',
+        armored: es.unarmoredStart
+          ? false
+          : es.kind === 'shielder' || es.kind === 'cinderhull' || es.kind === 'wickgeist',
         exposedTimer: 0,
         invulnTimer: 0,
         aiTimer: 0.8,
@@ -407,6 +417,8 @@ export function enterRoom(
         stumbleTimer: 0,
         homeX: es.x,
         homeY: es.y,
+        ...(es.fleeOnDefeat ? { fleeOnDefeat: true } : {}),
+        ...(es.fleeBanner ? { fleeBanner: es.fleeBanner } : {}),
       });
     }
   }
@@ -415,6 +427,7 @@ export function enterRoom(
   for (const ps of room.pickups ?? []) {
     if (s.collectedPickups.has(ps.id)) continue;
     if (ps.spawnOnSolve && !alreadySolved) continue;
+    if (ps.spawnOnMinibossFlee && !minibossFled) continue;
     s.pickups.push({ id: ps.id, kind: ps.kind, x: ps.x, y: ps.y });
   }
 
@@ -438,12 +451,13 @@ export function showBanner(s: State, text: string, duration = 4.2): void {
 
 export function newState(
   world: World,
-  zone: ZoneId = 'overworld',
-  rx = 3,
-  ry = 2,
+  zone: ZoneId = 'basement',
+  rx = zone === 'basement' ? 1 : 3,
+  ry = zone === 'basement' ? 3 : 2,
   x = 5.5,
   y = 6.5,
 ): State {
+  const startBombs: BombKind[] = zone === 'basement' ? [] : ['bomb'];
   const s: State = {
     zone,
     rx,
@@ -472,8 +486,8 @@ export function newState(
     hp: 6,
     maxHp: 6,
     heartShards: 0,
-    unlockedBombs: ['bomb'],
-    equipped: 'bomb',
+    unlockedBombs: startBombs,
+    equipped: startBombs[0] ?? null,
     heldBomb: null,
     maxBombs: 2,
     blastRadius: 1,
@@ -486,6 +500,7 @@ export function newState(
     burnedTiles: new Set(),
     openedDoors: new Set(),
     solvedRooms: new Set(),
+    fledMinibossRooms: new Set(),
     collectedPickups: new Set(),
     crystalColor: 'red',
     spireCinderSlotted: false,
@@ -521,6 +536,22 @@ export function equipBomb(s: State, kind: BombKind | null): void {
     s.equipped = kind;
     if (s.heldBomb !== null) s.heldBomb = kind;
   }
+}
+
+/** Fast in-play bomb swap: cycle directly through unlocked bombs without opening START. */
+export function cycleEquippedBomb(s: State): BombKind | null {
+  if (s.unlockedBombs.length === 0) return null;
+  const curIdx = s.equipped ? s.unlockedBombs.indexOf(s.equipped) : -1;
+  const next = s.unlockedBombs[(curIdx + 1) % s.unlockedBombs.length] ?? null;
+  const changed = next !== s.equipped;
+  s.equipped = next;
+  if (s.heldBomb !== null && next !== null) {
+    s.heldBomb = next;
+  }
+  if (changed) {
+    s.events.push('bomb-swap');
+  }
+  return s.equipped;
 }
 
 /** True during the middle 0.15s (`[0.05, 0.20]`) of an active 0.25s dodge roll. */
@@ -873,6 +904,9 @@ function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln =
     if (s.zone === 'ice-cave') {
       enterRoom(world, s, 'ice-cave', 1, 3, 5.5, 9.5);
       showBanner(s, 'Knocked out! Returned to the dungeon foyer.', 2.8);
+    } else if (s.zone === 'basement') {
+      enterRoom(world, s, 'basement', 1, 3, 5.5, 6.5);
+      showBanner(s, 'Knocked out! Returned to Grandma’s house.', 2.8);
     } else {
       enterRoom(world, s, 'overworld', 3, 2, 5.5, 6.5);
       showBanner(s, 'Knocked out! Returned to Mouse House.', 2.8);
@@ -957,10 +991,19 @@ function checkSolveCondition(world: World, s: State): void {
   }
 }
 
+/** The cracked rubble over the Mouse House's front door, bombed open on the way out. */
+const MOUSE_HOUSE_FRONT_DOOR = cellKey('basement', 1, 3, 5, 9);
+
 /** Grandma's advice: where Pip should go next, from what Pip has done so far. */
 export function grandmaAdvice(s: State): string {
+  if (!s.unlockedBombs.includes('bomb')) {
+    return 'Grandma: Your brother is making trouble again—he raised that Iron Tower overnight! Head down to the basement, fetch the Magic Bomb Sack, and keep him out of mischief!';
+  }
+  if (!s.brokenTiles.has(MOUSE_HOUSE_FRONT_DOOR)) {
+    return 'Grandma: You got the Magic Bomb Sack! Blast the rubble blocking the front door, then head southwest through the Orchard Gate toward the Ice Cave.';
+  }
   if (!s.unlockedBombs.includes('fire')) {
-    return 'Grandma: Your bombs still work, dear! Blast the cracked Orchard Gate to the southwest, then head south to the Ice Cave.';
+    return 'Grandma: Monsters are coming out of the Shrines, dear! Blast the cracked Orchard Gate to the southwest, then head south to the Ice Cave.';
   }
   if (!s.cores.includes('cinder')) {
     return 'Grandma: A Fire Bomb! It melts ice and lights braziers. Find the Core deep in the Ice Cave.';
@@ -1504,11 +1547,29 @@ function applyBombHitToEnemy(
     enemy.hp = Math.max(0, enemy.hp - dmg);
     enemy.invulnTimer = 0.2;
     s.events.push('enemy-hit');
+    if (enemy.fleeOnDefeat && enemy.hp <= enemy.maxHp / 2) {
+      enemy.hp = 0;
+      const rk = roomKey(s.zone, s.rx, s.ry);
+      s.fledMinibossRooms.add(rk);
+      s.events.push('boss-flee');
+      showBanner(s, enemy.fleeBanner ?? 'The miniboss retreats!', 3.8);
+      const room = currentRoom(world, s);
+      for (const ps of room?.pickups ?? []) {
+        if (
+          ps.spawnOnMinibossFlee &&
+          !s.collectedPickups.has(ps.id) &&
+          !s.pickups.some((p) => p.id === ps.id)
+        ) {
+          s.pickups.push({ id: ps.id, kind: ps.kind, x: ps.x, y: ps.y });
+        }
+      }
+      return;
+    }
     const nextBracket = Math.ceil(enemy.hp / 4);
     if (enemy.hp > 0) {
       enemy.phase = enemy.hp <= 4 ? 3 : enemy.hp <= 8 ? 2 : 1;
-      if (nextBracket < prevBracket) {
-        // Regrow thorn wraps for the next phase!
+      if (!enemy.fleeOnDefeat && nextBracket < prevBracket) {
+        // Regrow ice armour for the next phase!
         enemy.armored = true;
         enemy.exposedTimer = 0;
         showBanner(s, 'The Ice Golem froze over again!', 2.0);
@@ -1600,6 +1661,15 @@ function collectPickup(s: State, pickup: ActivePickup): void {
   }
   s.events.push(`pickup-${pickup.kind}`);
   switch (pickup.kind) {
+    case 'bomb-sack':
+      if (!s.unlockedBombs.includes('bomb')) s.unlockedBombs.unshift('bomb');
+      s.equipped = 'bomb';
+      showBanner(
+        s,
+        'Found the MAGIC BOMB SACK! Press [A] to Pull overhead, then [B] Drop or [A] Throw!',
+        5.0,
+      );
+      break;
     case 'small-key':
       s.smallKeys++;
       showBanner(s, 'Found a Small Key!', 1.5);
@@ -1621,17 +1691,20 @@ function collectPickup(s: State, pickup: ActivePickup): void {
         5.0,
       );
       break;
-    case 'heart-shard':
+    case 'heart-shard': {
+      // A Heart Piece is a quarter heart: every fourth one adds a heart
       s.heartShards++;
-      if (s.heartShards % 2 === 0) {
+      const pieces = s.heartShards % HEART_PIECES_PER_HEART;
+      if (pieces === 0) {
         s.maxHp = Math.min(20, s.maxHp + 2);
         s.hp = s.maxHp;
-        showBanner(s, 'Completed a Heart Shard pair! Max Hearts +1 & full heal!', 4.0);
+        showBanner(s, 'Four Heart Pieces make a Heart! Max Hearts +1 & full heal!', 4.0);
       } else {
         s.hp = Math.min(s.maxHp, s.hp + 2);
-        showBanner(s, 'Found a Heart Shard (1/2)! Find one more for a full Heart.', 3.6);
+        showBanner(s, `Found a Heart Piece (${pieces}/${HEART_PIECES_PER_HEART})!`, 3.6);
       }
       break;
+    }
     case 'heart-container':
       s.maxHp = Math.min(20, s.maxHp + 2);
       s.hp = s.maxHp;
@@ -1640,7 +1713,7 @@ function collectPickup(s: State, pickup: ActivePickup): void {
     case 'satchel-upgrade':
       if (s.maxBombs < 3) {
         s.maxBombs = 3;
-        showBanner(s, 'Spark Satchel Upgraded! You can now have 3 live bombs at once.', 4.2);
+        showBanner(s, 'Magic Bomb Sack upgraded! You can now have 3 live bombs at once.', 4.2);
       } else if (s.blastRadius < 2) {
         s.blastRadius = 2;
         showBanner(s, 'Alchemist’s Powder! Bomb blast reach increased to 2 tiles!', 4.2);
@@ -2542,7 +2615,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       const armoredSpeed = 1.1 + (e.phase - 1) * 0.25;
       if (e.stumbleTimer > 0) {
         speed = 0;
-      } else if (!e.armored) {
+      } else if (!e.armored && !e.fleeOnDefeat) {
         e.fx = dirX;
         e.fy = dirY;
         speed = e.aiState === 'recover' && e.stateTimer > 0 ? 0.25 : 0.45;
@@ -2988,6 +3061,7 @@ export function exportSave(s: State): SaveData {
     burnedTiles: [...s.burnedTiles],
     openedDoors: [...s.openedDoors],
     solvedRooms: [...s.solvedRooms],
+    fledMinibossRooms: [...s.fledMinibossRooms],
     collectedPickups: [...s.collectedPickups],
     crystalColor: s.crystalColor,
     spireCinderSlotted: s.spireCinderSlotted,
@@ -3015,7 +3089,7 @@ export function importSave(world: World, raw: unknown): State | null {
           .map((k) => k.replace(/^(ember-crypt|fire-mountain):/, 'ice-cave:'))
       : null;
   d.zone = zoneOf(d.zone) as SaveData['zone'];
-  if (d.zone !== 'overworld' && d.zone !== 'ice-cave') return null;
+  if (d.zone !== 'overworld' && d.zone !== 'basement' && d.zone !== 'ice-cave') return null;
   if (typeof d.rx !== 'number' || typeof d.ry !== 'number') return null;
   if (!world.rooms.has(roomKey(d.zone, d.rx, d.ry))) return null;
 
@@ -3035,25 +3109,28 @@ export function importSave(world: World, raw: unknown): State | null {
     const k = v === 'powder' ? 'bomb' : v === 'ember' ? 'fire' : v;
     return k === 'bomb' || k === 'fire' ? k : null;
   };
-  if (Array.isArray(d.unlockedBombs) && d.unlockedBombs.length > 0) {
+  if (Array.isArray(d.unlockedBombs)) {
     s.unlockedBombs = [];
     for (const b of d.unlockedBombs) {
       const k = bombKind(b);
       if (k && !s.unlockedBombs.includes(k)) s.unlockedBombs.push(k);
     }
-    if (!s.unlockedBombs.includes('bomb')) s.unlockedBombs.unshift('bomb');
+    if (d.zone !== 'basement' && !s.unlockedBombs.includes('bomb')) {
+      s.unlockedBombs.unshift('bomb');
+    }
   }
   const okSlot = (v: unknown): BombKind | null => {
     const k = bombKind(v);
     return k && s.unlockedBombs.includes(k) ? k : null;
   };
+  const fallbackBomb: BombKind | null = s.unlockedBombs[0] ?? null;
   if (d.version === 3 && 'equipped' in d && d.equipped !== undefined) {
-    s.equipped = d.equipped === null ? null : (okSlot(d.equipped) ?? 'bomb');
+    s.equipped = d.equipped === null ? null : (okSlot(d.equipped) ?? fallbackBomb);
   } else if (Array.isArray(d.slots) && d.slots.length > 0) {
     const first = d.slots[0];
-    s.equipped = first === null ? null : (okSlot(first) ?? 'bomb');
+    s.equipped = first === null ? null : (okSlot(first) ?? fallbackBomb);
   } else {
-    s.equipped = okSlot(d.selectedBomb) ?? 'bomb';
+    s.equipped = okSlot(d.selectedBomb) ?? fallbackBomb;
   }
   if (typeof d.maxBombs === 'number') s.maxBombs = Math.max(2, Math.min(4, d.maxBombs));
   if (typeof d.blastRadius === 'number') s.blastRadius = Math.max(1, Math.min(2, d.blastRadius));
@@ -3071,6 +3148,8 @@ export function importSave(world: World, raw: unknown): State | null {
   if (openedDoors) s.openedDoors = new Set(openedDoors);
   const solvedRooms = keys(d.solvedRooms);
   if (solvedRooms) s.solvedRooms = new Set(solvedRooms);
+  const fledMinibossRooms = keys(d.fledMinibossRooms);
+  if (fledMinibossRooms) s.fledMinibossRooms = new Set(fledMinibossRooms);
   if (Array.isArray(d.collectedPickups)) s.collectedPickups = new Set(d.collectedPickups);
   if (d.crystalColor === 'red' || d.crystalColor === 'blue') s.crystalColor = d.crystalColor;
   s.spireCinderSlotted = Boolean(d.spireCinderSlotted);

@@ -8,10 +8,12 @@ import buildInfo from 'virtual:build-info';
 import type { BlastVisual, BombKind } from './game/types';
 import {
   FIXED_DT,
+  HEART_PIECES_PER_HEART,
   type Input,
   type State,
   campaignWorld,
   currentRoom,
+  cycleEquippedBomb,
   equipBomb,
   exportSave,
   importSave,
@@ -40,7 +42,7 @@ const SAVE_KEY = 'microbomber.save.v3';
 const LEGACY_SAVE_KEY = 'microbomber.save.v2';
 const ROLL_ICON = 'HUD_ROLL' as ObjSpriteName;
 const INTRO_BANNER =
-  'The Iron Tower rusted every blade on Cinderholm! Talk to Grandma, press B to Roll, or tap/hold A to place a bomb.';
+  'Grandma: Your brother raised that Iron Tower overnight, making trouble again! Take the NE stairs down to the basement for the Magic Bomb Sack!';
 
 function pxIcon(name: ObjSpriteName, size: number): string {
   if (!(name in OBJ)) {
@@ -222,9 +224,14 @@ Object.assign(settingsModal.style, {
   fontSize: '9.5px',
   minWidth: '198px',
 });
+let impactFxEnabled = !(
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+);
+
 const muteBtn = document.createElement('button');
+const impactBtn = document.createElement('button');
 const resetSaveBtn = document.createElement('button');
-for (const btn of [muteBtn, resetSaveBtn]) {
+for (const btn of [muteBtn, impactBtn, resetSaveBtn]) {
   Object.assign(btn.style, {
     padding: '6px 8px',
     borderRadius: '0',
@@ -246,6 +253,15 @@ muteBtn.innerHTML = soundBadgeHtml(false);
 muteBtn.addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   muteBtn.innerHTML = soundBadgeHtml(sfx.muted);
+});
+const syncImpactBtnLabel = (): void => {
+  impactBtn.textContent = impactFxEnabled ? '✦ IMPACT FX: ON' : '✦ IMPACT FX: OFF';
+};
+syncImpactBtnLabel();
+impactBtn.addEventListener('click', () => {
+  impactFxEnabled = !impactFxEnabled;
+  if (!impactFxEnabled) hd.canvas.style.transform = '';
+  syncImpactBtnLabel();
 });
 const RESET_LABEL = '↺ NEW GAME (RESET SAVE)';
 resetSaveBtn.textContent = RESET_LABEL;
@@ -285,7 +301,7 @@ Object.assign(buildStamp.style, {
   paddingTop: '5px',
 });
 buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
-settingsModal.append(muteBtn, resetSaveBtn, buildStamp);
+settingsModal.append(muteBtn, impactBtn, resetSaveBtn, buildStamp);
 stageEl.append(settingsModal);
 
 gearBtn.addEventListener('click', () => {
@@ -391,6 +407,26 @@ Object.assign(satchelPips.style, {
   letterSpacing: '2px',
 });
 
+const swapBtn = document.createElement('button');
+swapBtn.title = 'Quick-Swap Bomb [Q / Tab]';
+Object.assign(swapBtn.style, {
+  height: '24px',
+  padding: '0 7px',
+  borderRadius: '0',
+  border: '2px solid #d8b868',
+  boxShadow: '0 0 0 1px #181420, inset 0 -2px 0 #584424',
+  background: '#282218',
+  color: '#f8f8f0',
+  fontFamily: `'${PIXEL_FONT_FAMILY}', monospace`,
+  fontSize: '8px',
+  letterSpacing: '0.04em',
+  display: 'none',
+  alignItems: 'center',
+  gap: '4px',
+  cursor: 'pointer',
+  touchAction: 'none',
+});
+
 const startBtn = document.createElement('button');
 startBtn.textContent = 'START';
 Object.assign(startBtn.style, {
@@ -406,7 +442,7 @@ Object.assign(startBtn.style, {
   cursor: 'pointer',
   touchAction: 'none',
 });
-topRow.append(satchelPips, startBtn);
+topRow.append(satchelPips, swapBtn, startBtn);
 
 const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
   bomb: { sprite: 'BOMB_1', label: 'Bomb' },
@@ -579,7 +615,7 @@ function renderMenu(): void {
   applyGbcBoxFrame(menuPanel, state.zone, 'gold');
   menuPanel.replaceChildren();
   const title = document.createElement('div');
-  title.textContent = '★ SPARK SATCHEL ★';
+  title.textContent = '★ MAGIC BOMB SACK ★';
   Object.assign(title.style, {
     fontSize: '11px',
     color: '#f8d858',
@@ -682,6 +718,35 @@ function toggleMenu(open = !menuOpen): void {
   menuEl.style.display = open ? 'flex' : 'none';
   startBtn.style.borderColor = open ? '#f8d858' : '#98a898';
 }
+function pulseHaptics(pattern: number | number[]): void {
+  if (!impactFxEnabled) return;
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // Ignore restricted/unsupported vibration contexts.
+  }
+}
+
+function quickSwapBomb(): void {
+  if (menuOpen || state.unlockedBombs.length === 0) return;
+  const before = state.equipped;
+  const next = cycleEquippedBomb(state);
+  if (next !== before) {
+    sfx.play('bomb-swap');
+    pulseHaptics(8);
+    persistState(state);
+    syncHud(true);
+  } else if (next !== null) {
+    sfx.play('bomb-swap');
+  }
+}
+
+swapBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  quickSwapBomb();
+});
+
 startBtn.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   toggleMenu();
@@ -718,6 +783,10 @@ window.addEventListener('keydown', (e) => {
       applyEquip(menuCursor);
       toggleMenu(false);
     }
+    return;
+  }
+  if (k === 'q' || k === 'tab') {
+    if (!e.repeat) quickSwapBomb();
     return;
   }
   if (B_KEYS.includes(k)) pressLatch[0] = true;
@@ -764,16 +833,23 @@ function syncZoneChrome(force = false): void {
   if (force || state.zone !== prevSkinnedZone) {
     prevSkinnedZone = state.zone;
     const isCrypt = state.zone === 'ice-cave';
-    stageEl.style.backgroundColor = isCrypt ? '#121a28' : '#182818';
+    const isBasement = state.zone === 'basement';
+    stageEl.style.backgroundColor = isCrypt ? '#121a28' : isBasement ? '#221812' : '#182818';
     stageEl.style.backgroundImage = `url("${bezelTileDataUrl(state.zone, 2)}")`;
     hd.canvas.style.boxShadow = isCrypt
       ? '0 0 0 2px #181420, 0 0 0 4px #4a6a98, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.75)'
-      : '0 0 0 2px #181420, 0 0 0 4px #406838, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.72)';
+      : isBasement
+        ? '0 0 0 2px #181420, 0 0 0 4px #88603c, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.75)'
+        : '0 0 0 2px #181420, 0 0 0 4px #406838, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.72)';
     applyGbcBoxFrame(topbarEl, state.zone, 'normal');
     applyGbcBoxFrame(bossBarWrap, state.zone, 'boss');
     applyGbcBoxFrame(settingsModal, state.zone, 'gold');
-    controlsEl.style.background = isCrypt ? '#141c2a' : '#182018';
-    controlsEl.style.boxShadow = isCrypt ? 'inset 0 2px 0 #3c5478' : 'inset 0 2px 0 #485848';
+    controlsEl.style.background = isCrypt ? '#141c2a' : isBasement ? '#201814' : '#182018';
+    controlsEl.style.boxShadow = isCrypt
+      ? 'inset 0 2px 0 #3c5478'
+      : isBasement
+        ? 'inset 0 2px 0 #684c34'
+        : 'inset 0 2px 0 #485848';
     prevBannerActive = null;
   }
   if (force || bannerActive !== prevBannerActive) {
@@ -844,22 +920,29 @@ function syncHud(force = false): void {
     heartImgs.push(pxIcon(hName, 14));
   }
   const extras: string[] = [];
-  if (state.heartShards % 2 === 1) extras.push(`${pxIcon('HUD_SHARD', 13)}½`);
+  const heartPieces = state.heartShards % HEART_PIECES_PER_HEART;
+  if (heartPieces > 0)
+    extras.push(`${pxIcon('HUD_SHARD', 13)}${heartPieces}/${HEART_PIECES_PER_HEART}`);
   if (state.smallKeys > 0) extras.push(`${pxIcon('HUD_KEY', 13)}×${state.smallKeys}`);
   if (state.hasBossKey) extras.push(pxIcon('HUD_BOSS_KEY', 14));
   if (state.cores.includes('cinder')) extras.push(`${pxIcon('PICKUP_CINDER_CORE', 14)}`);
   heartsRow.innerHTML = `<span style="display:inline-flex;gap:2px;align-items:center">${heartImgs.join('')}</span>${extras.length ? `<span style="display:inline-flex;gap:5px;align-items:center;margin-left:4px;font-size:9.5px">${extras.join('')}</span>` : ''}`;
 
   // Non-truncated room name + full objective (wraps cleanly across 2 pixel lines, zero `...`)
-  const zonePrefix = state.zone === 'ice-cave' ? 'Ice Cave' : 'Cinderholm';
+  const zonePrefix =
+    state.zone === 'ice-cave'
+      ? 'Ice Cave'
+      : state.zone === 'basement'
+        ? 'Mouse House'
+        : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
   roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
 
   // Auto-drawn minimap (`GAME.md` §5)
   minimapEl.replaceChildren();
-  const cols = state.zone === 'ice-cave' ? 3 : 4;
-  const rows = state.zone === 'ice-cave' ? 4 : 6;
-  const minX = state.zone === 'ice-cave' ? 0 : 2;
+  const cols = state.zone === 'ice-cave' ? 3 : state.zone === 'basement' ? 2 : 4;
+  const rows = state.zone === 'ice-cave' ? 4 : state.zone === 'basement' ? 4 : 6;
+  const minX = state.zone === 'overworld' ? 2 : 0;
   minimapEl.style.gridTemplateColumns = `repeat(${cols}, 7px)`;
   for (let my = 0; my < rows; my++) {
     for (let mx = minX; mx < minX + cols; mx++) {
@@ -877,7 +960,9 @@ function syncHud(force = false): void {
           : visited
             ? state.zone === 'ice-cave'
               ? '#a078e8'
-              : '#60c878'
+              : state.zone === 'basement'
+                ? '#d89858'
+                : '#60c878'
             : exists
               ? '#283428'
               : 'transparent',
@@ -886,9 +971,18 @@ function syncHud(force = false): void {
     }
   }
 
-  // Satchel pips & two-state verb sprites on B (Roll / Drop) and A (Pull / Throw)
+  // Satchel pips, fast bomb-swap pill & two-state verb sprites on B (Roll / Drop) and A (Pull / Throw)
   satchelPips.textContent =
-    '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
+    state.unlockedBombs.length > 0
+      ? '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs))
+      : '';
+  const activeSwapKind = state.equipped ?? state.unlockedBombs[0];
+  if (state.unlockedBombs.length >= 2 && activeSwapKind) {
+    swapBtn.style.display = 'inline-flex';
+    swapBtn.innerHTML = `${pxIcon(BOMB_META[activeSwapKind].sprite, 14)}<span>${BOMB_META[activeSwapKind].label.toUpperCase()} ↻</span>`;
+  } else {
+    swapBtn.style.display = 'none';
+  }
   if (state.heldBomb) {
     rollBtnIcon.innerHTML = pxIcon(BOMB_META[state.heldBomb].sprite, 24);
     rollBtnLabel.textContent = 'B·DROP';
@@ -902,18 +996,25 @@ function syncHud(force = false): void {
       ? pxIcon(BOMB_META[state.equipped].sprite, 24)
       : '<span style="font-size:14px;opacity:0.75">—</span>';
     placeBtnLabel.textContent = 'A·PULL';
-    placeBtn.style.opacity = state.equipped ? '1' : '0.76';
+    placeBtn.style.opacity = state.equipped ? '1' : '0.52';
   }
 
   // Boss HP bar
   if (boss) {
     bossBarWrap.style.display = 'flex';
-    const bName = boss.kind === 'wickgeist' ? 'ICE WRAITH · BOSS' : 'ICE GOLEM · MINIBOSS';
+    const bName =
+      boss.kind === 'wickgeist'
+        ? 'ICE WRAITH · BOSS'
+        : boss.fleeOnDefeat
+          ? 'ICE GOLEM · PHASE 1'
+          : 'ICE GOLEM · PHASE 2';
     const shieldTag = boss.armored
       ? boss.kind === 'cinderhull'
         ? 'ICE ARMOUR (USE FIRE!)'
         : 'IN DARK (LIGHT BRAZIER!)'
-      : 'EXPOSED!';
+      : boss.fleeOnDefeat
+        ? 'FROST CRUST (USE BOMBS!)'
+        : 'EXPOSED!';
     bossTitleEl.innerHTML = `<span>${bName}</span><span>${shieldTag}</span>`;
     bossFill.style.width = `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
   } else {
@@ -929,15 +1030,24 @@ function syncHud(force = false): void {
     arrow.style.color = '#f8d848';
     dialogueContent.append(arrow, document.createTextNode(state.bannerText));
   } else {
-    dialogueContent.style.color = state.zone === 'ice-cave' ? '#b0c8e0' : '#98b098';
+    dialogueContent.style.color =
+      state.zone === 'ice-cave' ? '#b0c8e0' : state.zone === 'basement' ? '#e0c8a8' : '#98b098';
     const line1 = document.createElement('div');
     line1.textContent = `▸ ${room?.objective ?? 'Explore Cinderholm Isle'}`;
     const line2 = document.createElement('div');
-    line2.style.color = state.zone === 'ice-cave' ? '#7890b0' : '#789078';
+    line2.style.color =
+      state.zone === 'ice-cave' ? '#7890b0' : state.zone === 'basement' ? '#a88c6c' : '#789078';
     line2.style.marginTop = '2px';
-    line2.textContent = state.heldBomb
-      ? '[B] DROP · [A] THROW · [START] SATCHEL'
-      : '[B] ROLL · [A] PULL · [START] SATCHEL';
+    line2.textContent =
+      state.unlockedBombs.length === 0
+        ? '[B] ROLL · WALK NEAR GRANDMA TO TALK'
+        : state.unlockedBombs.length >= 2
+          ? state.heldBomb
+            ? '[B] DROP · [A] THROW · [Q/TAP] SWAP'
+            : '[B] ROLL · [A] PULL · [Q/TAP] SWAP'
+          : state.heldBomb
+            ? '[B] DROP · [A] THROW · [START] SATCHEL'
+            : '[B] ROLL · [A] PULL · [START] SATCHEL';
     dialogueContent.append(line1, line2);
   }
 
@@ -966,6 +1076,59 @@ let last = performance.now();
 let renderTime = 0;
 let accumulator = 0;
 let cutting = false;
+let hitStopRemaining = 0;
+let shakeRemaining = 0;
+let shakeDuration = 0.14;
+let shakeAmplitude = 0;
+let shakeSeed = 0;
+
+function triggerShake(amplitudePx: number, durationSec: number): void {
+  if (!impactFxEnabled) return;
+  if (amplitudePx >= shakeAmplitude || shakeRemaining <= 0) {
+    shakeAmplitude = amplitudePx;
+    shakeDuration = Math.max(0.05, durationSec);
+  }
+  shakeRemaining = Math.max(shakeRemaining, durationSec);
+}
+
+function triggerHitStop(seconds: number): void {
+  if (!impactFxEnabled) return;
+  hitStopRemaining = Math.max(hitStopRemaining, seconds);
+}
+
+function applyImpactFeedback(ev: string): void {
+  if (ev === 'boom-bomb' || ev === 'boom-fire') {
+    triggerShake(2.5, 0.14);
+    triggerHitStop(0.024);
+    pulseHaptics(14);
+  } else if (ev === 'player-hurt' || ev === 'armor-burn') {
+    triggerShake(3.5, 0.18);
+    triggerHitStop(0.04);
+    pulseHaptics([16, 22, 24]);
+  } else if (ev === 'boss-flee' || ev === 'ice-storm') {
+    triggerShake(4.5, 0.26);
+    triggerHitStop(0.055);
+    pulseHaptics([22, 28, 34]);
+  } else if (ev === 'enemy-defeat') {
+    triggerShake(2.0, 0.1);
+    triggerHitStop(0.032);
+    pulseHaptics(10);
+  } else if (ev === 'enemy-hit') {
+    const hasBoss = state.enemies.some((e) => e.kind === 'cinderhull' || e.kind === 'wickgeist');
+    if (hasBoss) {
+      triggerShake(2.5, 0.12);
+      triggerHitStop(0.032);
+      pulseHaptics(12);
+    }
+  } else if (ev === 'room-solved') {
+    const cond = currentRoom(world, state)?.condition;
+    if (cond === 'miniboss' || cond === 'boss') {
+      triggerShake(5.0, 0.3);
+      triggerHitStop(0.055);
+      pulseHaptics([25, 30, 40]);
+    }
+  }
+}
 
 const frame = (now: number): void => {
   requestAnimationFrame(frame);
@@ -978,7 +1141,13 @@ const frame = (now: number): void => {
   state.blasts = [];
 
   if (!cutting && !menuOpen) {
-    accumulator += elapsed;
+    let simElapsed = elapsed;
+    if (hitStopRemaining > 0) {
+      const absorbed = Math.min(simElapsed, hitStopRemaining);
+      hitStopRemaining -= absorbed;
+      simElapsed -= absorbed;
+    }
+    accumulator += simElapsed;
     const frameEvents: string[] = [];
     const frameBlasts: BlastVisual[] = [];
     let moved = false;
@@ -993,12 +1162,16 @@ const frame = (now: number): void => {
       moved = tick(world, state, readInput(), FIXED_DT);
       for (const ev of state.events) {
         sfx.play(ev);
+        applyImpactFeedback(ev);
         frameEvents.push(ev);
         if (REBUILD_EVENTS.has(ev)) needsRebuild = true;
-        if (ev.startsWith('pickup-') || ev === 'room-solved') gotPickup = true;
+        if (ev.startsWith('pickup-') || ev === 'room-solved' || ev === 'boss-flee') {
+          gotPickup = true;
+        }
       }
       if (moved) {
         accumulator = 0;
+        hitStopRemaining = 0;
         frameBlasts.length = 0;
         break;
       }
@@ -1046,6 +1219,24 @@ const frame = (now: number): void => {
     }
   } else {
     accumulator = 0;
+    hitStopRemaining = 0;
+  }
+
+  if (shakeRemaining > 0 && !cutting && !menuOpen && impactFxEnabled) {
+    shakeRemaining = Math.max(0, shakeRemaining - elapsed);
+    if (shakeRemaining > 0) {
+      shakeSeed = (shakeSeed + 1) % 1024;
+      const decay = shakeRemaining / shakeDuration;
+      const mag = shakeAmplitude * decay;
+      const sx = Math.round(Math.sin(shakeSeed * 2.39996) * mag);
+      const sy = Math.round(Math.cos(shakeSeed * 1.75487) * mag);
+      hd.canvas.style.transform = sx === 0 && sy === 0 ? '' : `translate(${sx}px, ${sy}px)`;
+    } else {
+      hd.canvas.style.transform = '';
+    }
+  } else if (hd.canvas.style.transform !== '') {
+    shakeRemaining = 0;
+    hd.canvas.style.transform = '';
   }
 
   syncHud();

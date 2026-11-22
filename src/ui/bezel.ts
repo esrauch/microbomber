@@ -297,8 +297,10 @@ export function bezelTileDataUrl(zone: ZoneId, scale = 2): string {
   const palette: readonly [Rgb, Rgb, Rgb, Rgb] =
     zone === 'ice-cave'
       ? [INK_RGB, zp.floor[3], zp.floor[3], zp.floor[3]]
-      : [INK_RGB, zp.foliage[3], zp.foliage[3], zp.foliage[3]];
-  const rows = zone === 'ice-cave' ? CRYPT_BEZEL_PATTERN : OW_BEZEL_PATTERN;
+      : zone === 'basement'
+        ? [INK_RGB, zp.wall[2], zp.wall[2], zp.wall[2]]
+        : [INK_RGB, zp.foliage[3], zp.foliage[3], zp.foliage[3]];
+  const rows = zone === 'overworld' ? OW_BEZEL_PATTERN : CRYPT_BEZEL_PATTERN;
 
   const url = encodeRgbaPngDataUrl(
     16,
@@ -341,7 +343,12 @@ function frameColorsFor(zone: ZoneId, accent: GbcBoxAccent): FrameColors {
       outerHi: rgb555(248, 232, 144),
       outerMid: rgb555(216, 168, 64),
       hairline: rgb555(120, 184, 112),
-      fill: zone === 'ice-cave' ? rgb555(14, 20, 36) : rgb555(16, 24, 24),
+      fill:
+        zone === 'ice-cave'
+          ? rgb555(14, 20, 36)
+          : zone === 'basement'
+            ? rgb555(28, 20, 16)
+            : rgb555(16, 24, 24),
     };
   }
   if (zone === 'ice-cave') {
@@ -350,6 +357,14 @@ function frameColorsFor(zone: ZoneId, accent: GbcBoxAccent): FrameColors {
       outerMid: rgb555(72, 112, 160),
       hairline: rgb555(232, 184, 80),
       fill: rgb555(14, 20, 36),
+    };
+  }
+  if (zone === 'basement') {
+    return {
+      outerHi: rgb555(232, 200, 152),
+      outerMid: rgb555(144, 104, 64),
+      hairline: rgb555(232, 184, 80),
+      fill: rgb555(28, 20, 16),
     };
   }
   return {

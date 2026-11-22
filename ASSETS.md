@@ -69,10 +69,10 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 
 | Stamp ID | Footprint | Room(s) | Visual Composition |
 |---|---|---|---|
-| `bram-workshop` | `3 × 2` (`48 × 32`) | `Millbrook Square (3,2)` | Pitched slate-amber roof (overhead eaves), round attic window, brass alembic flue + animated smoke puff, timber-frame front wall & arched door. |
-| `rusted-smithy` | `3 × 2` (`48 × 32`) | `Millbrook Square (3,2)` | Weathered red-shingle forge roof, stone chimney, quenched trough & rusted iron anvil beside the `%` rubble pocket. |
+| `mouse-house` | `3 × 2` (`48 × 32`) | `Mouse House (3,2)` | Pitched slate-amber roof (overhead eaves), round attic window, brass alembic flue + animated smoke puff, timber-frame front wall & arched door. |
+| `smithy` | `3 × 2` (`48 × 32`) | `Mouse House (3,2)` | Weathered red-shingle forge roof, stone chimney, quenched trough & old iron anvil beside the `%` rubble pocket. |
 | `causeway-bridge` | `5 × 3` / modular `_` | `Tower Causeway (2,1)` | Dressed stone parapet piers & arched causeway deck spanning the moat (`~`) with water ripples visible North & South. |
-| `spire-seal-gate` | `5 × 3` + `3 × 3` dais | `Tower Courtyard (2,0)` | Looming rusted-iron Tower gatehouse (`N` wall) + `3 × 3` octagonal carved floor seal with **4 individual Elemental Core pedestals** (`Cinder` lights up gold/flame once reclaimed!). |
+| `spire-seal-gate` | `5 × 3` + `3 × 3` dais | `Tower Courtyard (2,0)` | Looming dark-iron Tower gatehouse (`N` wall) + `3 × 3` octagonal carved floor seal with **4 individual Elemental Core pedestals** (`Cinder` lights up gold/flame once reclaimed!). |
 | `crypt-mausoleum` | `3 × 2` (`48 × 32`) | `Ice Cave Arch (3,5)` | Carved stone arch set into the canyon cliff, flanked by twin braziers (`T`), framing the `%`-sealed `>` descending stair. |
 
 ### Kit D — `2`-Tile Shrine Architecture & Connected Props (`Ice Cave`)
@@ -140,4 +140,4 @@ Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in t
    - Swap `#topbar`, dialogue box, Boss bar, and `#controls` icons to pixel art + GBC double-lined borders.
 4. **Automated Magnified Proof Sheets (`tools/make-sprites.ts` & `tests/gbcArt.test.ts`):**
    - `gbcArt.test.ts` verifies `RGB555` compliance, `4`-colour `8 × 8` `BG` quarters, `≤ 6`-colour `OBJ` sprites, and valid stamp dimensions.
-   - `npm run make-sprites` outputs both a **Tile & Sprite Contact Sheet** and a **Stitched Full-Room Proof Sheet** (`Millbrook Square`, `Tower Courtyard`, `Ice Cave Arch`, `Entry Hall`, `Crystal Crossroads`, `Lantern Hall`, `Sanctum of Ash`) for `6 ×` visual seam inspection alongside live mobile Playwright screenshots.
+   - `npm run make-sprites` outputs both a **Tile & Sprite Contact Sheet** and a **Stitched Full-Room Proof Sheet** (`Mouse House`, `Tower Courtyard`, `Ice Cave Arch`, `Entry Hall`, `Crystal Crossroads`, `Lantern Hall`, `Frozen Sanctum`) for `6 ×` visual seam inspection alongside live mobile Playwright screenshots.

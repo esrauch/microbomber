@@ -49,11 +49,12 @@ const VALID_TILES = new Set([
 
 const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === 'Y';
 
-describe('vertical slice campaign integrity (Prologue + Ice Cave)', () => {
+describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', () => {
   const world = campaignWorld();
 
-  it('has 19 rooms (9 Overworld + 10 Ice Cave), all exactly ROOM_W × ROOM_H with valid tiles', () => {
+  it('has 24 rooms (5 Basement + 9 Overworld + 10 Ice Cave), all exactly ROOM_W × ROOM_H with valid tiles', () => {
     const rooms = [...world.rooms.values()];
+    expect(rooms.filter((r) => r.zone === 'basement')).toHaveLength(5);
     expect(rooms.filter((r) => r.zone === 'overworld')).toHaveLength(9);
     expect(rooms.filter((r) => r.zone === 'ice-cave')).toHaveLength(10);
 
@@ -127,10 +128,12 @@ describe('vertical slice campaign integrity (Prologue + Ice Cave)', () => {
       }
     }
 
-    expect(lockedDoors).toBe(2);
-    expect(smallKeys).toBe(2);
+    expect(lockedDoors).toBe(3);
+    expect(smallKeys).toBe(3);
     expect(bossDoors).toBe(1);
     expect(bossKeys).toBe(1);
+    expect(pickupIds.has('basement-bomb-sack')).toBe(true);
+    expect(pickupIds.has('basement-key-1')).toBe(true);
     expect(pickupIds.has('crypt-ember-bomb')).toBe(true);
     expect(pickupIds.has('boss-cinder-core')).toBe(true);
     expect(pickupIds.has('boss-heart-container')).toBe(true);
@@ -160,11 +163,11 @@ describe('vertical slice campaign integrity (Prologue + Ice Cave)', () => {
   });
 });
 
-describe('crypt lighting', () => {
-  it('starts every crypt room with a lit torch, except the dark boss sanctum', () => {
+describe('indoor dungeon lighting', () => {
+  it('starts every basement & crypt room with a lit torch, except the dark boss sanctum', () => {
     const world = campaignWorld();
     for (const room of world.rooms.values()) {
-      if (room.zone !== 'ice-cave') continue;
+      if (room.zone !== 'ice-cave' && room.zone !== 'basement') continue;
       const s = newState(world, room.zone, room.rx, room.ry);
       const lit = s.torches.some((t) => t.lit);
       expect(lit, room.name).toBe(room.condition !== 'boss');
@@ -173,17 +176,21 @@ describe('crypt lighting', () => {
 });
 
 describe('Grandma, the only voice', () => {
-  it('is the only character who speaks, at the Mouse House', () => {
+  it('is the only character who speaks, inside the Mouse House', () => {
     const world = campaignWorld();
     const speakers = [...world.rooms.values()].flatMap((r) =>
       (r.npcs ?? []).map((n) => `${r.name}:${n.id}`),
     );
-    expect(speakers).toEqual(['Mouse House:grandma']);
+    expect(speakers).toEqual(['Mouse House Interior:grandma']);
   });
 
   it('points Pip at the next goal as the story moves on', () => {
     const world = campaignWorld();
     const s = newState(world);
+    expect(grandmaAdvice(s)).toMatch(/Magic Bomb Sack/);
+    s.unlockedBombs.push('bomb');
+    expect(grandmaAdvice(s)).toMatch(/front door/);
+    s.brokenTiles.add('basement:1,3:5,9'); // bombed out of the front door
     expect(grandmaAdvice(s)).toMatch(/Orchard Gate/);
     s.unlockedBombs.push('fire');
     expect(grandmaAdvice(s)).toMatch(/Ice Cave/);

@@ -40,7 +40,7 @@ count them and adjust.
 
 | # | Dungeon | Bomb found | Floors | Rooms | Oracle counterpart (×½) | Target time |
 |:-:|---|---|---|:-:|---|:-:|
-| 0 | Grandma's Basement (House + Cellar) | Bomb (Spark Satchel) | House + `B1F` | **5** (`1` house + `4` cellar) | tutorial cellar (*Seasons* Hero's Cave, 7) | 4–5 min |
+| 0 | Grandma's Basement (House + Cellar) | Bomb (Magic Bomb Sack) | House + `B1F` | **5** (`1` house + `4` cellar) | tutorial cellar (*Seasons* Hero's Cave, 7) | 4–5 min |
 | 1 | Ice Cave (built) | Fire | `1F` | **10** | a first dungeon, ~20 | 10–12 min |
 | 2 | Rock Quarry | Wind | `2F` rim + `1F` pit | **15** | a third dungeon, ~30 (counted) | 14–16 min |
 | 3 | Fire Mountain | Ice | `1F` + `B1F` | **20** | a middle dungeon, ~40 | 18–20 min |
@@ -94,7 +94,7 @@ the half-of-*Oracle* campaign `GAME.md` §1 sets out.
   live whirlwind is catapulted `3–4` tiles downwind across wide chasms.
 - **One idea per room:** each room is marked *teach*, *twist* or *combine*.
 - **Rewards per Shrine:** a Heart Container (boss), one Heart Piece, and in two
-  Shrines a satchel upgrade (live bombs `2 → 3` in Rock Quarry, `3 → 4` in Wind
+  Shrines a Magic Bomb Sack upgrade (live bombs `2 → 3` in Rock Quarry, `3 → 4` in Wind
   Cliffs). Bomb reach `1 → 2` stays on the overworld (Millbrook West).
 - **Pieces we have now:** cracked walls, brambles and crates, braziers (lit,
   timed, ordered), dark rooms, crystal switches with red and blue barriers,
@@ -115,7 +115,7 @@ cellar below (`B1F`).
 **Story & purpose:** You start **inside the Mouse House** with no bombs at all
 (only walking and **B = Roll**). **Grandma** tells you that **your brother is
 making trouble again**—he raised the Iron Tower overnight—and you had better go
-down into the basement, fetch the **magic bomb sack** (**Spark Satchel**), and
+down into the basement, fetch the **Magic Bomb Sack**, and
 make sure he doesn't cause too much trouble.
 **What it teaches:** walking, **B = Roll**, floor switches, **Small Keys** and
 locked doors, and then **the Bomb** (`A = Pull → B = Drop / A = Throw`) to break
@@ -133,7 +133,7 @@ House Interior (1F)              Grandma's Basement (B1F)
 | 0 | Mouse House Interior | `House (0,0)` | **Start of the game.** Grandma stands by her sewing basket and tells you your brother is making trouble again—head down the cellar stairs for the magic bomb sack. The front door south to the overworld (`5,4`) is blocked from inside by fallen cellar rubble (`%`) until you return with the Bomb. *teach* talk & objective | cellar stair down to 1, front door out to `(5,4)` (blocked by `%` rubble) |
 | 1 | Cellar Stairs | `B1F (1,1)` | Where the house stair lands. Cobwebs, apple barrels and a locked north door (**L1**). *teach* locked door inspection | stair up to 0, W 2, N 3 (**L1**) |
 | 2 | Root Pantry | `B1F (0,1)` | Two harmless cellar slimes and a spike strip; **B = Roll** across the narrow gap to step on the floor switch (`O`) in the corner, dropping **Small Key 1** onto the centre seal ring. *teach* Roll, floor switch & **Small Key** | E 1 |
-| 3 | Grandpa's Workroom | `B1F (1,0)` | Unlocked with **Small Key 1**. On the pedestal sits the **Magic Bomb Sack** (**Spark Satchel — unlocks the Bomb**). The door shuts behind you; pull (`A`) and drop (`B`) your first Bomb against the cracked west masonry wall (`%`) to blast open a secret passage into 4. *teach* **Bomb** (`Pull` & `Drop` on `%`) | S 1 (**L1**), W 4 (via `%` cracked wall) |
+| 3 | Grandpa's Workroom | `B1F (1,0)` | Unlocked with **Small Key 1**. On the pedestal sits the **Magic Bomb Sack** (**unlocks the Bomb**). The door shuts behind you; pull (`A`) and drop (`B`) your first Bomb against the cracked west masonry wall (`%`) to blast open a secret passage into 4. *teach* **Bomb** (`Pull` & `Drop` on `%`) | S 1 (**L1**), W 4 (via `%` cracked wall) |
 | 4 | Coal Chute | `B1F (0,0)` | A low wooden fence (`=`) separates you from a crystal switch (`C`) and a pair of cellar slimes. Pull (`A`) and **Throw (`A`)** a Bomb over the fence to flip the crystal (lowering the red barrier back to 1) and blast the slimes. Climb the stairs back up to 0, bomb the rubble blocking the front door, and step outside into Millbrook Vale (`5,4`). *teach* **Throw** over fences & crystal switches | E 3, S 2 (barrier), return via 1 to 0 |
 
 **Keys & No-Softlock Proof:**
@@ -200,7 +200,7 @@ y2  [ 2] == [ 1] == [ 3]^        y2   .     [14] == [15]^
 | # | Room | `(x,y)` | Act | Puzzle and contents | Exits |
 |:-:|---|---|:-:|---|---|
 | 1 | Quarry Gate | `2F (1,2)` | 1 | *teach* terraces: you enter on the top tier and drop down a ledge; side stairs lead back up, so you can't trap yourself. A sand pile sits on a floor switch beside the east shutter; a Bomb scatters it and it slumps back (*teach* sand). | W 2, N 5, E 3 (shutter, Act 2) |
-| 2 | Sand Hall | `2F (0,2)` | 1 | Burn the scaffold crates with Fire to reach a chest: **Small Key 1**. Sand piles line the west wall; in Act 2 Wind blows one clear to open an alcove: **Satchel upgrade (`2 → 3` live bombs).** | E 1 |
+| 2 | Sand Hall | `2F (0,2)` | 1 | Burn the scaffold crates with Fire to reach a chest: **Small Key 1**. Sand piles line the west wall; in Act 2 Wind blows one clear to open an alcove: **Magic Bomb Sack upgrade (`2 → 3` live bombs).** | E 1 |
 | 3 | Pulley Top | `2F (2,2)` | 2 | The cargo lift arrives here from 15. Blow the sand off the floor switch to open the shutter to 1 (a shortcut home). Pop a Wind Bomb on the south lip to leave a `2.5 s` whirlwind, then throw a Bomb into it to catapult across a `3`-tile pit onto a cracked wall. *combine* | W 1, N 6, lift to 15 |
 | 4 | Upper Terrace | `2F (0,1)` | 1 | Three terraces step down southward; rock-throwing goblins on the tiers. Bomb the cracked floor block on the lowest tier to open a **drop** to 9. *teach* (drops between floors) | E 5 (**L1**), drop to 9 |
 | 5 | Rim Crossing (hub) | `2F (1,1)` | 1–2 | A walkway rings a great square drop shaft that shows the quarry floor below. Jump in: you land in 8 (the only way down without a key). East is a 2-tile gap, crossable only by blast-jump (Act 2). | S 1, W 4 (**L1**), E 6 (gap), drop to 8 |
@@ -226,7 +226,7 @@ y2  [ 2] == [ 1] == [ 3]^        y2   .     [14] == [15]^
 (Miniboss Phase 2 + Lift).
 **Act 2 route:** 15 (lift) → 3 → 6 → back down via 5's shaft → 8 → 12 → 13
 (Boss Key) → 12 → 8 → 14 → 15 (lift) → 3 → 6 → 7. Optional: 11 (Heart Piece),
-2's sand alcove (satchel upgrade), 3's shortcut to 1.
+2's sand alcove (Magic Bomb Sack upgrade), 3's shortcut to 1.
 
 ### Miniboss: Mole Foreman (Two-Room Fight: Rooms 14 & 15)
 
@@ -424,7 +424,7 @@ y2 [ 5] == [ 2] == [ 1] == [ 3]                y2 [21] == [20] == [19]
 | 11 | Harpy's Roost | `1F (2,0)` | 1 | **Miniboss Phase 1: Harpy** (below). At half health it flees east into 12, leaving **the Rock Bomb** chest behind; drop a Rock stepping stone across the east gap to pursue it. | S 4 (**L2**), E 12 |
 | 12 | Gust Gallery | `1F (3,0)` | 1–2 | **Miniboss Phase 2: Harpy** (below). Raise Rock pillars in its dive line to daze and defeat it (unlocking the midpoint warp pad), then raise windbreaks so bombs sit on three floor buttons at once to open the south shortcut to 8. *teach* windbreaks | W 11, S 8 (shutter) |
 | 13 | Stone Bridge Cave | `1F (0,0)` | 2 | Chains of gaps over the sea; stepping stones plus a blast-jump between them. A chest: **Small Key 3**. *combine* (Rock + Wind) | S 7 |
-| 14 | Undertow | `1F (4,0)` | 2 | A channel where the current drags blocks; wall it off with Rock so a shoved block stops on a button. **Satchel upgrade (`3 → 4` live bombs).** | S 9 |
+| 14 | Undertow | `1F (4,0)` | 2 | A channel where the current drags blocks; wall it off with Rock so a shoved block stops on a button. **Magic Bomb Sack upgrade (`3 → 4` live bombs).** | S 9 |
 | 15 | Watchtower Stair | `2F (3,1)` | 1–2 | Where the lighthouse stair lands. In Act 1 you throw a bomb across the gap into a crystal switch (lowering the blue barrier in 4 to expose **L2**), while the west path dead-ends at a channel that needs a Rock stepping stone in Act 2. | stair to 9, W 16 (gap) |
 | 16 | Cliff Path | `2F (2,1)` | 2 | Gusts along the cliff edge sweep bombs over the drop. Windbreaks keep them on the path while you bomb a line of cracked boulders. | E 15, W 17, S 19, N 22 (**boss door**) |
 | 17 | Rope Bridge | `2F (1,1)` | 1–2 | The bridge lowered by 6's blowhole bomb (Act 1, seen from below); in Act 2 you cross it, filling its broken planks with stepping stones. | E 16, W 18 (**L3**), S 20 |
@@ -446,7 +446,7 @@ crystal, dead end at gap) → back → 4 → 6 (blowhole bomb lowers 17's bridge
 11 (L2, Miniboss Phase 1 + Rock) → 12 (Miniboss Phase 2). Side rooms: 5, 7.
 **Act 2 route:** 12 → 8 → 4 → 6 → 7 → 13 (Key 3) → back to 9 → 15 (fill the
 gap) → 16 → 17 → 18 (L3, Boss Key) → 17 → 16 → 22 → 23. Optional: 10 (Heart
-Shard), 14 (satchel upgrade), 19 to 21.
+Shard), 14 (Magic Bomb Sack upgrade), 19 to 21.
 
 ### Miniboss: Harpy (Two-Room Fight: Rooms 11 & 12)
 

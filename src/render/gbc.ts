@@ -586,6 +586,7 @@ export function makeGbcView(): GbcView {
   }
 
   const pickupMap: Record<Exclude<PickupKind, 'fire-bomb'>, ObjSpriteName> = {
+    'bomb-sack': 'PICKUP_SATCHEL',
     'small-key': 'PICKUP_SMALL_KEY',
     'boss-key': 'PICKUP_BOSS_KEY',
     'heart-shard': 'PICKUP_HEART_SHARD',
@@ -605,7 +606,7 @@ export function makeGbcView(): GbcView {
     sy = 1,
     tiltRad = 0,
   ): void {
-    if (kind === 'fire-bomb' || kind === 'cinder-core') {
+    if (kind === 'bomb-sack' || kind === 'fire-bomb' || kind === 'cinder-core') {
       if (Math.floor(time * 6) % 2 === 0) {
         drawScaledSprite(ctx, 'SPARKLE_CELL', dx, dy, sx, sy, false, undefined, tiltRad);
       }
@@ -849,7 +850,8 @@ export function makeGbcView(): GbcView {
     heightTiles: number,
   ): void {
     const { rx, ry, alpha } = computeShadowMetrics(baseRadiusPx, heightTiles);
-    const rgb = zone === 'ice-cave' ? '12, 20, 44' : '14, 28, 32';
+    const rgb =
+      zone === 'ice-cave' ? '12, 20, 44' : zone === 'basement' ? '32, 18, 16' : '14, 28, 32';
     const cx = Math.round(cxPx);
     const cy = Math.round(footYPx);
 

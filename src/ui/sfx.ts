@@ -55,6 +55,9 @@ export function makeSfx(): SfxPlayer {
       } else if (ev === 'bomb-lift') {
         tone(260, 480, 0.065, 'sine', 0.13, 0);
         tone(480, 620, 0.05, 'triangle', 0.09, 0.035);
+      } else if (ev === 'bomb-swap') {
+        tone(440, 660, 0.055, 'triangle', 0.12, 0);
+        tone(660, 880, 0.065, 'sine', 0.11, 0.04);
       } else if (ev === 'bomb-drop') {
         tone(240, 140, 0.07, 'sine', 0.12);
       } else if (ev === 'bomb-throw') {
@@ -121,6 +124,9 @@ export function makeSfx(): SfxPlayer {
         tone(720, 210, 0.26, 'sawtooth', 0.15, 0);
         tone(540, 140, 0.3, 'triangle', 0.14, 0.05);
         tone(960, 320, 0.22, 'sine', 0.12, 0.1);
+      } else if (ev === 'boss-flee') {
+        tone(520, 180, 0.24, 'sawtooth', 0.15, 0);
+        tone(390, 130, 0.28, 'triangle', 0.13, 0.06);
       } else if (ev === 'slime-split') {
         tone(280, 560, 0.065, 'sine', 0.13, 0);
         tone(380, 740, 0.075, 'sine', 0.12, 0.055);
