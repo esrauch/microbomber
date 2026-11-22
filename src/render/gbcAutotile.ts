@@ -98,7 +98,7 @@ function cellHash(x: number, y: number, rx: number, ry: number): number {
 
 export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const room = currentRoom(world, s);
-  const isCrypt = s.zone === 'ice-cave' || s.zone === 'basement';
+  const isCrypt = s.zone === 'ice-cave' || s.zone === 'basement' || s.zone === 'dungeon-999';
   const isIceCave = s.zone === 'ice-cave';
   const solved = s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry));
 

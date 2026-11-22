@@ -14,6 +14,7 @@ import {
   campaignWorld,
   currentRoom,
   cycleEquippedBomb,
+  enterDungeon999,
   equipBomb,
   exportSave,
   importSave,
@@ -24,6 +25,7 @@ import {
 } from './game/world';
 import { OBJ, type ObjSpriteName } from './render/gbcArt';
 import { hudIconDataUrl, makeGbcView } from './render/gbc';
+import type { ObjPaletteId } from './render/gbcPalette';
 import { type HdView, SLIDE_SECONDS, createHdView } from './render/hd/hdView';
 import {
   actionButtonDataUrl,
@@ -44,11 +46,11 @@ const ROLL_ICON = 'HUD_ROLL' as ObjSpriteName;
 const INTRO_BANNER =
   'Grandma: Your brother raised that Iron Tower overnight, making trouble again! Take the NE stairs down to the basement for the Magic Bomb Sack!';
 
-function pxIcon(name: ObjSpriteName, size: number): string {
+function pxIcon(name: ObjSpriteName, size: number, pal?: ObjPaletteId): string {
   if (!(name in OBJ)) {
     return `<span style="display:inline-flex;width:${size}px;height:${size}px;align-items:center;justify-content:center">↷</span>`;
   }
-  return `<img src="${hudIconDataUrl(name, 3)}" width="${size}" height="${size}" style="image-rendering:pixelated;display:inline-block;vertical-align:middle" alt="" />`;
+  return `<img src="${hudIconDataUrl(name, 3, pal)}" width="${size}" height="${size}" style="image-rendering:pixelated;display:inline-block;vertical-align:middle" alt="" />`;
 }
 
 function soundBadgeHtml(muted: boolean): string {
@@ -81,6 +83,14 @@ function persistState(s: State): void {
 }
 
 function loadInitialState(): State {
+  if (
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('dev') === '999'
+  ) {
+    const devState = newState(world);
+    enterDungeon999(world, devState);
+    return devState;
+  }
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
@@ -230,8 +240,9 @@ let impactFxEnabled = !(
 
 const muteBtn = document.createElement('button');
 const impactBtn = document.createElement('button');
+const devRigBtn = document.createElement('button');
 const resetSaveBtn = document.createElement('button');
-for (const btn of [muteBtn, impactBtn, resetSaveBtn]) {
+for (const btn of [muteBtn, impactBtn, devRigBtn, resetSaveBtn]) {
   Object.assign(btn.style, {
     padding: '6px 8px',
     borderRadius: '0',
@@ -263,6 +274,15 @@ impactBtn.addEventListener('click', () => {
   if (!impactFxEnabled) hd.canvas.style.transform = '';
   syncImpactBtnLabel();
 });
+devRigBtn.textContent = '⚙ ENTER DUNGEON 999 (DEV RIG)';
+const warpToDungeon999 = (): void => {
+  enterDungeon999(world, state);
+  if (menuOpen) toggleMenu(false);
+  rebuildRoom();
+  settingsModal.style.display = 'none';
+  syncHud(true);
+};
+devRigBtn.addEventListener('click', warpToDungeon999);
 const RESET_LABEL = '↺ NEW GAME (RESET SAVE)';
 resetSaveBtn.textContent = RESET_LABEL;
 // Two-tap confirm: the first tap arms the button, a second tap within 3 s erases the save
@@ -299,9 +319,22 @@ Object.assign(buildStamp.style, {
   color: '#98a898',
   borderTop: '1px solid #384838',
   paddingTop: '5px',
+  cursor: 'pointer',
 });
 buildStamp.textContent = `microbomber · ${buildInfo.commit}${buildInfo.dirty ? '+' : ''}`;
-settingsModal.append(muteBtn, impactBtn, resetSaveBtn, buildStamp);
+let stampTapCount = 0;
+let stampTapUntil = 0;
+buildStamp.addEventListener('click', () => {
+  const now = performance.now();
+  if (now > stampTapUntil) stampTapCount = 0;
+  stampTapUntil = now + 2500;
+  stampTapCount++;
+  if (stampTapCount >= 5) {
+    stampTapCount = 0;
+    warpToDungeon999();
+  }
+});
+settingsModal.append(muteBtn, impactBtn, devRigBtn, resetSaveBtn, buildStamp);
 stageEl.append(settingsModal);
 
 gearBtn.addEventListener('click', () => {
@@ -354,6 +387,31 @@ Object.assign(bossFill.style, {
 bossTrack.append(bossFill);
 bossBarWrap.append(bossTitleEl, bossTrack);
 stageEl.append(bossBarWrap);
+
+// Compact non-intrusive Dev Telemetry Strip shown at top of #stage in Dungeon 999
+const devTelemetryEl = document.createElement('div');
+Object.assign(devTelemetryEl.style, {
+  position: 'absolute',
+  top: '4px',
+  left: '6px',
+  right: '6px',
+  display: 'none',
+  padding: '2px 6px',
+  background: 'rgba(14, 20, 34, 0.86)',
+  border: '1px solid #6888b0',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.65)',
+  color: '#d8e8f8',
+  fontFamily: `'${PIXEL_FONT_FAMILY}', monospace`,
+  fontSize: '7.5px',
+  lineHeight: '1.25',
+  letterSpacing: '0.02em',
+  pointerEvents: 'none',
+  zIndex: '12',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+stageEl.append(devTelemetryEl);
 
 // Dedicated fixed-height GBC Dialogue Strip docked in bezel below `#stage` (`§6.1`)
 const dialogueContent = document.createElement('div');
@@ -444,10 +502,20 @@ Object.assign(startBtn.style, {
 });
 topRow.append(satchelPips, swapBtn, startBtn);
 
-const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
-  bomb: { sprite: 'BOMB_1', label: 'Bomb' },
-  fire: { sprite: 'FIREBOMB_1', label: 'Fire' },
+const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; pal?: ObjPaletteId; label: string }> = {
+  bomb: { sprite: 'BOMB_1', pal: 'powder', label: 'Bomb' },
+  fire: { sprite: 'FIREBOMB_1', pal: 'fire', label: 'Fire' },
+  squeak: { sprite: 'BOMB_1', pal: 'villager', label: 'Squeak' },
+  wind: { sprite: 'BOMB_1', pal: 'spectral', label: 'Wind' },
+  magnet: { sprite: 'BOMB_1', pal: 'crimson', label: 'Magnet' },
+  ice: { sprite: 'FIREBOMB_1', pal: 'spectral', label: 'Ice' },
+  rock: { sprite: 'BOMB_1', pal: 'green', label: 'Rock' },
 };
+
+function bombIcon(kind: BombKind, size: number): string {
+  const m = BOMB_META[kind];
+  return pxIcon(m.sprite, size, m.pal);
+}
 
 /** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Place)]`. */
 const buttonHeld: [boolean, boolean] = [false, false];
@@ -624,7 +692,7 @@ function renderMenu(): void {
 
   const currentStatus = document.createElement('div');
   currentStatus.innerHTML = state.equipped
-    ? `EQUIPPED: ${pxIcon(BOMB_META[state.equipped].sprite, 16)} <span style="color:#f8d858">${BOMB_META[state.equipped].label.toUpperCase()}</span>`
+    ? `EQUIPPED: ${bombIcon(state.equipped, 16)} <span style="color:#f8d858">${BOMB_META[state.equipped].label.toUpperCase()}</span>`
     : 'EQUIPPED: <span style="color:#cbd5c0">NONE</span> (PURE ROLL)';
   Object.assign(currentStatus.style, {
     fontSize: '8.5px',
@@ -649,7 +717,7 @@ function renderMenu(): void {
       ? '<div style="font-size:7.5px;color:#68d391;margin-top:3px">▸ EQUIPPED</div>'
       : '<div style="font-size:7.5px;color:#98a898;margin-top:3px">&nbsp;</div>';
     const cardHtml = kind
-      ? `<div style="line-height:1.1;margin-bottom:3px">${pxIcon(BOMB_META[kind].sprite, 28)}</div>${BOMB_META[kind].label}${tag}`
+      ? `<div style="line-height:1.1;margin-bottom:3px">${bombIcon(kind, 28)}</div>${BOMB_META[kind].label}${tag}`
       : `<div style="height:28px;display:flex;align-items:center;justify-content:center;margin-bottom:3px;font-size:14px;color:#cbd5c0">—</div>None${tag}`;
     const b = menuButton(cardHtml, isCursor, isEquipped);
     b.addEventListener('click', () => {
@@ -832,7 +900,7 @@ function syncZoneChrome(force = false): void {
   const bannerActive = Boolean(state.bannerText);
   if (force || state.zone !== prevSkinnedZone) {
     prevSkinnedZone = state.zone;
-    const isCrypt = state.zone === 'ice-cave';
+    const isCrypt = state.zone === 'ice-cave' || state.zone === 'dungeon-999';
     const isBasement = state.zone === 'basement';
     stageEl.style.backgroundColor = isCrypt ? '#121a28' : isBasement ? '#221812' : '#182818';
     stageEl.style.backgroundImage = `url("${bezelTileDataUrl(state.zone, 2)}")`;
@@ -930,21 +998,34 @@ function syncHud(force = false): void {
 
   // Non-truncated room name + full objective (wraps cleanly across 2 pixel lines, zero `...`)
   const zonePrefix =
-    state.zone === 'ice-cave'
-      ? 'Ice Cave'
-      : state.zone === 'basement'
-        ? 'Mouse House'
-        : 'Cinderholm';
+    state.zone === 'dungeon-999'
+      ? 'Dungeon 999'
+      : state.zone === 'ice-cave'
+        ? 'Ice Cave'
+        : state.zone === 'basement'
+          ? 'Mouse House'
+          : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
   roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
 
   // Auto-drawn minimap (`GAME.md` §5)
   minimapEl.replaceChildren();
-  const cols = state.zone === 'ice-cave' ? 3 : state.zone === 'basement' ? 2 : 4;
-  const rows = state.zone === 'ice-cave' ? 4 : state.zone === 'basement' ? 4 : 6;
-  const minX = state.zone === 'overworld' ? 2 : 0;
+  const cols =
+    state.zone === 'ice-cave' || state.zone === 'dungeon-999'
+      ? 3
+      : state.zone === 'basement'
+        ? 2
+        : 4;
+  const rows =
+    state.zone === 'ice-cave' || state.zone === 'dungeon-999'
+      ? 4
+      : state.zone === 'basement'
+        ? 4
+        : 6;
+  const minX = state.zone === 'overworld' ? 2 : state.zone === 'dungeon-999' ? -1 : 0;
+  const minY = state.zone === 'dungeon-999' ? -1 : 0;
   minimapEl.style.gridTemplateColumns = `repeat(${cols}, 7px)`;
-  for (let my = 0; my < rows; my++) {
+  for (let my = minY; my < minY + rows; my++) {
     for (let mx = minX; mx < minX + cols; mx++) {
       const rk = roomKey(state.zone, mx, my);
       const exists = world.rooms.has(rk);
@@ -958,11 +1039,13 @@ function syncHud(force = false): void {
         background: isCur
           ? '#f8d848'
           : visited
-            ? state.zone === 'ice-cave'
-              ? '#a078e8'
-              : state.zone === 'basement'
-                ? '#d89858'
-                : '#60c878'
+            ? state.zone === 'dungeon-999'
+              ? '#68b8f8'
+              : state.zone === 'ice-cave'
+                ? '#a078e8'
+                : state.zone === 'basement'
+                  ? '#d89858'
+                  : '#60c878'
             : exists
               ? '#283428'
               : 'transparent',
@@ -979,21 +1062,21 @@ function syncHud(force = false): void {
   const activeSwapKind = state.equipped ?? state.unlockedBombs[0];
   if (state.unlockedBombs.length >= 2 && activeSwapKind) {
     swapBtn.style.display = 'inline-flex';
-    swapBtn.innerHTML = `${pxIcon(BOMB_META[activeSwapKind].sprite, 14)}<span>${BOMB_META[activeSwapKind].label.toUpperCase()} ↻</span>`;
+    swapBtn.innerHTML = `${bombIcon(activeSwapKind, 14)}<span>${BOMB_META[activeSwapKind].label.toUpperCase()} ↻</span>`;
   } else {
     swapBtn.style.display = 'none';
   }
   if (state.heldBomb) {
-    rollBtnIcon.innerHTML = pxIcon(BOMB_META[state.heldBomb].sprite, 24);
+    rollBtnIcon.innerHTML = bombIcon(state.heldBomb, 24);
     rollBtnLabel.textContent = 'B·DROP';
-    placeBtnIcon.innerHTML = pxIcon(BOMB_META[state.heldBomb].sprite, 24);
+    placeBtnIcon.innerHTML = bombIcon(state.heldBomb, 24);
     placeBtnLabel.textContent = 'A·THROW';
     placeBtn.style.opacity = '1';
   } else {
     rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 24);
     rollBtnLabel.textContent = 'B·ROLL';
     placeBtnIcon.innerHTML = state.equipped
-      ? pxIcon(BOMB_META[state.equipped].sprite, 24)
+      ? bombIcon(state.equipped, 24)
       : '<span style="font-size:14px;opacity:0.75">—</span>';
     placeBtnLabel.textContent = 'A·PULL';
     placeBtn.style.opacity = state.equipped ? '1' : '0.52';
@@ -1031,12 +1114,20 @@ function syncHud(force = false): void {
     dialogueContent.append(arrow, document.createTextNode(state.bannerText));
   } else {
     dialogueContent.style.color =
-      state.zone === 'ice-cave' ? '#b0c8e0' : state.zone === 'basement' ? '#e0c8a8' : '#98b098';
+      state.zone === 'ice-cave' || state.zone === 'dungeon-999'
+        ? '#b0c8e0'
+        : state.zone === 'basement'
+          ? '#e0c8a8'
+          : '#98b098';
     const line1 = document.createElement('div');
     line1.textContent = `▸ ${room?.objective ?? 'Explore Cinderholm Isle'}`;
     const line2 = document.createElement('div');
     line2.style.color =
-      state.zone === 'ice-cave' ? '#7890b0' : state.zone === 'basement' ? '#a88c6c' : '#789078';
+      state.zone === 'ice-cave' || state.zone === 'dungeon-999'
+        ? '#7890b0'
+        : state.zone === 'basement'
+          ? '#a88c6c'
+          : '#789078';
     line2.style.marginTop = '2px';
     line2.textContent =
       state.unlockedBombs.length === 0
@@ -1096,8 +1187,48 @@ function triggerHitStop(seconds: number): void {
   hitStopRemaining = Math.max(hitStopRemaining, seconds);
 }
 
+let prevTelemX = state.x;
+let prevTelemY = state.y;
+let prevTelemText = '';
+
+function syncDevTelemetry(dt: number): void {
+  if (state.zone !== 'dungeon-999') {
+    if (devTelemetryEl.style.display !== 'none') {
+      devTelemetryEl.style.display = 'none';
+      prevTelemText = '';
+    }
+    prevTelemX = state.x;
+    prevTelemY = state.y;
+    return;
+  }
+  devTelemetryEl.style.display = 'block';
+  const rawSpd = dt > 0.001 ? Math.hypot(state.x - prevTelemX, state.y - prevTelemY) / dt : 0;
+  const spd = rawSpd > 25 ? 0 : rawSpd;
+  prevTelemX = state.x;
+  prevTelemY = state.y;
+
+  const eq = (state.equipped ?? 'none').toUpperCase();
+  const crys = state.crystalColor.toUpperCase();
+  const b0 = state.bombs[0];
+  const bombExtra = b0
+    ? ` · B(${b0.x.toFixed(1)},${b0.y.toFixed(1)} v=${Math.hypot(b0.vx, b0.vy).toFixed(1)} f=${b0.fuse.toFixed(1)}s)`
+    : '';
+  const text = `POS (${state.x.toFixed(1)},${state.y.toFixed(1)}) · SPD ${spd.toFixed(1)} · BOMBS ${state.bombs.length}/${state.maxBombs} · ${eq} · ${crys}${bombExtra}`;
+  if (text !== prevTelemText) {
+    prevTelemText = text;
+    devTelemetryEl.textContent = text;
+  }
+}
+
 function applyImpactFeedback(ev: string): void {
-  if (ev === 'boom-bomb' || ev === 'boom-fire') {
+  if (
+    ev === 'boom-bomb' ||
+    ev === 'boom-fire' ||
+    ev === 'boom-wind' ||
+    ev === 'boom-magnet' ||
+    ev === 'boom-ice' ||
+    ev === 'boom-rock'
+  ) {
     triggerShake(2.5, 0.14);
     triggerHitStop(0.024);
     pulseHaptics(14);
@@ -1240,6 +1371,7 @@ const frame = (now: number): void => {
   }
 
   syncHud();
+  syncDevTelemetry(elapsed);
   syncRollBtnFeedback();
   syncActionCapVisuals();
   view.sync(world, state, renderTime);

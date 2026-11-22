@@ -6,7 +6,16 @@
  * - Pass 4 (`canopyLayer`): Overhead roof eaves, tree crowns & north doorway arch lintels,
  *   chimney puffs, airborne bombs, connected '+' cross explosions, and Bayer lantern mask.
  */
-import type { BlastShape, Bomb, Enemy, NpcSpec, PickupKind, WindGust, ZoneId } from '../game/types';
+import type {
+  BlastShape,
+  Bomb,
+  BombKind,
+  Enemy,
+  NpcSpec,
+  PickupKind,
+  WindGust,
+  ZoneId,
+} from '../game/types';
 import {
   ROLL_DURATION,
   ROOM_H,
@@ -58,6 +67,10 @@ export type DepthActorKind =
   | 'shielder'
   | 'wickgeist'
   | 'cinderhull'
+  | 'beetle'
+  | 'mimic'
+  | 'tortoise'
+  | 'otter'
   | 'bomb'
   | 'pickup'
   | 'npc'
@@ -87,9 +100,13 @@ export function actorFootY(kind: DepthActorKind, y: number): number {
       return y + 0.35;
     case 'bomb':
     case 'slime':
+    case 'beetle':
+    case 'otter':
       return y + 0.36;
     case 'pip':
     case 'shielder':
+    case 'mimic':
+    case 'tortoise':
     case 'npc':
       return y + 0.38;
     case 'wickgeist':
@@ -209,11 +226,11 @@ function bakeBg(
 const hudUrlCache = new Map<string, string>();
 
 /** Bake a crisp nearest-neighbour PNG data URL from any OBJ sprite for HUD & control buttons. */
-export function hudIconDataUrl(name: ObjSpriteName, scale = 2): string {
-  const key = `${name}@${scale}`;
+export function hudIconDataUrl(name: ObjSpriteName, scale = 2, pal?: ObjPaletteId): string {
+  const key = `${name}@${scale}|${pal ?? ''}`;
   const cached = hudUrlCache.get(key);
   if (cached) return cached;
-  const base = bakeObj(OBJ[name]);
+  const base = bakeObj(OBJ[name], pal);
   const [c, ctx] = canvasOf(base.width * scale, base.height * scale);
   if (!ctx) return '';
   ctx.imageSmoothingEnabled = false;
@@ -226,7 +243,7 @@ export function hudIconDataUrl(name: ObjSpriteName, scale = 2): string {
 interface BlastInstance {
   x: number;
   y: number;
-  kind: 'bomb' | 'fire';
+  kind: BombKind;
   shape: BlastShape;
   born: number;
 }
@@ -254,12 +271,12 @@ interface BombKinSnapshot {
   vy: number;
   vz: number;
   shoveCount: number;
-  kind: 'bomb' | 'fire';
+  kind: BombKind;
 }
 
 interface MicroVfxInstance {
   kind: 'splash' | 'swallow';
-  bombKind: 'bomb' | 'fire';
+  bombKind: BombKind;
   x: number;
   y: number;
   born: number;
@@ -630,6 +647,105 @@ export function makeGbcView(): GbcView {
 
   const MOUSE_GALLOP = ['RUN_1', 'RUN_2', 'RUN_3', 'RUN_4'] as const;
 
+  const BOMB_FRAMES: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+    'BOMB_1',
+    'BOMB_2',
+    'BOMB_3',
+    'BOMB_4',
+  ];
+  const FIREBOMB_FRAMES: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+    'FIREBOMB_1',
+    'FIREBOMB_2',
+    'FIREBOMB_3',
+    'FIREBOMB_4',
+  ];
+
+  function bombSpriteAndPalette(
+    kind: BombKind,
+    idx: number,
+  ): { sprite: ObjSpriteName; pal: ObjPaletteId } {
+    const f = idx & 3;
+    switch (kind) {
+      case 'fire':
+        return { sprite: FIREBOMB_FRAMES[f] ?? 'FIREBOMB_1', pal: 'fire' };
+      case 'squeak':
+        return { sprite: BOMB_FRAMES[f] ?? 'BOMB_1', pal: 'villager' };
+      case 'wind':
+        return { sprite: BOMB_FRAMES[f] ?? 'BOMB_1', pal: 'spectral' };
+      case 'magnet':
+        return { sprite: BOMB_FRAMES[f] ?? 'BOMB_1', pal: 'crimson' };
+      case 'ice':
+        return { sprite: FIREBOMB_FRAMES[f] ?? 'FIREBOMB_1', pal: 'spectral' };
+      case 'rock':
+        return { sprite: BOMB_FRAMES[f] ?? 'BOMB_1', pal: 'green' };
+      case 'bomb':
+      default:
+        return { sprite: BOMB_FRAMES[f] ?? 'BOMB_1', pal: 'powder' };
+    }
+  }
+
+  function drawSqueakMusicNote(
+    ctx: CanvasRenderingContext2D,
+    dx: number,
+    dy: number,
+    time: number,
+    seed = 0,
+  ): void {
+    const bob = Math.round(Math.sin(time * 9 + seed) * 1.5);
+    const nx = dx + 10;
+    const ny = dy - 3 + bob;
+    const goldCss = cssRgb(OBJ_PALETTES.villager[1]);
+    const glintCss = cssRgb(OBJ_PALETTES.villager[0]);
+    // Crisp 6x6 pixel eighth-note ♪ with 1px ink outline
+    ctx.fillStyle = INK_CSS;
+    ctx.fillRect(nx, ny, 5, 6);
+    ctx.fillRect(nx - 1, ny + 3, 4, 3);
+    ctx.fillStyle = goldCss;
+    ctx.fillRect(nx + 2, ny + 1, 1, 4);
+    ctx.fillRect(nx + 3, ny + 1, 2, 1);
+    ctx.fillRect(nx, ny + 4, 2, 1);
+    ctx.fillStyle = glintCss;
+    ctx.fillRect(nx + 2, ny + 1, 1, 1);
+  }
+
+  function drawMagnetFluxLines(
+    ctx: CanvasRenderingContext2D,
+    b: Bomb,
+    s: State,
+    time: number,
+  ): void {
+    const bx = b.x * TILE_PX;
+    const by = (b.y - b.z) * TILE_PX;
+    const hiCss = cssRgb(OBJ_PALETTES.crimson[1]);
+    const roseCss = cssRgb(OBJ_PALETTES.crimson[2]);
+    const targets: Array<{ x: number; y: number }> = [];
+    for (const blk of s.blocks) {
+      if (!blk.metal) continue;
+      const dist = Math.hypot(blk.x + 0.5 - b.x, blk.y + 0.5 - b.y);
+      if (dist > 0.25 && dist <= 4.2) {
+        targets.push({ x: (blk.x + 0.5) * TILE_PX, y: (blk.y + 0.5) * TILE_PX });
+      }
+    }
+    for (const other of s.bombs) {
+      if (other.id === b.id) continue;
+      const dist = Math.hypot(other.x - b.x, other.y - b.y);
+      if (dist > 0.25 && dist <= 4.2) {
+        targets.push({ x: other.x * TILE_PX, y: (other.y - other.z) * TILE_PX });
+      }
+    }
+    for (const t of targets) {
+      for (let k = 0; k < 4; k++) {
+        const u = ((k / 4 + (1 - ((time * 3.8) % 1))) % 1) * 0.82 + 0.09;
+        const px = Math.round(bx + (t.x - bx) * u);
+        const py = Math.round(by + (t.y - by) * u);
+        ctx.fillStyle = INK_CSS;
+        ctx.fillRect(px, py + 1, 2, 1);
+        ctx.fillStyle = k % 2 === 0 ? hiCss : roseCss;
+        ctx.fillRect(px, py, 2, 1);
+      }
+    }
+  }
+
   function drawBomb(
     ctx: CanvasRenderingContext2D,
     b: Bomb,
@@ -639,6 +755,7 @@ export function makeGbcView(): GbcView {
     sx = 1,
     sy = 1,
     tiltRad = 0,
+    stateForFlux?: State,
   ): void {
     const planarSpeed = Math.hypot(b.vx, b.vy);
     let idx: number;
@@ -650,20 +767,14 @@ export function makeGbcView(): GbcView {
       const rate = b.fuse > 0.7 ? 8 : b.fuse > 0.35 ? 14 : 22;
       idx = Math.floor(time * rate + b.id) % 4;
     }
-    const bombFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-      'BOMB_1',
-      'BOMB_2',
-      'BOMB_3',
-      'BOMB_4',
-    ];
-    const fireFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-      'FIREBOMB_1',
-      'FIREBOMB_2',
-      'FIREBOMB_3',
-      'FIREBOMB_4',
-    ];
-    const list = b.kind === 'fire' ? fireFrames : bombFrames;
-    drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy, false, undefined, tiltRad);
+    if (b.kind === 'magnet' && stateForFlux) {
+      drawMagnetFluxLines(ctx, b, stateForFlux, time);
+    }
+    const { sprite, pal } = bombSpriteAndPalette(b.kind, idx);
+    drawScaledSprite(ctx, sprite, dx, dy, sx, sy, false, pal, tiltRad);
+    if (b.kind === 'squeak') {
+      drawSqueakMusicNote(ctx, dx, dy, time, b.id);
+    }
   }
 
   function computeBombDeform(b: Bomb, time: number): { sx: number; sy: number; tiltRad: number } {
@@ -851,7 +962,11 @@ export function makeGbcView(): GbcView {
   ): void {
     const { rx, ry, alpha } = computeShadowMetrics(baseRadiusPx, heightTiles);
     const rgb =
-      zone === 'ice-cave' ? '12, 20, 44' : zone === 'basement' ? '32, 18, 16' : '14, 28, 32';
+      zone === 'ice-cave' || zone === 'dungeon-999'
+        ? '12, 20, 44'
+        : zone === 'basement'
+          ? '32, 18, 16'
+          : '14, 28, 32';
     const cx = Math.round(cxPx);
     const cy = Math.round(footYPx);
 
@@ -1019,16 +1134,38 @@ export function makeGbcView(): GbcView {
       }
     }
 
-    // 2. Crisp animated pixel wind-streak lines sweeping across active WindGust discs
+    // 2. Crisp animated pixel wind-streak lines & spinning 2.5s whirlwind vortex rings
     for (let gi = 0; gi < gusts.length; gi++) {
       const g = gusts[gi];
       if (!g || g.remaining <= 0) continue;
+      const gx = g.x * TILE_PX;
+      const gy = g.y * TILE_PX;
+
+      if (g.vortex) {
+        const rOuter = 11;
+        const rInner = 6;
+        for (let k = 0; k < 8; k++) {
+          const a1 = (k * Math.PI) / 4 + time * 11;
+          const a2 = (k * Math.PI) / 4 + time * 15 + 0.35;
+          const ox = Math.round(gx + Math.cos(a1) * rOuter);
+          const oy = Math.round(gy + Math.sin(a1) * (rOuter * 0.65));
+          const ix = Math.round(gx + Math.cos(a2) * rInner);
+          const iy = Math.round(gy + Math.sin(a2) * (rInner * 0.65));
+          ctx.fillStyle = INK_CSS;
+          ctx.fillRect(ox, oy + 1, 2, 1);
+          ctx.fillRect(ix, iy + 1, 1, 1);
+          ctx.fillStyle = k % 2 === 0 ? streakTipCss : streakBodyCss;
+          ctx.fillRect(ox, oy, 2, 1);
+          ctx.fillStyle = streakTipCss;
+          ctx.fillRect(ix, iy, 1, 1);
+        }
+        continue;
+      }
+
       const mag = Math.hypot(g.dx, g.dy);
       const ux = mag > 1e-4 ? g.dx / mag : 1;
       const uy = mag > 1e-4 ? g.dy / mag : 0;
       const rPx = Math.max(12, g.radius * TILE_PX);
-      const gx = g.x * TILE_PX;
-      const gy = g.y * TILE_PX;
 
       for (let i = 0; i < 5; i++) {
         const lat = (i - 2) * 0.36 * rPx;
@@ -1256,6 +1393,72 @@ export function makeGbcView(): GbcView {
         tiltRad,
       );
       headTopY = dy;
+    } else if (
+      e.kind === 'beetle' ||
+      e.kind === 'mimic' ||
+      e.kind === 'tortoise' ||
+      e.kind === 'otter'
+    ) {
+      const frozen = (e.frozenTimer ?? 0) > 0;
+      const step = frozen ? 0 : Math.floor(time * 8.5 * rateMul + e.id) % 4;
+      const dx = Math.round(e.x * TILE_PX - 8);
+      const dy = Math.round(e.y * TILE_PX - 10);
+      const creaturePal: ObjPaletteId =
+        flashPal ??
+        (e.kind === 'beetle'
+          ? 'villager'
+          : e.kind === 'mimic'
+            ? 'spectral'
+            : e.kind === 'tortoise'
+              ? 'powder'
+              : 'mouse');
+      const frames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] =
+        e.kind === 'mimic' || e.kind === 'otter'
+          ? ['SHIELDER_1', 'SHIELDER_2', 'SHIELDER_3', 'SHIELDER_4']
+          : ['SLIME_1', 'SLIME_4', 'SLIME_2', 'SLIME_3'];
+      const flipX = e.vx < -0.05 || e.fx < -0.2;
+      drawScaledSprite(
+        ctx,
+        frames[step] ?? frames[0],
+        dx + wobbleX,
+        dy,
+        sx * (e.kind === 'tortoise' ? 1.12 : 1),
+        sy * (e.kind === 'tortoise' ? 0.92 : 1),
+        flipX,
+        creaturePal,
+        tiltRad,
+      );
+      // Brass clockwork wind-up key accent on top
+      const keyX = Math.round(e.x * TILE_PX - 1) + wobbleX;
+      const keyY = dy - 1;
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(keyX - 1, keyY, 4, 3);
+      ctx.fillStyle = cssRgb(OBJ_PALETTES.villager[1]);
+      ctx.fillRect(keyX, keyY, 2, 2);
+      headTopY = dy - 1;
+    }
+
+    if ((e.frozenTimer ?? 0) > 0) {
+      const ix = Math.round(e.x * TILE_PX - 8);
+      const iy = Math.round(e.y * TILE_PX - 11);
+      const iceWhite = cssRgb(OBJ_PALETTES.spectral[0]);
+      const iceCyan = cssRgb(OBJ_PALETTES.spectral[2]);
+      ctx.fillStyle = 'rgba(120, 224, 248, 0.38)';
+      ctx.fillRect(ix + 1, iy + 1, 14, 14);
+      ctx.fillStyle = INK_CSS;
+      ctx.fillRect(ix, iy, 16, 1);
+      ctx.fillRect(ix, iy + 15, 16, 1);
+      ctx.fillRect(ix, iy, 1, 16);
+      ctx.fillRect(ix + 15, iy, 1, 16);
+      ctx.fillStyle = iceCyan;
+      ctx.fillRect(ix + 1, iy + 1, 14, 1);
+      ctx.fillRect(ix + 1, iy + 14, 14, 1);
+      ctx.fillRect(ix + 1, iy + 1, 1, 14);
+      ctx.fillRect(ix + 14, iy + 1, 1, 14);
+      ctx.fillStyle = iceWhite;
+      ctx.fillRect(ix + 2, iy + 2, 3, 1);
+      ctx.fillRect(ix + 2, iy + 3, 1, 2);
+      ctx.fillRect(ix + 11, iy + 12, 2, 1);
     }
 
     if (noticing) {
@@ -1392,15 +1595,12 @@ export function makeGbcView(): GbcView {
     if (s.heldBomb !== null) {
       const bob = moving ? (Math.floor(elapsedMove * 6) % 2 === 0 ? -1 : 0) : 0;
       draw(`MOUSE_${dir}_LIFT`, baseSx, baseSy);
-      const heldFrame: ObjSpriteName =
-        s.heldBomb === 'fire'
-          ? Math.floor(time * 5) % 2 === 0
-            ? 'FIREBOMB_1'
-            : 'FIREBOMB_2'
-          : Math.floor(time * 5) % 2 === 0
-            ? 'BOMB_1'
-            : 'BOMB_2';
-      drawObjSprite(ctx, heldFrame, dx, dy - 7 + bob);
+      const fIdx = Math.floor(time * 5) % 2;
+      const { sprite: heldFrame, pal: heldPal } = bombSpriteAndPalette(s.heldBomb, fIdx);
+      drawObjSprite(ctx, heldFrame, dx, dy - 7 + bob, false, heldPal);
+      if (s.heldBomb === 'squeak') {
+        drawSqueakMusicNote(ctx, dx, dy - 7 + bob, time, 0);
+      }
       return;
     }
 
@@ -1611,7 +1811,7 @@ export function makeGbcView(): GbcView {
 
       const resolveHazardSpot = (
         targetTile: '~' | '^',
-      ): { x: number; y: number; bombKind: 'bomb' | 'fire' } => {
+      ): { x: number; y: number; bombKind: BombKind } => {
         for (let i = 0; i < vanishedBombs.length; i++) {
           const cand = vanishedBombs[i];
           if (!cand) continue;
@@ -1649,7 +1849,7 @@ export function makeGbcView(): GbcView {
             bombKind: firstVanished.kind,
           };
         }
-        const fallbackKind: 'bomb' | 'fire' = s.equipped ?? 'bomb';
+        const fallbackKind: BombKind = s.equipped ?? 'bomb';
         for (const dist of [0.65, 1.15, 1.8, 2.4, 3.0]) {
           const sx = s.x + s.aimX * dist;
           const sy = s.y + s.aimY * dist;
@@ -1782,6 +1982,29 @@ export function makeGbcView(): GbcView {
         mainCtx.fillStyle = shallowFoamCss;
         mainCtx.fillRect(bx + 5 + shift, by + 5, 2, 1);
         mainCtx.fillRect(bx + 10 - shift, by + 10, 2, 1);
+      }
+
+      // Render s.frozenTiles over water/hazards as crisp ice tiles
+      if (s.frozenTiles && s.frozenTiles.size > 0) {
+        const roomPrefix = `${s.zone}:${s.rx},${s.ry}:`;
+        for (let fy = 0; fy < ROOM_H; fy++) {
+          for (let fx = 0; fx < ROOM_W; fx++) {
+            if (
+              !s.frozenTiles.has(`${roomPrefix}${fx},${fy}`) &&
+              !s.frozenTiles.has(`${fx},${fy}`)
+            ) {
+              continue;
+            }
+            const img = getPlacedBg('ice-cave', {
+              x: fx,
+              y: fy,
+              tile: BG.iceBlock,
+              transparentZero: true,
+            });
+            mainCtx.drawImage(img, fx * TILE_PX, fy * TILE_PX);
+            auxCtx.drawImage(iceAux, fx * TILE_PX, fy * TILE_PX);
+          }
+        }
       }
 
       // Fading floor scorch craters from bomb detonations (drawn on ground below actors)
@@ -1980,13 +2203,30 @@ export function makeGbcView(): GbcView {
           orderTie: tieSeq++,
           draw: () => {
             drawContactShadow(mainCtx, s.zone, px + 8, py + 15, 7, 0);
+            const blockTile: BgTile = blk.metal
+              ? { quads: ['steel', 'steel', 'steel', 'steel'], rows: BG.pushBlock.rows }
+              : blk.rock
+                ? { quads: ['wood', 'wood', 'wall', 'wall'], rows: BG.pushBlock.rows }
+                : BG.pushBlock;
             const img = getPlacedBg(s.zone, {
               x: blk.x,
               y: blk.y,
-              tile: BG.pushBlock,
+              tile: blockTile,
               transparentZero: true,
             });
             mainCtx.drawImage(img, px, py);
+            if (blk.metal) {
+              // Steel rivet highlights at corners
+              mainCtx.fillStyle = cssRgb(OBJ_PALETTES.powder[0]);
+              mainCtx.fillRect(px + 3, py + 3, 1, 1);
+              mainCtx.fillRect(px + 12, py + 3, 1, 1);
+              mainCtx.fillRect(px + 3, py + 11, 1, 1);
+              mainCtx.fillRect(px + 12, py + 11, 1, 1);
+            } else if (blk.rock) {
+              // Ochre stone bevel highlight
+              mainCtx.fillStyle = cssRgb(OBJ_PALETTES.villager[1]);
+              mainCtx.fillRect(px + 4, py + 2, 8, 1);
+            }
             eraseAux(img, px, py);
           },
         });
@@ -2093,7 +2333,7 @@ export function makeGbcView(): GbcView {
                 time,
               );
             }
-            drawBomb(mainCtx, b, gx, gy - 1 - elevPx + waterBob, time, sx, sy, tiltRad);
+            drawBomb(mainCtx, b, gx, gy - 1 - elevPx + waterBob, time, sx, sy, tiltRad, s);
           },
         });
       }

@@ -113,6 +113,48 @@ export class ParticleSystem {
           8,
           30,
         );
+      } else if (bl.kind === 'ice' || bl.kind === 'wind') {
+        this.burst(
+          hub ? 12 : 4,
+          x,
+          y,
+          (a, v) => ({
+            kind: 'spark',
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v - 15,
+            life: 0.3 + r() * 0.3,
+            maxLife: 0.6,
+            size: 1 + r() * 1.2,
+            color: r() < 0.5 ? 0x80f4ff : 0xe8ffff,
+            gravity: bl.kind === 'wind' ? -25 : 90,
+            drag: 0.15,
+            glow: true,
+          }),
+          45,
+          120,
+        );
+      } else if (bl.kind === 'magnet' || bl.kind === 'squeak' || bl.kind === 'rock') {
+        const c1 = bl.kind === 'magnet' ? 0xff5870 : bl.kind === 'squeak' ? 0xffe070 : 0xa8c890;
+        const c2 = bl.kind === 'magnet' ? 0xffd860 : bl.kind === 'squeak' ? 0xfff8e0 : 0x8a7a68;
+        this.burst(
+          hub ? 10 : 4,
+          x,
+          y,
+          (a, v) => ({
+            kind: bl.kind === 'rock' ? 'debris' : 'spark',
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v - 25,
+            life: 0.3 + r() * 0.3,
+            maxLife: 0.6,
+            size: 1.1 + r(),
+            color: r() < 0.5 ? c1 : c2,
+            gravity: bl.kind === 'rock' ? 220 : 80,
+            drag: 0.15,
+            glow: bl.kind !== 'rock',
+          }),
+          35,
+          95,
+        );
       } else {
         this.burst(
           hub ? 12 : 4,

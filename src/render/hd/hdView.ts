@@ -773,13 +773,13 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       u.uSunDir.set(lighting.sunDir);
       u.uSunColor.set(lighting.sunColor);
       u.uShadowInk.set(lighting.shadowInk);
-      const indoor = s.zone === 'ice-cave' || s.zone === 'basement';
+      const indoor = s.zone === 'ice-cave' || s.zone === 'basement' || s.zone === 'dungeon-999';
       // saturation, contrast, tint mix, wall shade
       u.uGrade.set(indoor ? [1.06, 1.03, 0.35, 0.72] : [1.08, 1.03, 0.3, 0.82]);
       u.uTint.set(
         s.zone === 'basement'
           ? [1.04, 0.99, 0.92]
-          : s.zone === 'ice-cave'
+          : s.zone === 'ice-cave' || s.zone === 'dungeon-999'
             ? [0.94, 0.99, 1.08]
             : [0.94, 0.98, 1.08],
       );

@@ -6,6 +6,7 @@
  * - Dungeon 0: Grandma's Basement (5 rooms: Mouse House Interior + 4-room cellar)
  * - Shrine 1: Ice Cave (10 rooms in a two-act layout with 2-phase Ice Golem & Ice Wraith)
  */
+import { DUNGEON_999_ROOMS } from './dungeon999';
 import { type RoomSpec, type World, type ZoneId } from './types';
 
 export const roomKey = (zone: ZoneId, rx: number, ry: number): string => `${zone}:${rx},${ry}`;
@@ -964,7 +965,7 @@ const ROOM_LIST: RoomSpec[] = [
 
 export function campaignWorld(): World {
   const rooms = new Map<string, RoomSpec>();
-  for (const r of ROOM_LIST) {
+  for (const r of [...ROOM_LIST, ...DUNGEON_999_ROOMS]) {
     rooms.set(roomKey(r.zone, r.rx, r.ry), r);
   }
   return { rooms };

@@ -8,9 +8,9 @@
 export const ROOM_W = 11;
 export const ROOM_H = 13;
 
-export type ZoneId = 'overworld' | 'basement' | 'ice-cave';
+export type ZoneId = 'overworld' | 'basement' | 'ice-cave' | 'dungeon-999';
 
-export type BombKind = 'bomb' | 'fire';
+export type BombKind = 'bomb' | 'fire' | 'squeak' | 'wind' | 'magnet' | 'ice' | 'rock';
 
 /**
  * Room ASCII tile legend:
@@ -83,7 +83,16 @@ export interface StampSpec {
 
 export type CrystalColor = 'red' | 'blue';
 
-export type EnemyKind = 'slime' | 'bat' | 'shielder' | 'wickgeist' | 'cinderhull';
+export type EnemyKind =
+  | 'slime'
+  | 'bat'
+  | 'shielder'
+  | 'wickgeist'
+  | 'cinderhull'
+  | 'beetle'
+  | 'mimic'
+  | 'tortoise'
+  | 'otter';
 
 export type PickupKind =
   | 'bomb-sack'
@@ -235,6 +244,7 @@ export interface WindGust {
   dy: number;
   radius: number;
   remaining: number;
+  vortex?: boolean;
 }
 
 export type EnemyAiState = 'patrol' | 'notice' | 'chase' | 'windup' | 'flee' | 'recover';
@@ -245,6 +255,8 @@ export interface PushBlock {
   pushCharge: number;
   pushDirX: number;
   pushDirY: number;
+  metal?: boolean;
+  rock?: boolean;
 }
 
 export interface TorchState {
@@ -295,6 +307,7 @@ export interface Enemy {
   /** Phase 1 Shrine miniboss: flees into the inner arena at half health. */
   fleeOnDefeat?: boolean;
   fleeBanner?: string;
+  frozenTimer?: number;
 }
 
 export interface ActivePickup {
@@ -382,6 +395,7 @@ export interface State {
   visitedRooms: Set<string>;
   brokenTiles: Set<string>;
   burnedTiles: Set<string>;
+  frozenTiles?: Set<string>;
   openedDoors: Set<string>;
   solvedRooms: Set<string>;
   fledMinibossRooms: Set<string>;

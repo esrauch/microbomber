@@ -452,17 +452,196 @@ then hit him with a plain **Bomb** while stunned:
 
 ---
 
-## 999. The Developer Dungeon (not part of the main campaign)
+## 999. The Developer Dungeon (`zone: 'dungeon-999'`)
 
-A self-contained test rig (`?dev=999`, or unlocked in-game via the soot-black
-mousehole in Grandma's Basement once you collect all **`36` Grandma's Buttons**).
-Every room isolates one mechanic or bomb pair with live tuning sliders:
+A self-contained 10-room Rube Goldberg test rig and physics proving ground where
+every bomb, mover, switch, and Clockwork Creature in `GAME.md` and
+`PUZZLE_MECHANICS.md` can be tuned and verified in isolation or in chain
+combinations.
 
-- **Wings `A0–A7`:** `A0` Movement & Roll, `A1` Bomb, `A2` Fire, `A3` Wind, `A4`
-  Ice, `A5` Rock, **`A6` Magnet** (*Rail Glide*, *Mid-Chute Curve*, *Sphere Tug*,
-  *Polarity Pulse*), and **`A7` Squeak** (*Beetle Lure*, *Daze Hold*, *Mimic
-  Desync*, *Mousehole Messenger*).
-- **Wing `B` (`B1–B21`):** Every pairing of the 7 bombs.
-- **Wing `Toys`:** *Bowling Alley*, *Pinball Table*, *Firework Field*, *Wind
-  Tunnel*, *Skating Rink*, *Magnetic Rail Yard*, *Clockwork Menagerie*, *Stress
-  Hall*, and *Lighting Lab*.
+### 1. Rules of the Rig (`zone: 'dungeon-999'`)
+
+- **Self-contained & instant room reset:** Leaving or re-entering any room in
+  `'dungeon-999'` resets all broken (`%`, `W`), burned (`,`, `B`), and frozen
+  (`~`, `1–4`, `;`, `!`) tiles, push/metal/rock blocks (`P`, `M`, `Rock`), floor
+  buttons (`O`), torches (`T`), Clockwork Creatures (`beetle`, `mimic`,
+  `tortoise`), and crystal colour (`red ↔ blue`). Every satellite room includes
+  a return warp pad (`>`) back to **`Lobby: Measuring Hall (0, 0)`**.
+- **Full kit unlocked on entry:** Entering `'dungeon-999'` grants all **7
+  bombs** (**`Bomb, Fire, Squeak, Wind, Magnet, Ice, Rock`**), **`4` live bombs**
+  at once, **Bomb blast reach `2`**, **zero self-blast damage** (own blasts only
+  impart a `1`-tile knockback hop), and **zero hearts** (pits, water, spikes, and
+  Clockwork Creature bumps pop Pip back to the room's entry threshold).
+- **3 ways to enter:**
+  1. **URL flag:** load the game with `?dev=999` (or `?room=999:<gx>,<gy>` to
+     spawn directly in a specific test chamber).
+  2. **Settings build-stamp tap:** open **START / Settings** and tap the version
+     build stamp `5` times to toggle the **`DEV 999`** quick-warp button.
+  3. **In-game 100% reward:** collect all **`36` Grandma's Sewing Buttons** to
+     unseal the soot-black mousehole behind **Coal Chute `B1F (0,0)`** in
+     Grandma's Basement.
+- **Live Dev Telemetry Overlay (`HUD`):** While inside `'dungeon-999'`, a compact
+  top-right telemetry readout displays:
+  - Pip's tile position `(x, y)` and instantaneous speed (`tiles/s`),
+  - Equipped bomb type, crystal polarity (`RED` / `BLUE`), and active bomb count,
+  - Leading active bomb telemetry `(x, y, vx, vy, z, fuse)`,
+  - Last measured roll / throw / whirlwind-catapult travel distance.
+
+---
+
+### 2. Grid Layout & Room Roster (`10` Rooms)
+
+All `10` rooms sit on a compact `3 × 4` coordinate grid around **`Lobby:
+Measuring Hall (0, 0)`**, connected by aligned cardinal doorways and return warp
+pads (`>`):
+
+```text
+          x = -1                      x = 0                       x = 1
+y = -1  [ B1 (-1,-1) ]  =========  [ A1 ( 0,-1) ]  =========  [ A2 ( 1,-1) ]
+        Grand Chain                Chute & Flip               Fuse & Firebreak
+             ||                         ||                         ||
+y =  0  [ A7 (-1, 0) ]  =========  [Lobby (0, 0)]  =========  [ A3 ( 1, 0) ]
+        Lure & Mimic               Measuring Hall             Whirlwind Catapult
+             ||                         ||                         ||
+y =  1  [ A6 (-1, 1) ]  =========  [ A5 ( 0, 1) ]  =========  [ A4 ( 1, 1) ]
+        Magnet & Chute             Rock Windbreak             Freeze the Stream
+                                        ||
+y =  2                             [ T1 ( 0, 2) ]
+                                   Pinball & Rink
+```
+
+| ID | Grid `(x, y)` | Room Title | Category | Primary Bomb(s) | Rube Goldberg Mechanism & Verification Target |
+|---|:-:|---|:-:|---|---|
+| **Lobby** | `(0, 0)` | **`Lobby: Measuring Hall`** | 📏 | All 7 Bombs | Open `11 × 13` ruled calibration floor (`1`-tile checkerboard markers) for measuring walk speed, `B = Roll` distance (`2` tiles in `0.25 s`), `A = Throw` arc (`3` tiles + roll), and warp/door access to the surrounding wings. |
+| **A0 / A1** | `(0, -1)` | **`A1: Chute & Delayed Flip`** | 🎯 | **Bomb** | Drop a Bomb onto an `e → s` sloped stone chute (`SLOPE_ACCEL`) and cross the lowered blue barrier (`U`) while it rolls; the bomb strikes crystal `C` at the chute end to flip `red ↔ blue` and lower `R`, plus a 2-bomb blast-shove lane (`1st` blast shoves live Bomb, `2nd` blast chain-detonates). |
+| **A2** | `(1, -1)` | **`A2: Fuse Line & Firebreak`** | 🎯 | **Fire (+ Bomb)** | Three dry-grass `,` powder fuse lines of lengths `4`, `5`, and `6` tiles leading to braziers (`T`), plus a wooden crate (`W`) and push block (`P`) firebreak test proving `MAX_FIRE_GENERATION` timing and crate preservation. |
+| **A3** | `(1, 0)` | **`A3: Whirlwind Catapult`** | 🎯 | **Wind + Bomb** | Part 1: pop a `0.8 s` Wind Bomb beside Pip to **blast-jump `2` tiles** across a pit gap (`^`). Part 2: pop a Wind Bomb on a chasm lip to spawn a **`2.5 s` lingering whirlwind vortex**, then throw a Bomb into the vortex to catapult it `3–4` tiles across the chasm into crystal `C` and a `%` wall. |
+| **A4** | `(1, 1)` | **`A4: Freeze the Stream`** | 🎯 | **Ice + Bomb** | Part 1: float a Bomb down an eastbound water current (`3`) and throw an **Ice Bomb** (`3 × 3` nova) to freeze the current mid-drift, locking the Bomb beside crystal `C`. Part 2: catch a Brass Beetle in an Ice Bomb nova to freeze it for `4.0 s` into a frictionless ice cube and kick-slide it onto floor button `O`. |
+| **A5** | `(0, 1)` | **`A5: Portable Windbreak & Stone`** | 🎯 | **Rock + Bomb** | Enforces the **1-Rock-block rule** (spawning a second crumbles the first): drop a Rock Bomb into shallow water (`;`) or spikes (`!`) as a walkable stepping stone, place a Rock block at a chute exit as a curling backstop, and anchor a Rock windbreak upwind in an east gust lane (`dx = 2.2`) so a Bomb sits undisturbed on `O`. |
+| **A6** | `(-1, 1)` | **`A6: Magnet Rail & Chute Tug`** | 🎯 | **Magnet + Bomb** | Part 1: roll a Bomb down a north–south chute (`s`) and place a `1.5 s` **Magnet Bomb** behind a low fence (`=`) so its continuous magnetic pull curves the rolling Bomb sideways off the chute into crystal `C` / `%`. Part 2: pull an aligned metal block (`M`) across a floor lane onto button `O`. |
+| **A7** | `(-1, 0)` | **`A7: Clockwork Lure & Mimic`** | 🎯 | **Squeak + Bomb** | Part 1: throw a `2.5 s` chirping **Squeak Bomb** over a low fence (`=`) to lure a **Brass Beetle** onto floor button `O` and hold it there with the `2.5 s` acoustic daze puff. Part 2: walk a **Mimic Statue** in mirrored lockstep, then throw a Squeak Bomb to desync and park it on a latch plate. |
+| **B1** | `(-1, -1)` | **`B1: Rube Goldberg Grand Chain`** | 🎯 | **All 7 Bombs** | Multi-stage combination chamber: light a `,` grass fuse line (**Fire**) while anchoring a **Rock** backstop, pulling a metal block (`M`) onto a switch (**Magnet**), catapulting a Bomb across a pit via a `2.5 s` whirlwind (**Wind**), freezing a current drift (**Ice**), and luring a Brass Beetle onto a gate button (**Squeak**) to flip `C`. |
+| **T1** | `(0, 2)` | **`T1: Pinball & Skating Rink`** | 🧸 | **All 7 Bombs** | Open sandbox toy hall combining angled `e/s/w/n` stone chutes, crate bumpers (`W`), metal blocks (`M`), and freezable water currents (`1–4`) for freeform bomb bowling, curling slides, and multi-bomb chain experiments. |
+
+---
+
+### 3. Reference ASCII Maps (`11 × 13`)
+
+Every standard room in `'dungeon-999'` is `13` columns wide (`x = 0..12`) by
+`11` rows tall (`y = 0..10`), with aligned border doorways to adjacent rooms and
+a return warp pad (`>`) to `Lobby (0, 0)`.
+
+#### `A1 (0, -1)` — `Chute & Delayed Flip` 🎯 *(Bomb)*
+- **Objective:** Drop a Bomb at the head of the `e → s` chute (`(3, 2)`), run
+  east across the lowered blue barrier (`U`) while the bomb accelerates
+  downhill, and let the blast flip crystal `C` (`(8, 5)`) to lower the red
+  barrier (`R`) guarding the north alcove. South exits back to `Lobby (0, 0)`;
+  east connects to `A2 (1, -1)`; west connects to `B1 (-1, -1)`.
+
+```text
+0123456789012
+############# 0
+#..>..R..O..# 1
+#.eeeees....# 2
+#......s.U..# 3
+#......s.U..# 4
+......sC..... 5
+#......=====# 6
+#..P.....%..# 7
+#...........# 8
+#...........# 9
+#####...##### 10
+```
+
+#### `A2 (1, -1)` — `Fuse Line & Firebreak` 🎯 *(Fire Bomb)*
+- **Objective:** Ignite the three `,` dry-grass fuse lines of lengths `4`, `5`,
+  and `6` tiles with a **Fire Bomb** to light the distant braziers (`T`) across
+  the fence (`=`), and shove stone block `P` into the lower grass lane as a
+  firebreak so the flame lights the east brazier without burning the wooden
+  crate (`W`) sitting on button `O`. West exits to `A1 (0, -1)`; south exits to
+  `A3 (1, 0)`.
+
+```text
+0123456789012
+############# 0
+#..>........# 1
+#..,,,,T....# 2
+#..,,,,,T...# 3
+#..,,,,,,T..# 4
+.....=======# 5
+#...........# 6
+#..P,,,,,,,,# 7
+#........W.T# 8
+#........O..# 9
+#####...##### 10
+```
+
+#### `A6 (-1, 1)` — `Magnet Rail & Mid-Chute Tug` 🎯 *(Magnet Bomb)*
+- **Objective:** Drop a Bomb at the top of the southbound chute (`s` at `(4, 2)`)
+  and place a **Magnet Bomb** east of the low fence (`=` at `(7, 5)`): while
+  its `1.5 s` magnetic field hums, it pulls the rolling Bomb sideways off the
+  chute into crystal `C` and cracked wall `%`. On the west side, use a Magnet
+  Bomb to pull metal block `M` up onto floor button `O`. North exits to `A7
+  (-1, 0)`; east exits to `A5 (0, 1)`.
+
+```text
+0123456789012
+#####...##### 0
+#..>s.......# 1
+#...s.......# 2
+#.O.s.=.C...# 3
+#...s.=.....# 4
+#...s.=..%... 5
+#.M.s.=.....# 6
+#...s.......# 7
+#...........# 8
+#...........# 9
+############# 10
+```
+
+#### `A7 (-1, 0)` — `Clockwork Lure & Mimic` 🎯 *(Squeak Bomb)*
+- **Objective:** Throw a **Squeak Bomb** over the central low fence (`=`) into
+  the east pen so its `2.5 s` clockwork chirp lures the **Brass Beetle** (`b`
+  spawn) onto floor button `O` and its `2.5 s` stun puff holds the beetle there
+  while you cross the shutter. In the west lane, walk the **Mimic Statue** (`m`
+  spawn) into alignment and throw a Squeak Bomb to desync it onto the twin
+  button. North exits to `B1 (-1, -1)`; east exits to `Lobby (0, 0)`; south
+  exits to `A6 (-1, 1)`.
+
+```text
+0123456789012
+#####...##### 0
+#..>..=.....# 1
+#.....=..O..# 2
+#.O...=.....# 3
+#.....=..(b)# 4
+......=...... 5
+#.(m).=.....# 6
+#.....=..C..# 7
+#.....=.....# 8
+#...........# 9
+#####...##### 10
+```
+*(Parenthesized `(b)` and `(m)` indicate Clockwork Creature spawns on `.` floor
+tiles.)*
+
+---
+
+### 4. Mechanic Coverage Table
+
+Every Rube Goldberg primitive in `PUZZLE_MECHANICS.md` has an isolated test
+target inside `'dungeon-999'`:
+
+| Primitive / Bomb Rule | Spec Reference | Verified in `'dungeon-999'` Room(s) | Pass Criterion |
+|---|---|---|---|
+| **Walk, `B = Roll` & `A = Throw` distances** | `GAME.md` §2 | `Lobby (0, 0)` | Roll dashes `2` tiles in `0.25 s` across `!`; Throw clears `=` and travels `3` tiles + roll. |
+| **Zero hearts & zero self-blast damage** | `GAME.md` §1, §4 | All `'dungeon-999'` rooms | Own blast gives `1`-tile knockback with `0` HP loss; `^` / `~` / `!` hop Pip back to entry. |
+| **Sloped chute (`n/s/e/w`) + Crystal switch (`C`)** | `PUZZLE_MECHANICS.md` Movers | `A1 (0, -1)`, `T1 (0, 2)` | Dropped Bomb accelerates down `e → s` chute and flips `C` (`R ↔ U`) after Pip crosses `U`. |
+| **2-Hit Bomb Shove & Chain detonation** | `GAME.md` §4.0 | `A1 (0, -1)` | `1st` blast shoves live Bomb across floor (`fuse ≥ 0.35 s`); `2nd` blast chain-detonates it. |
+| **Fire Bomb hearth + `,` fuse lines + firebreak** | `GAME.md` §4.1 | `A2 (1, -1)`, `B1 (-1, -1)` | `2.5 s` hearth ignites `,` trails tile-by-tile to light `T`; block firebreak spares `W` on `O`. |
+| **Wind Bomb blast-jump (`2` tiles) + `2.5 s` whirlwind** | `GAME.md` §4.3 | `A3 (1, 0)`, `B1 (-1, -1)` | Pop beside Pip leaps `2`-tile `^` gap; lingering vortex catapults thrown Bomb `3–4` tiles. |
+| **Ice Bomb current freeze + `4.0 s` frozen beetle cube** | `GAME.md` §4.5 | `A4 (1, 1)`, `T1 (0, 2)` | `3 × 3` nova freezes `3` current mid-drift beside `C`; frozen beetle slides when kicked onto `O`. |
+| **Rock Bomb 1-block limit, stepping stone & windbreak** | `GAME.md` §4.6 | `A5 (0, 1)`, `B1 (-1, -1)` | Bridges `;`/`!`, arrests sliding blocks/bombs, and creates `4`-tile calm lee downwind in `room.wind`. |
+| **Magnet Bomb `1.5 s` continuous pull & metal block `M`** | `GAME.md` §4.4 | `A6 (-1, 1)`, `B1 (-1, -1)` | Curves rolling Bomb sideways off `s` chute into `C`/`%` and pulls aligned `M` onto `O`. |
+| **Squeak Bomb `2.5 s` lure, `2.5 s` daze & Mimic desync** | `GAME.md` §4.2 | `A7 (-1, 0)`, `B1 (-1, -1)` | Lures Brass Beetle behind `=` onto `O`, holds it `2.5 s` on pop, and desyncs Mimic Statue. |
+| **Room-local reset invariant** | `PUZZLE_MECHANICS.md` §6 | All `'dungeon-999'` rooms | Leaving any room resets broken/burned/frozen tiles, blocks, switches, creatures, and crystal colour. |

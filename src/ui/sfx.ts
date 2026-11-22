@@ -83,6 +83,24 @@ export function makeSfx(): SfxPlayer {
       } else if (ev === 'boom-fire') {
         tone(340, 110, 0.22, 'sawtooth', 0.18);
         tone(620, 260, 0.18, 'triangle', 0.12, 0.03);
+      } else if (ev === 'boom-squeak') {
+        tone(880, 1480, 0.065, 'sine', 0.14, 0);
+        tone(980, 1720, 0.08, 'triangle', 0.13, 0.075);
+      } else if (ev === 'boom-wind') {
+        tone(240, 620, 0.18, 'sine', 0.15, 0);
+        tone(520, 180, 0.22, 'triangle', 0.12, 0.06);
+      } else if (ev === 'wind-catapult') {
+        tone(320, 960, 0.14, 'triangle', 0.15, 0);
+        tone(640, 1280, 0.12, 'sine', 0.12, 0.05);
+      } else if (ev === 'boom-magnet') {
+        tone(140, 220, 0.2, 'sawtooth', 0.14, 0);
+        tone(440, 290, 0.18, 'sine', 0.12, 0.04);
+      } else if (ev === 'boom-ice') {
+        tone(784, 1568, 0.12, 'sine', 0.15, 0);
+        tone(1175, 2093, 0.16, 'triangle', 0.13, 0.05);
+      } else if (ev === 'boom-rock') {
+        tone(120, 42, 0.22, 'square', 0.18, 0);
+        tone(85, 32, 0.24, 'triangle', 0.16, 0.02);
       } else if (ev === 'crystal-flip') {
         tone(587, 880, 0.14, 'sine', 0.15);
       } else if (ev === 'portal-warp') {

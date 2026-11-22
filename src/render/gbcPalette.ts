@@ -151,6 +151,8 @@ const OW_GRASS_BASE = rgb555(96, 184, 64);
 const BASEMENT_FLOOR_BASE = rgb555(136, 112, 88);
 // Ice Cave: pale glacier stone, so the warm mouse and fire light both stand off it
 const CRYPT_FLOOR_BASE = rgb555(112, 136, 160);
+// Developer Dungeon 999: crisp blueprint-slate & brass test-rig stone
+const DEV_RIG_FLOOR_BASE = rgb555(104, 128, 152);
 
 export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
   overworld: makeZoneBgPalettes(
@@ -179,6 +181,14 @@ export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
     [rgb555(200, 224, 240), rgb555(80, 112, 152), rgb555(44, 64, 100), rgb555(20, 28, 52)],
     // 0: stone base, 1: icicle white / gilt, 2: glacier blue (ice blocks), 3: ink
     [CRYPT_FLOOR_BASE, rgb555(232, 240, 248), rgb555(136, 184, 216), INK],
+  ),
+  'dungeon-999': makeZoneBgPalettes(
+    // 0: ruled blueprint highlight, 1: slate test-rig floor, 2: recessed grid seam, 3: deep blueprint ink
+    [rgb555(168, 200, 224), DEV_RIG_FLOOR_BASE, rgb555(64, 80, 104), rgb555(24, 32, 48)],
+    // 0: brass trim highlight, 1: slate-brass rig masonry, 2: cast-iron cap, 3: deep joint
+    [rgb555(216, 200, 144), rgb555(96, 112, 136), rgb555(56, 64, 88), rgb555(24, 28, 40)],
+    // 0: floor base, 1: polished brass highlight, 2: blueprint cyan/brass inlay, 3: ink
+    [DEV_RIG_FLOOR_BASE, rgb555(240, 216, 128), rgb555(144, 176, 208), INK],
   ),
 };
 

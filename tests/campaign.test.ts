@@ -41,6 +41,7 @@ const VALID_TILES = new Set([
   '!',
   '>',
   'P',
+  'M',
   'n',
   's',
   'e',
@@ -52,11 +53,12 @@ const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === '
 describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', () => {
   const world = campaignWorld();
 
-  it('has 24 rooms (5 Basement + 9 Overworld + 10 Ice Cave), all exactly ROOM_W × ROOM_H with valid tiles', () => {
+  it('has 34 rooms (5 Basement + 9 Overworld + 10 Ice Cave + 10 Dungeon 999), all exactly ROOM_W × ROOM_H with valid tiles', () => {
     const rooms = [...world.rooms.values()];
     expect(rooms.filter((r) => r.zone === 'basement')).toHaveLength(5);
     expect(rooms.filter((r) => r.zone === 'overworld')).toHaveLength(9);
     expect(rooms.filter((r) => r.zone === 'ice-cave')).toHaveLength(10);
+    expect(rooms.filter((r) => r.zone === 'dungeon-999')).toHaveLength(10);
 
     for (const r of rooms) {
       expect(r.rows, r.name).toHaveLength(ROOM_H);

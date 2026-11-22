@@ -3,7 +3,7 @@
  * ambient term, a directional sun, chromatic zone shadow ink, and point lights in native pixels.
  * Pure (no DOM or WebGL) so it is testable; `hdView.ts` feeds the result to the lighting shader.
  */
-import type { State, World, ZoneId } from '../../game/types';
+import type { BombKind, State, World, ZoneId } from '../../game/types';
 import { currentRoom, isRoomLit } from '../../game/world';
 
 const TILE = 16;
@@ -38,7 +38,7 @@ export interface Lighting {
 export interface Flash {
   x: number;
   y: number;
-  kind: 'bomb' | 'fire';
+  kind: BombKind;
   born: number;
 }
 
@@ -49,12 +49,14 @@ const FIRE: Rgb3 = [1.0, 0.5, 0.2];
 const SPARK: Rgb3 = [1.0, 0.86, 0.45];
 const BLAST_CORE: Rgb3 = [1.0, 0.96, 0.84];
 const CYAN: Rgb3 = [0.45, 0.85, 1.0];
+const MAGNET_RED: Rgb3 = [1.0, 0.36, 0.46];
 /** Clean moon-ivory lantern pool so dark-room violet flagstones keep their true hues. */
 const LANTERN: Rgb3 = [0.96, 0.94, 0.98];
 
 /** Deep chromatic GBC shadow ink per zone (forest-pine teal outdoors, warm umber in house/cellar, glacier-indigo in Ice Cave). */
 export function zoneShadowInk(zone: ZoneId): Rgb3 {
   if (zone === 'ice-cave') return [0.03, 0.07, 0.18];
+  if (zone === 'dungeon-999') return [0.04, 0.07, 0.14];
   if (zone === 'basement') return [0.1, 0.05, 0.04];
   return [0.04, 0.09, 0.16];
 }
@@ -72,11 +74,12 @@ export function computeLighting(
 ): Lighting {
   const room = currentRoom(world, s);
   const crypt = s.zone === 'ice-cave';
-  const indoor = crypt || s.zone === 'basement';
+  const devRig = s.zone === 'dungeon-999';
+  const indoor = crypt || devRig || s.zone === 'basement';
   const darkUnlit = Boolean(room?.dark) && !isRoomLit(world, s);
 
   // Stark moonlit night outdoors (~25% cool silver-blue ambient), cozy hearth in basement,
-  // moody shadow in the crypt, and near black in an unlit dark room.
+  // moody shadow in the crypt, well-lit blueprint test rig in Dungeon 999, and near black in an unlit dark room.
   let flashPeak = 0;
   for (const fl of flashes) {
     const age = time - fl.born;
@@ -88,11 +91,13 @@ export function computeLighting(
   const dip = 1 - 0.35 * flashPeak;
   const baseAmbient: Rgb3 = darkUnlit
     ? [0.07, 0.07, 0.12]
-    : crypt
-      ? [0.25, 0.3, 0.375]
-      : s.zone === 'basement'
-        ? [0.35, 0.3, 0.25]
-        : [0.24, 0.28, 0.4];
+    : devRig
+      ? [0.32, 0.34, 0.4]
+      : crypt
+        ? [0.25, 0.3, 0.375]
+        : s.zone === 'basement'
+          ? [0.35, 0.3, 0.25]
+          : [0.24, 0.28, 0.4];
   const ambient: Rgb3 = [baseAmbient[0] * dip, baseAmbient[1] * dip, baseAmbient[2] * dip];
   const sunColor: Rgb3 = indoor || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.42, 0.65];
   const sunDir: Rgb3 = indoor || darkUnlit ? [-0.45, -0.62, 0.64] : [-0.64, -0.56, 0.52];
@@ -108,7 +113,14 @@ export function computeLighting(
     const age = time - fl.born;
     if (age < 0 || age > FLASH_SECONDS) continue;
     const k = 1 - age / FLASH_SECONDS;
-    const tailColor = fl.kind === 'fire' ? FIRE : SPARK;
+    const tailColor: Rgb3 =
+      fl.kind === 'fire'
+        ? FIRE
+        : fl.kind === 'ice' || fl.kind === 'wind'
+          ? CYAN
+          : fl.kind === 'magnet'
+            ? MAGNET_RED
+            : SPARK;
     const hotMix = age < 0.065 ? 1 - age / 0.065 : 0;
     const color: Rgb3 = [
       tailColor[0] + (BLAST_CORE[0] - tailColor[0]) * hotMix,
@@ -164,8 +176,12 @@ export function computeLighting(
     const y = (b.y - b.z) * TILE;
     if (b.kind === 'fire') {
       add({ x, y, z: 8, radius: 34, color: FIRE, intensity: 0.82 * flicker(time, b.id) });
+    } else if (b.kind === 'ice' || b.kind === 'wind') {
+      add({ x, y, z: 8, radius: 28, color: CYAN, intensity: 0.72 * flicker(time, b.id) });
+    } else if (b.kind === 'magnet') {
+      add({ x, y, z: 8, radius: 30, color: MAGNET_RED, intensity: 0.75 * flicker(time, b.id) });
     } else {
-      // The fuse spark brightens as it burns down
+      // The fuse spark brightens as it burns down ('bomb', 'squeak', 'rock')
       const urgency = 1 - Math.max(0, Math.min(1, b.fuse / 1.5));
       add({
         x,
@@ -174,6 +190,18 @@ export function computeLighting(
         radius: 18 + urgency * 12,
         color: SPARK,
         intensity: (0.5 + urgency * 0.55) * flicker(time, b.id),
+      });
+    }
+  }
+  for (const g of s.gusts) {
+    if (g.vortex && g.remaining > 0) {
+      add({
+        x: g.x * TILE,
+        y: g.y * TILE,
+        z: 8,
+        radius: 38,
+        color: CYAN,
+        intensity: Math.min(0.85, g.remaining * 0.45) * (0.9 + 0.1 * Math.sin(time * 12)),
       });
     }
   }

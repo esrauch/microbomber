@@ -44,6 +44,24 @@ export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
 export const SPEED = 4.2; // tiles / second
 export const BOMB_FUSE = 1.5; // seconds
 export const FIRE_FUSE = 1.3; // seconds
+export const ALL_BOMBS: readonly BombKind[] = [
+  'bomb',
+  'fire',
+  'squeak',
+  'wind',
+  'magnet',
+  'ice',
+  'rock',
+] as const;
+export const BOMB_FUSES: Record<BombKind, number> = {
+  bomb: BOMB_FUSE,
+  fire: FIRE_FUSE,
+  squeak: 2.5,
+  wind: 0.8,
+  magnet: 1.5,
+  ice: 1.3,
+  rock: 1.0,
+};
 /** Heart Pieces (quarters) that make one more heart. */
 export const HEART_PIECES_PER_HEART = 4;
 export const FIRE_DURATION = 2.5; // seconds a Fire hearth patch burns
@@ -82,12 +100,22 @@ const AIM_MIN_INPUT = 0.22;
 
 const firePatchTorchContacts = new WeakMap<State, WeakMap<object, Set<string>>>();
 const floatingBombIds = new WeakMap<State, Set<number>>();
+const catapultedBombIds = new WeakMap<State, Set<number>>();
 
 function getFloatingBombs(s: State): Set<number> {
   let set = floatingBombIds.get(s);
   if (!set) {
     set = new Set();
     floatingBombIds.set(s, set);
+  }
+  return set;
+}
+
+function getCatapultedBombs(s: State): Set<number> {
+  let set = catapultedBombIds.get(s);
+  if (!set) {
+    set = new Set();
+    catapultedBombIds.set(s, set);
   }
   return set;
 }
@@ -157,8 +185,17 @@ export function spawnWindGust(
   dy: number,
   radius = 2.8,
   duration = 0.55,
+  vortex = false,
 ): void {
-  s.gusts.push({ x, y, dx, dy, radius, remaining: duration });
+  s.gusts.push({
+    x,
+    y,
+    dx,
+    dy,
+    radius,
+    remaining: duration,
+    ...(vortex ? { vortex: true } : {}),
+  });
   s.events.push('wind-gust');
 }
 
@@ -170,6 +207,34 @@ export function windVectorAt(
   y: number,
 ): { dx: number; dy: number } {
   const ambient = currentRoom(world, s)?.wind;
+  if (ambient && (Math.abs(ambient.dx) > 1e-4 || Math.abs(ambient.dy) > 1e-4)) {
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    for (const blk of s.blocks) {
+      if (!blk.rock) continue;
+      if (Math.abs(ambient.dx) >= Math.abs(ambient.dy)) {
+        const sign = Math.sign(ambient.dx);
+        const dTile = (tx - blk.x) * sign;
+        const dCont = (x - (blk.x + 0.5)) * sign;
+        if (
+          (ty === blk.y || Math.abs(y - (blk.y + 0.5)) < 0.75) &&
+          ((dTile >= 0 && dTile <= 4) || (dCont >= -0.5 && dCont <= 4.5))
+        ) {
+          return { dx: 0, dy: 0 };
+        }
+      } else {
+        const sign = Math.sign(ambient.dy);
+        const dTile = (ty - blk.y) * sign;
+        const dCont = (y - (blk.y + 0.5)) * sign;
+        if (
+          (tx === blk.x || Math.abs(x - (blk.x + 0.5)) < 0.75) &&
+          ((dTile >= 0 && dTile <= 4) || (dCont >= -0.5 && dCont <= 4.5))
+        ) {
+          return { dx: 0, dy: 0 };
+        }
+      }
+    }
+  }
   let dx = ambient?.dx ?? 0;
   let dy = ambient?.dy ?? 0;
   for (const g of s.gusts) {
@@ -200,7 +265,13 @@ export function tileAt(
   world: World,
   s: Pick<
     State,
-    'brokenTiles' | 'burnedTiles' | 'openedDoors' | 'crystalColor' | 'roomSolved' | 'solvedRooms'
+    | 'brokenTiles'
+    | 'burnedTiles'
+    | 'frozenTiles'
+    | 'openedDoors'
+    | 'crystalColor'
+    | 'roomSolved'
+    | 'solvedRooms'
   >,
   zone: ZoneId,
   rx: number,
@@ -210,10 +281,13 @@ export function tileAt(
 ): Tile {
   const room = world.rooms.get(roomKey(zone, rx, ry));
   const raw = room?.rows[y]?.[x] ?? '#';
-  if (raw === 'P') return '.';
+  if (raw === 'P' || raw === 'M') return '.';
   const t = raw as Tile;
   const ck = cellKey(zone, rx, ry, x, y);
-  if ((t === '%' || t === 'W') && s.brokenTiles.has(ck)) return '.';
+  if (s.frozenTiles?.has(ck) && (isWaterTile(t) || t === ';' || t === '!' || t === '^')) {
+    return '.';
+  }
+  if ((t === '%' || t === 'W' || t === ';' || t === '!') && s.brokenTiles.has(ck)) return '.';
   if ((t === ',' || t === 'B' || t === 'W') && s.burnedTiles.has(ck)) return '.';
   if ((t === 'D' || t === 'K') && s.openedDoors.has(ck)) return '.';
   if (t === 'S' && (s.roomSolved || s.solvedRooms.has(roomKey(zone, rx, ry)))) return '.';
@@ -313,6 +387,29 @@ export function enterRoom(
   if (prevZone !== zone) {
     s.crystalColor = 'red';
   }
+  s.frozenTiles = new Set();
+  if (prevZone === 'dungeon-999' || zone === 'dungeon-999') {
+    for (const set of [
+      s.brokenTiles,
+      s.burnedTiles,
+      s.openedDoors,
+      s.solvedRooms,
+      s.fledMinibossRooms,
+    ]) {
+      for (const k of [...set]) {
+        if (k.startsWith('dungeon-999:')) set.delete(k);
+      }
+    }
+    s.crystalColor = 'red';
+  }
+  if (zone === 'dungeon-999') {
+    if (s.unlockedBombs.length < ALL_BOMBS.length) {
+      s.unlockedBombs = [...ALL_BOMBS];
+    }
+    s.equipped ??= 'bomb';
+    s.maxBombs = Math.max(s.maxBombs, 4);
+    s.blastRadius = Math.max(s.blastRadius, 2);
+  }
   s.zone = zone;
   s.rx = rx;
   s.ry = ry;
@@ -331,6 +428,7 @@ export function enterRoom(
   s.gusts = [];
   firePatchTorchContacts.delete(s);
   floatingBombIds.delete(s);
+  catapultedBombIds.delete(s);
   s.blocks = [];
   s.torches = [];
   s.orderedStep = 0;
@@ -349,12 +447,14 @@ export function enterRoom(
 
   if (!room) return;
 
-  // Spawn push blocks from 'P' markers in rows
+  // Spawn push blocks from 'P' and metal blocks from 'M' markers in rows
   for (let ty = 0; ty < ROOM_H; ty++) {
     const row = room.rows[ty] ?? '';
     for (let tx = 0; tx < ROOM_W; tx++) {
       if (row[tx] === 'P') {
         s.blocks.push({ x: tx, y: ty, pushCharge: 0, pushDirX: 0, pushDirY: 0 });
+      } else if (row[tx] === 'M') {
+        s.blocks.push({ x: tx, y: ty, pushCharge: 0, pushDirX: 0, pushDirY: 0, metal: true });
       }
     }
   }
@@ -389,11 +489,14 @@ export function enterRoom(
           ? 12
           : es.kind === 'wickgeist'
             ? 8
-            : es.kind === 'shielder'
+            : es.kind === 'shielder' ||
+                es.kind === 'slime' ||
+                es.kind === 'beetle' ||
+                es.kind === 'mimic' ||
+                es.kind === 'tortoise' ||
+                es.kind === 'otter'
               ? 2
-              : es.kind === 'slime'
-                ? 2
-                : 1;
+              : 1;
       s.enemies.push({
         id: s.nextEntityId++,
         kind: es.kind,
@@ -417,6 +520,7 @@ export function enterRoom(
         stumbleTimer: 0,
         homeX: es.x,
         homeY: es.y,
+        frozenTimer: 0,
         ...(es.fleeOnDefeat ? { fleeOnDefeat: true } : {}),
         ...(es.fleeBanner ? { fleeBanner: es.fleeBanner } : {}),
       });
@@ -444,6 +548,14 @@ export function enterRoom(
   }
 }
 
+export function enterDungeon999(world: World, s: State): void {
+  s.unlockedBombs = [...ALL_BOMBS];
+  s.equipped = s.equipped ?? 'bomb';
+  s.maxBombs = 4;
+  s.blastRadius = 2;
+  enterRoom(world, s, 'dungeon-999', 0, 0, 5.5, 6.5);
+}
+
 export function showBanner(s: State, text: string, duration = 4.2): void {
   s.bannerText = text;
   s.bannerTimer = duration;
@@ -452,12 +564,13 @@ export function showBanner(s: State, text: string, duration = 4.2): void {
 export function newState(
   world: World,
   zone: ZoneId = 'basement',
-  rx = zone === 'basement' ? 1 : 3,
-  ry = zone === 'basement' ? 3 : 2,
+  rx = zone === 'dungeon-999' ? 0 : zone === 'basement' ? 1 : 3,
+  ry = zone === 'dungeon-999' ? 0 : zone === 'basement' ? 3 : 2,
   x = 5.5,
   y = 6.5,
 ): State {
-  const startBombs: BombKind[] = zone === 'basement' ? [] : ['bomb'];
+  const startBombs: BombKind[] =
+    zone === 'dungeon-999' ? [...ALL_BOMBS] : zone === 'basement' ? [] : ['bomb'];
   const s: State = {
     zone,
     rx,
@@ -489,8 +602,8 @@ export function newState(
     unlockedBombs: startBombs,
     equipped: startBombs[0] ?? null,
     heldBomb: null,
-    maxBombs: 2,
-    blastRadius: 1,
+    maxBombs: zone === 'dungeon-999' ? 4 : 2,
+    blastRadius: zone === 'dungeon-999' ? 2 : 1,
     smallKeys: 0,
     hasBossKey: false,
     cryptWarpUnlocked: false,
@@ -498,6 +611,7 @@ export function newState(
     visitedRooms: new Set(),
     brokenTiles: new Set(),
     burnedTiles: new Set(),
+    frozenTiles: new Set(),
     openedDoors: new Set(),
     solvedRooms: new Set(),
     fledMinibossRooms: new Set(),
@@ -884,7 +998,15 @@ function playerBlockedAt(
         Math.abs(s.y - (cy + 0.5)) < 0.5 + PLAYER_RADIUS &&
         !((t === '^' || isWaterTile(t)) && Math.floor(x) === cx && Math.floor(y) === cy);
       if (isTileSolidForWalk(t, s.crystalColor) && !hazard && !alreadyInside) return true;
-      if (hasBlockAt(s, cx, cy)) return true;
+      if (hasBlockAt(s, cx, cy)) {
+        const overlappingNow =
+          Math.abs(s.x - (cx + 0.5)) < 0.5 + PLAYER_RADIUS &&
+          Math.abs(s.y - (cy + 0.5)) < 0.5 + PLAYER_RADIUS;
+        const movingOut =
+          Math.hypot(x - (cx + 0.5), y - (cy + 0.5)) >=
+          Math.hypot(s.x - (cx + 0.5), s.y - (cy + 0.5));
+        if (!(overlappingNow && movingOut)) return true;
+      }
     }
   }
   return false;
@@ -893,6 +1015,15 @@ function playerBlockedAt(
 /** Returns true if the hit knocked the player out and respawned them. */
 function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln = false): boolean {
   if (!ignoreInvuln && (s.invulnTimer > 0 || isRollInvulnerable(s))) return false;
+  if (s.zone === 'dungeon-999') {
+    s.x = s.entryX;
+    s.y = s.entryY;
+    s.vx = 0;
+    s.vy = 0;
+    s.invulnTimer = 0.35;
+    s.events.push('player-hurt');
+    return false;
+  }
   s.hp = Math.max(0, Math.round((s.hp - halfHearts) * 4) / 4);
   s.invulnTimer = 1.05;
   s.events.push('player-hurt');
@@ -928,6 +1059,19 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
     return true;
   }
   if (s.bombs.some((b) => b.z <= 0.12 && Math.hypot(b.x - cx, b.y - cy) <= BUTTON_CONTACT_RADIUS)) {
+    return true;
+  }
+  if (
+    s.enemies.some(
+      (e) =>
+        (e.kind === 'beetle' ||
+          e.kind === 'mimic' ||
+          e.kind === 'tortoise' ||
+          (e.frozenTimer ?? 0) > 0 ||
+          e.stumbleTimer > 0) &&
+        Math.hypot(e.x - cx, e.y - cy) <= BUTTON_CONTACT_RADIUS,
+    )
+  ) {
     return true;
   }
   return false;
@@ -1173,10 +1317,269 @@ function igniteTile(
   return null;
 }
 
+function slideMetalBlockToward(
+  world: World,
+  s: State,
+  blk: { x: number; y: number; pushCharge: number; metal?: boolean },
+  targetX: number,
+  targetY: number,
+  maxRange = 3.5,
+): boolean {
+  if (!blk.metal) return false;
+  const mdx = targetX - (blk.x + 0.5);
+  const mdy = targetY - (blk.y + 0.5);
+  const mDist = Math.hypot(mdx, mdy);
+  if (mDist > maxRange || mDist < 0.45) return false;
+  // Once pulled onto an 'O' floor button, keep it parked on the button unless the magnet is still further along and the button isn't the target
+  if (
+    tileAt(world, s, s.zone, s.rx, s.ry, blk.x, blk.y) === 'O' &&
+    Math.hypot(targetX - (blk.x + 0.5), targetY - (blk.y + 0.5)) <= 1.25
+  ) {
+    return false;
+  }
+  let sdx = 0;
+  let sdy = 0;
+  if (Math.abs(mdy) <= 0.85 && Math.abs(mdx) >= 0.45) {
+    sdx = Math.sign(mdx);
+  } else if (Math.abs(mdx) <= 0.85 && Math.abs(mdy) >= 0.45) {
+    sdy = Math.sign(mdy);
+  } else {
+    return false;
+  }
+  const destX = blk.x + sdx;
+  const destY = blk.y + sdy;
+  if (destX < 1 || destX > ROOM_W - 2 || destY < 1 || destY > ROOM_H - 2) return false;
+  const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
+  if (!isPushBlockFloor(destTile) || hasBlockAt(s, destX, destY)) return false;
+  blk.x = destX;
+  blk.y = destY;
+  blk.pushCharge = 0.35;
+  s.events.push('block-push');
+  return true;
+}
+
 function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<number>): Bomb[] {
   const cx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(bomb.x)));
   const cy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(bomb.y)));
   getFloatingBombs(s).delete(bomb.id);
+  getCatapultedBombs(s).delete(bomb.id);
+  const facing =
+    s.fx !== 0 || s.fy !== -1
+      ? cardinalFacing(s)
+      : s.aimX !== 0 || s.aimY !== -1
+        ? cardinalAim(s)
+        : cardinalFacing(s);
+
+  if (bomb.kind === 'squeak') {
+    s.events.push('boom-squeak');
+    s.blasts.push({ x: cx + 0.5, y: cy + 0.5, kind: 'squeak', shape: 'single' });
+    for (const e of s.enemies) {
+      if (
+        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
+        Math.hypot(e.x - (cx + 0.5), e.y - (cy + 0.5)) <= 1.85
+      ) {
+        e.stumbleTimer = 2.5;
+        e.aiState = 'recover';
+        e.stateTimer = 2.5;
+        e.vx = 0;
+        e.vy = 0;
+        e.homeX = e.x;
+        e.homeY = e.y;
+        s.events.push('enemy-stumble');
+      }
+    }
+    return [];
+  }
+
+  if (bomb.kind === 'wind') {
+    s.events.push('boom-wind');
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = cx + dx;
+        const ty = cy + dy;
+        if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) continue;
+        if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, tx, ty))) continue;
+        s.blasts.push({
+          x: tx + 0.5,
+          y: ty + 0.5,
+          kind: 'wind',
+          shape: dx === 0 && dy === 0 ? 'hub' : 'single',
+        });
+      }
+    }
+    for (const e of s.enemies) {
+      const eDir = radialDir(bomb.x, bomb.y, e.x, e.y, facing.dx, facing.dy);
+      if (eDir.dist <= 2.2 && hasBlastLineOfSight(world, s, bomb.x, bomb.y, e.x, e.y)) {
+        e.vx = eDir.dirX * 6.5;
+        e.vy = eDir.dirY * 6.5;
+      }
+    }
+    if (Math.hypot(s.x - bomb.x, s.y - bomb.y) <= 1.35) {
+      const ptx = Math.floor(s.x);
+      const pty = Math.floor(s.y);
+      const isJumpObstacle = (t: Tile): boolean =>
+        t === '^' || t === '=' || t === '!' || isWaterTile(t);
+      const isWalkLanding = (tx: number, ty: number): boolean => {
+        if (tx < 1 || tx > ROOM_W - 2 || ty < 1 || ty > ROOM_H - 2) return false;
+        const lt = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+        return (
+          !isTileSolidForWalk(lt, s.crystalColor) &&
+          lt !== '^' &&
+          lt !== '!' &&
+          !isWaterTile(lt) &&
+          !hasBlockAt(s, tx, ty)
+        );
+      };
+      const candidates: Array<{ dx: number; dy: number }> = [
+        facing,
+        cardinalAim(s),
+        cardinalFacing({ fx: s.x - bomb.x, fy: s.y - bomb.y }),
+        cardinalFacing({ fx: bomb.x - s.x, fy: bomb.y - s.y }),
+      ];
+      let jumped = false;
+      for (const dir of candidates) {
+        if (dir.dx === 0 && dir.dy === 0) continue;
+        const t1 = tileAt(world, s, s.zone, s.rx, s.ry, ptx + dir.dx, pty + dir.dy);
+        const t2 = tileAt(world, s, s.zone, s.rx, s.ry, ptx + dir.dx * 2, pty + dir.dy * 2);
+        if (isJumpObstacle(t1) && isWalkLanding(ptx + dir.dx * 2, pty + dir.dy * 2)) {
+          s.x = ptx + dir.dx * 2 + 0.5;
+          s.y = pty + dir.dy * 2 + 0.5;
+          jumped = true;
+          break;
+        }
+        if (
+          (isJumpObstacle(t1) || isJumpObstacle(t2)) &&
+          isWalkLanding(ptx + dir.dx * 3, pty + dir.dy * 3)
+        ) {
+          s.x = ptx + dir.dx * 3 + 0.5;
+          s.y = pty + dir.dy * 3 + 0.5;
+          jumped = true;
+          break;
+        }
+      }
+      if (!jumped) {
+        for (const dir of candidates) {
+          if (dir.dx === 0 && dir.dy === 0) continue;
+          if (isWalkLanding(ptx + dir.dx * 2, pty + dir.dy * 2)) {
+            s.x = ptx + dir.dx * 2 + 0.5;
+            s.y = pty + dir.dy * 2 + 0.5;
+            jumped = true;
+            break;
+          }
+        }
+      }
+      if (jumped) {
+        s.vx = 0;
+        s.vy = 0;
+        s.events.push('wind-jump');
+      }
+    }
+    spawnWindGust(s, cx + 0.5, cy + 0.5, facing.dx * 3.2, facing.dy * 3.2, 1.2, 2.5, true);
+    return [];
+  }
+
+  if (bomb.kind === 'magnet') {
+    s.events.push('boom-magnet');
+    s.blasts.push({ x: cx + 0.5, y: cy + 0.5, kind: 'magnet', shape: 'single' });
+    for (const blk of s.blocks) {
+      slideMetalBlockToward(world, s, blk, bomb.x, bomb.y, 3.5);
+    }
+    let flipped = false;
+    for (let ty = Math.max(0, cy - 2); ty <= Math.min(ROOM_H - 1, cy + 2); ty++) {
+      for (let tx = Math.max(0, cx - 2); tx <= Math.min(ROOM_W - 1, cx + 2); tx++) {
+        if (
+          tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) === 'C' &&
+          (Math.hypot(tx + 0.5 - bomb.x, ty + 0.5 - bomb.y) <= 1.85 ||
+            Math.hypot(tx - cx, ty - cy) <= 1.85) &&
+          !flipped
+        ) {
+          flipped = true;
+          s.crystalColor = s.crystalColor === 'red' ? 'blue' : 'red';
+          s.events.push('crystal-flip');
+        }
+      }
+    }
+    return [];
+  }
+
+  if (bomb.kind === 'ice') {
+    s.events.push('boom-ice');
+    s.frozenTiles ??= new Set();
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = cx + dx;
+        const ty = cy + dy;
+        if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) continue;
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+        if (isSolidBlastWall(t)) continue;
+        s.blasts.push({
+          x: tx + 0.5,
+          y: ty + 0.5,
+          kind: 'ice',
+          shape: dx === 0 && dy === 0 ? 'hub' : 'single',
+        });
+        const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+        if (isWaterTile(t)) {
+          s.frozenTiles.add(ck);
+          for (const other of s.bombs) {
+            if (other.id !== bomb.id && Math.floor(other.x) === tx && Math.floor(other.y) === ty) {
+              other.vx = 0;
+              other.vy = 0;
+              other.kicked = false;
+              getFloatingBombs(s).delete(other.id);
+            }
+          }
+        }
+        for (const f of s.fires) {
+          if (f.x === tx && f.y === ty) f.remaining = 0;
+        }
+        if (!s.roomSolved) {
+          for (const tr of s.torches) {
+            if (tr.x === tx && tr.y === ty && !tr.decor) tr.lit = false;
+          }
+        }
+      }
+    }
+    for (const e of s.enemies) {
+      if (
+        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
+        (Math.abs(e.x - (cx + 0.5)) <= 1.65 && Math.abs(e.y - (cy + 0.5)) <= 1.65)
+      ) {
+        e.frozenTimer = 4.0;
+        e.vx = 0;
+        e.vy = 0;
+        s.events.push('enemy-freeze');
+      }
+    }
+    return [];
+  }
+
+  if (bomb.kind === 'rock') {
+    s.events.push('boom-rock');
+    s.blasts.push({ x: cx + 0.5, y: cy + 0.5, kind: 'rock', shape: 'single' });
+    s.blocks = s.blocks.filter((blk) => !blk.rock);
+    s.frozenTiles ??= new Set();
+    const hereTile = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
+    const aheadX = cx + facing.dx;
+    const aheadY = cy + facing.dy;
+    const aheadTile =
+      aheadX >= 0 && aheadX < ROOM_W && aheadY >= 0 && aheadY < ROOM_H
+        ? tileAt(world, s, s.zone, s.rx, s.ry, aheadX, aheadY)
+        : '#';
+    if (hereTile === ';' || hereTile === '!') {
+      const ck = cellKey(s.zone, s.rx, s.ry, cx, cy);
+      s.frozenTiles.add(ck);
+      s.brokenTiles.add(ck);
+    } else if (aheadTile === ';' || aheadTile === '!') {
+      const ck = cellKey(s.zone, s.rx, s.ry, aheadX, aheadY);
+      s.frozenTiles.add(ck);
+      s.brokenTiles.add(ck);
+    } else {
+      s.blocks.push({ x: cx, y: cy, pushCharge: 0, pushDirX: 0, pushDirY: 0, rock: true });
+    }
+    return [];
+  }
+
   s.events.push(bomb.kind === 'fire' ? 'boom-fire' : 'boom-bomb');
 
   const hitTiles: Array<[number, number, BlastShape]> = [[cx, cy, 'hub']];
@@ -1252,7 +1655,15 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         s.brokenTiles.add(ck);
         s.events.push('tile-break');
       }
+      const hadRock = s.blocks.some((blk) => blk.rock && blk.x === tx && blk.y === ty);
+      if (hadRock) {
+        s.blocks = s.blocks.filter((blk) => !(blk.rock && blk.x === tx && blk.y === ty));
+        s.events.push('tile-break');
+      }
     } else if (bomb.kind === 'fire') {
+      if (s.frozenTiles?.has(ck)) {
+        s.frozenTiles.delete(ck);
+      }
       if (t === ',' || t === 'B' || t === 'W') {
         const spawned = igniteTile(world, s, tx, ty, 0);
         if (spawned) blastPatches.push(spawned);
@@ -1317,7 +1728,6 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   s.enemies = s.enemies.filter((e) => e.hp > 0);
 
   // 2. Pip: radial shove velocity; deals 1/4th heart (0.5 half-hearts) splashback unless the bomb hit an enemy
-  const facing = cardinalFacing(s);
   const pipDir = radialDir(bomb.x, bomb.y, s.x, s.y, -facing.dx, -facing.dy);
   const pipOnHitTile = hitTiles.some(
     ([tx, ty]) => Math.hypot(s.x - (tx + 0.5), s.y - (ty + 0.5)) < 0.85,
@@ -1330,7 +1740,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     const proximity = Math.max(0.45, 1 - Math.min(1, pipDir.dist / shoveRadius) * 0.55);
     s.vx = pipDir.dirX * 7.0 * proximity;
     s.vy = pipDir.dirY * 7.0 * proximity;
-    if (!hitAnyEnemy) {
+    if (!hitAnyEnemy && s.zone !== 'dungeon-999') {
       damagePlayer(world, s, 0.5);
     }
   }
@@ -1342,6 +1752,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       Math.hypot(a.x + 0.5 - bomb.x, a.y + 0.5 - bomb.y),
   );
   for (const blk of blocksByDist) {
+    if (blk.rock) continue;
     const bdx = blk.x + 0.5 - bomb.x;
     const bdy = blk.y + 0.5 - bomb.y;
     const bDist = Math.hypot(bdx, bdy);
@@ -1752,7 +2163,7 @@ function newBomb(s: State, kind: BombKind, x: number, y: number): Bomb {
     vy: 0,
     z: 0,
     vz: 0,
-    fuse: kind === 'fire' ? FIRE_FUSE : BOMB_FUSE,
+    fuse: BOMB_FUSES[kind],
     graceOverlap: false,
     shoveCount: 0,
   };
@@ -2039,6 +2450,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const wasHoldingBombAtTickStart = s.heldBomb !== null;
 
   const wasRollingAtTickStart = s.rollTimer > 0;
+  const prevPipX = s.x;
+  const prevPipY = s.y;
 
   if (wasHoldingBombAtTickStart) {
     // While holding a bomb overhead, B is Drop (not Roll) and movement speed is halved
@@ -2088,6 +2501,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
   const knockDx = s.vx * dt;
   const knockDy = s.vy * dt;
+  const pipStepDx = s.x - prevPipX;
+  const pipStepDy = s.y - prevPipY;
   s.vx *= Math.pow(0.001, dt);
   s.vy *= Math.pow(0.001, dt);
   if (Math.hypot(s.vx, s.vy) < 0.08) {
@@ -2164,12 +2579,105 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const toDetonate: Bomb[] = [];
   const swallowedIds = new Set<number>();
   const floatingSet = getFloatingBombs(s);
+  const catapultedSet = getCatapultedBombs(s);
+  const luredEnemyIds = new Set<number>();
   const bombSubSteps = Math.max(1, Math.ceil(dt / (FIXED_DT + 1e-6)));
   const bombSubDt = dt / bombSubSteps;
+
+  for (const blk of s.blocks) {
+    if (blk.pushCharge > 0) {
+      blk.pushCharge = Math.max(0, blk.pushCharge - dt);
+    }
+  }
 
   for (const b of s.bombs) {
     if (b.graceOverlap && Math.hypot(b.x - s.x, b.y - s.y) > PLAYER_RADIUS + BOMB_RADIUS + 0.06) {
       b.graceOverlap = false;
+    }
+
+    // Squeak Bomb continuous lure: pulls Clockwork Creatures ('beetle', 'mimic', 'otter', 'slime') within 4.5 tiles at 1.8 tiles/s
+    if (b.kind === 'squeak') {
+      const canEnemyStep = (nx: number, ny: number): boolean => {
+        if (nx < 0.55 || ny < 0.55 || nx > ROOM_W - 0.55 || ny > ROOM_H - 0.55) return false;
+        const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(nx), Math.floor(ny));
+        return (
+          !isTileSolidForWalk(t, s.crystalColor) && !hasBlockAt(s, Math.floor(nx), Math.floor(ny))
+        );
+      };
+      for (const e of s.enemies) {
+        if (
+          (e.kind === 'beetle' || e.kind === 'mimic' || e.kind === 'otter' || e.kind === 'slime') &&
+          (e.frozenTimer ?? 0) <= 0
+        ) {
+          const ldx = b.x - e.x;
+          const ldy = b.y - e.y;
+          const lDist = Math.hypot(ldx, ldy);
+          if (lDist <= 4.5) {
+            luredEnemyIds.add(e.id);
+            if (lDist > 0.06) {
+              const stepLen = Math.min(lDist, 1.8 * dt);
+              const ux = ldx / lDist;
+              const uy = ldy / lDist;
+              if (canEnemyStep(e.x + ux * stepLen, e.y + uy * stepLen)) {
+                e.x += ux * stepLen;
+                e.y += uy * stepLen;
+              } else if (
+                Math.abs(ldx) > 0.04 &&
+                canEnemyStep(e.x + Math.sign(ldx) * Math.min(Math.abs(ldx), stepLen), e.y)
+              ) {
+                e.x += Math.sign(ldx) * Math.min(Math.abs(ldx), stepLen);
+              } else if (
+                Math.abs(ldy) > 0.04 &&
+                canEnemyStep(e.x, e.y + Math.sign(ldy) * Math.min(Math.abs(ldy), stepLen))
+              ) {
+                e.y += Math.sign(ldy) * Math.min(Math.abs(ldy), stepLen);
+              }
+              e.fx = ux;
+              e.fy = uy;
+              e.homeX = e.x;
+              e.homeY = e.y;
+            }
+          }
+        }
+      }
+    }
+
+    // Magnet Bomb continuous pull: slides aligned metal blocks 1 tile toward magnet & curves rolling bombs within 3.2 tiles
+    if (b.kind === 'magnet') {
+      for (const blk of s.blocks) {
+        if (blk.metal && blk.pushCharge <= 0) {
+          slideMetalBlockToward(world, s, blk, b.x, b.y, 3.2);
+        }
+      }
+      for (const other of s.bombs) {
+        if (other.id === b.id || other.kind !== 'bomb') continue;
+        const mdx = b.x - other.x;
+        const mdy = b.y - other.y;
+        const mDist = Math.hypot(mdx, mdy);
+        if (mDist <= 3.2 && mDist > 0.08) {
+          const ux = mdx / mDist;
+          const uy = mdy / mDist;
+          other.vx += ux * 12.5 * dt;
+          other.vy += uy * 12.5 * dt;
+        }
+      }
+    }
+
+    // Lingering Wind Whirlwind (WindGust with vortex: true): catapults any live bomb entering within 0.85 tiles downwind
+    for (const g of s.gusts) {
+      if (!g.vortex || g.remaining <= 0) continue;
+      if (Math.hypot(b.x - g.x, b.y - g.y) <= 0.85) {
+        b.vx = g.dx * 2.2;
+        b.vy = g.dy * 2.2;
+        b.vz = 3.2;
+        b.z = Math.max(b.z, 0.26);
+        b.kicked = true;
+        floatingSet.delete(b.id);
+        if (!catapultedSet.has(b.id)) {
+          catapultedSet.add(b.id);
+          s.events.push('wind-catapult');
+        }
+      }
     }
 
     b.fuse -= dt;
@@ -2218,10 +2726,12 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       stepBombPlanar(world, s, b, bombSubDt, true);
 
       if (b.z > 0 || b.vz > 0) {
-        b.vz -= BOMB_GRAVITY * bombSubDt;
+        const effGrav = catapultedSet.has(b.id) ? BOMB_GRAVITY * 0.55 : BOMB_GRAVITY;
+        b.vz -= effGrav * bombSubDt;
         b.z += b.vz * bombSubDt;
         if (b.z <= 0) {
           b.z = 0;
+          catapultedSet.delete(b.id);
           const lx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
           const ly = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
           const landedTile = tileAt(world, s, s.zone, s.rx, s.ry, lx, ly);
@@ -2324,7 +2834,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
             }
           }
         }
-      } else if (b.kicked) {
+      } else if (b.kicked && !catapultedSet.has(b.id)) {
         // Thrown bombs decelerate during their hop so total travel matches the ~1.7-tile kick distance
         const speed = Math.hypot(b.vx, b.vy);
         if (speed > 0) {
@@ -2537,6 +3047,48 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     e.homeX ??= e.x;
     e.homeY ??= e.y;
 
+    const canFly = e.kind === 'bat' || e.kind === 'wickgeist';
+    const enemyBlocked = (nx: number, ny: number): boolean => {
+      if (nx < 0.7 || ny < 0.7 || nx > ROOM_W - 0.7 || ny > ROOM_H - 0.7) return true;
+      const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(nx), Math.floor(ny));
+      if (canFly) return isTallWall(t, s.crystalColor);
+      return isTileSolidForWalk(t, s.crystalColor) || hasBlockAt(s, Math.floor(nx), Math.floor(ny));
+    };
+
+    if ((e.frozenTimer ?? 0) > 0) {
+      e.frozenTimer = Math.max(0, (e.frozenTimer ?? 0) - dt);
+      if ((e.frozenTimer ?? 0) > 0) {
+        if (Math.hypot(s.x - e.x, s.y - e.y) <= 0.65) {
+          const kickDir = cardinalFacing(s);
+          e.vx = kickDir.dx * 6.5;
+          e.vy = kickDir.dy * 6.5;
+          s.events.push('ice-kick');
+        }
+        const nextX = e.x + e.vx * dt;
+        const nextY = e.y + e.vy * dt;
+        if (!enemyBlocked(nextX, e.y)) e.x = nextX;
+        else e.vx = 0;
+        if (!enemyBlocked(e.x, nextY)) e.y = nextY;
+        else e.vy = 0;
+        e.vx *= Math.pow(0.18, dt);
+        e.vy *= Math.pow(0.18, dt);
+        const etx = Math.floor(e.x);
+        const ety = Math.floor(e.y);
+        if (
+          tileAt(world, s, s.zone, s.rx, s.ry, etx, ety) === 'O' &&
+          Math.hypot(e.x - (etx + 0.5), e.y - (ety + 0.5)) <= 0.35
+        ) {
+          e.x = etx + 0.5;
+          e.y = ety + 0.5;
+          e.vx = 0;
+          e.vy = 0;
+          e.homeX = e.x;
+          e.homeY = e.y;
+        }
+        continue;
+      }
+    }
+
     if (e.invulnTimer > 0) e.invulnTimer = Math.max(0, e.invulnTimer - dt);
     if (e.stumbleTimer > 0) e.stumbleTimer = Math.max(0, e.stumbleTimer - dt);
     if (e.stateTimer > 0) e.stateTimer = Math.max(0, e.stateTimer - dt);
@@ -2545,6 +3097,48 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       if (e.exposedTimer <= 0 && e.kind === 'cinderhull') {
         e.armored = true;
       }
+    }
+
+    // Deterministic Clockwork Creatures ('beetle', 'mimic', 'tortoise', 'otter')
+    if (e.kind === 'beetle' || e.kind === 'mimic' || e.kind === 'tortoise' || e.kind === 'otter') {
+      if (
+        e.kind === 'mimic' &&
+        e.stumbleTimer <= 0 &&
+        !luredEnemyIds.has(e.id) &&
+        (Math.abs(pipStepDx) > 1e-5 || Math.abs(pipStepDy) > 1e-5)
+      ) {
+        if (!enemyBlocked(e.x + pipStepDx, e.y)) e.x += pipStepDx;
+        if (!enemyBlocked(e.x, e.y + pipStepDy)) e.y += pipStepDy;
+        e.homeX = e.x;
+        e.homeY = e.y;
+      } else if (e.kind === 'tortoise' && e.stumbleTimer <= 0) {
+        if (Math.hypot(e.fx, e.fy) < 0.1) {
+          e.fx = 1;
+          e.fy = 0;
+        }
+        const tx = e.x + e.fx * 1.1 * dt;
+        const ty = e.y + e.fy * 1.1 * dt;
+        if (!enemyBlocked(tx, ty)) {
+          e.x = tx;
+          e.y = ty;
+        } else {
+          e.fx = -e.fx;
+          e.fy = -e.fy;
+        }
+      }
+      if (Math.hypot(e.vx, e.vy) > 1e-4) {
+        const nx = e.x + e.vx * dt;
+        const ny = e.y + e.vy * dt;
+        if (!enemyBlocked(nx, e.y)) e.x = nx;
+        if (!enemyBlocked(e.x, ny)) e.y = ny;
+        e.vx *= Math.pow(0.002, dt);
+        e.vy *= Math.pow(0.002, dt);
+      }
+      continue;
+    }
+
+    if (luredEnemyIds.has(e.id)) {
+      continue;
     }
 
     const toPx = s.x - e.x;
@@ -2861,20 +3455,13 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     e.vx *= Math.pow(0.002, dt);
     e.vy *= Math.pow(0.002, dt);
 
-    const canFly = e.kind === 'bat' || e.kind === 'wickgeist';
-    const enemyBlocked = (nx: number, ny: number): boolean => {
-      if (nx < 0.7 || ny < 0.7 || nx > ROOM_W - 0.7 || ny > ROOM_H - 0.7) return true;
-      const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(nx), Math.floor(ny));
-      if (canFly) return isTallWall(t, s.crystalColor);
-      return isTileSolidForWalk(t, s.crystalColor) || hasBlockAt(s, Math.floor(nx), Math.floor(ny));
-    };
-
     if (!enemyBlocked(ex, e.y)) e.x = ex;
     if (!enemyBlocked(e.x, ey)) e.y = ey;
 
     // Contact damage to player (Wickgeist while ghostly in dark deals 1, Cinderhull deals 2, others 1)
     const hitDist = e.kind === 'cinderhull' ? 0.78 : 0.58;
     if (
+      e.stumbleTimer <= 0 &&
       Math.hypot(s.x - e.x, s.y - e.y) < hitDist &&
       s.invulnTimer <= 0 &&
       !isRollInvulnerable(s)
@@ -3107,7 +3694,9 @@ export function importSave(world: World, raw: unknown): State | null {
   // Saves from before the rename store Blackpowder as 'powder' and Ember as 'ember'
   const bombKind = (v: unknown): BombKind | null => {
     const k = v === 'powder' ? 'bomb' : v === 'ember' ? 'fire' : v;
-    return k === 'bomb' || k === 'fire' ? k : null;
+    return typeof k === 'string' && (ALL_BOMBS as readonly string[]).includes(k)
+      ? (k as BombKind)
+      : null;
   };
   if (Array.isArray(d.unlockedBombs)) {
     s.unlockedBombs = [];

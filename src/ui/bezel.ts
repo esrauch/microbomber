@@ -295,7 +295,7 @@ export function bezelTileDataUrl(zone: ZoneId, scale = 2): string {
 
   const zp = BG_PALETTES[zone];
   const palette: readonly [Rgb, Rgb, Rgb, Rgb] =
-    zone === 'ice-cave'
+    zone === 'ice-cave' || zone === 'dungeon-999'
       ? [INK_RGB, zp.floor[3], zp.floor[3], zp.floor[3]]
       : zone === 'basement'
         ? [INK_RGB, zp.wall[2], zp.wall[2], zp.wall[2]]
@@ -346,9 +346,19 @@ function frameColorsFor(zone: ZoneId, accent: GbcBoxAccent): FrameColors {
       fill:
         zone === 'ice-cave'
           ? rgb555(14, 20, 36)
-          : zone === 'basement'
-            ? rgb555(28, 20, 16)
-            : rgb555(16, 24, 24),
+          : zone === 'dungeon-999'
+            ? rgb555(16, 24, 40)
+            : zone === 'basement'
+              ? rgb555(28, 20, 16)
+              : rgb555(16, 24, 24),
+    };
+  }
+  if (zone === 'dungeon-999') {
+    return {
+      outerHi: rgb555(216, 224, 240),
+      outerMid: rgb555(88, 112, 144),
+      hairline: rgb555(240, 200, 88),
+      fill: rgb555(16, 24, 40),
     };
   }
   if (zone === 'ice-cave') {
