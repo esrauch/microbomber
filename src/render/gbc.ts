@@ -28,6 +28,7 @@ import {
   tileAt,
   windVectorAt,
 } from '../game/world';
+import { isPillarTile, ledgeDrops, levelAt, pillarPos } from '../game/elevation';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
 import { bakeAux, bakeTileEmissiveAux } from './gbcAux';
 import { CROWN_H, CROWN_VARIANTS, CROWN_W } from './thicketCrowns';
@@ -79,6 +80,9 @@ export type DepthActorKind =
   | 'torchFlame'
   | 'overhead'
   | 'microVfx';
+
+/** How far a risen pillar's top stands above its tile, in pixels (half a tile). */
+const PILLAR_LIFT_PX = 8;
 
 export interface DepthSortable {
   footY: number;
@@ -1487,7 +1491,8 @@ export function makeGbcView(): GbcView {
     }
 
     const dx = Math.round(s.x * TILE_PX - 8);
-    const dy = Math.round(s.y * TILE_PX - 10);
+    // Hopping off a ledge lifts Pip off the ground (`ELEVATION.md`)
+    const dy = Math.round(s.y * TILE_PX - 10 - (s.hopZ ?? 0) * TILE_PX);
 
     if (time < fallAnimUntil) {
       const rem = fallAnimUntil - time;
@@ -2063,8 +2068,103 @@ export function makeGbcView(): GbcView {
         );
       }
 
-      // 2.5. Ground Contact Shadows Pass (above ground & decals, strictly below all actors!)
+      // Anything standing on a pillar is drawn raised with it (`ELEVATION.md`). When a risen
+      // pillar joins same-level walkable high ground on any side, taper the 8 px lift smoothly
+      // across the tile join (`0.5` tiles on each side) so stepping on or off never pops.
       const room = currentRoom(world, s);
+      const isWalkableHighJoin = (px: number, py: number, nx: number, ny: number): boolean => {
+        const pl = levelAt(room, s, px, py);
+        return (
+          pl !== null &&
+          !isPillarTile(room, nx, ny) &&
+          levelAt(room, s, nx, ny) === pl &&
+          !ledgeDrops(room, s, nx, ny)
+        );
+      };
+      const riderLift = (x: number, y: number): number => {
+        const tx = Math.floor(x);
+        const ty = Math.floor(y);
+        if (isPillarTile(room, tx, ty)) {
+          const pos = pillarPos(s, tx, ty);
+          let f = 1;
+          if (pos >= 1) {
+            if (y < ty + 0.5 && isWalkableHighJoin(tx, ty, tx, ty - 1)) {
+              f = Math.min(f, 0.5 + (y - ty));
+            }
+            if (y > ty + 0.5 && isWalkableHighJoin(tx, ty, tx, ty + 1)) {
+              f = Math.min(f, 0.5 + (ty + 1 - y));
+            }
+            if (x < tx + 0.5 && isWalkableHighJoin(tx, ty, tx - 1, ty)) {
+              f = Math.min(f, 0.5 + (x - tx));
+            }
+            if (x > tx + 0.5 && isWalkableHighJoin(tx, ty, tx + 1, ty)) {
+              f = Math.min(f, 0.5 + (tx + 1 - x));
+            }
+          }
+          return Math.round(PILLAR_LIFT_PX * pos * f);
+        }
+        for (const [dx, dy, dist] of [
+          [0, 1, y - (ty + 0.5)],
+          [0, -1, ty + 0.5 - y],
+          [1, 0, x - (tx + 0.5)],
+          [-1, 0, tx + 0.5 - x],
+        ] as const) {
+          const px = tx + dx;
+          const py = ty + dy;
+          if (dist > 0 && isPillarTile(room, px, py)) {
+            const pos = pillarPos(s, px, py);
+            if (pos >= 1 && isWalkableHighJoin(px, py, tx, ty)) {
+              return Math.round(PILLAR_LIFT_PX * pos * dist);
+            }
+          }
+        }
+        return 0;
+      };
+
+      // Pillars rise half a tile, the plate climbing as the solid column face grows under it;
+      // when higher ground sits directly north, its 8 px vertical cliff wall is visible above
+      // the lowered socket (`py - 8 .. py - 1`) and covered up as the pillar plate rises over it.
+      for (let ty = 0; ty < ROOM_H; ty++) {
+        for (let tx = 0; tx < ROOM_W; tx++) {
+          if (!isPillarTile(room, tx, ty)) continue;
+          const px = tx * TILE_PX;
+          const py = ty * TILE_PX;
+          const baseLevel = Number(room?.levels?.[ty]?.[tx] ?? '0') || 0;
+          const northLevel = levelAt(room, s, tx, ty - 1);
+          const lift = Math.round(PILLAR_LIFT_PX * pillarPos(s, tx, ty));
+          if (northLevel !== null && northLevel > baseLevel && lift < PILLAR_LIFT_PX) {
+            const wall = getPlacedBg(s.zone, { x: tx, y: ty, tile: BG.ledgeS });
+            mainCtx.drawImage(
+              wall,
+              0,
+              4,
+              TILE_PX,
+              PILLAR_LIFT_PX,
+              px,
+              py - PILLAR_LIFT_PX,
+              TILE_PX,
+              PILLAR_LIFT_PX,
+            );
+          }
+          if (lift <= 0) continue;
+          const plate = getPlacedBg(s.zone, { x: tx, y: ty, tile: BG.liftUp });
+          const face = getPlacedBg(s.zone, { x: tx, y: ty, tile: BG.liftFace });
+          mainCtx.drawImage(
+            face,
+            0,
+            PILLAR_LIFT_PX - lift,
+            TILE_PX,
+            lift,
+            px,
+            py + TILE_PX - lift,
+            TILE_PX,
+            lift,
+          );
+          mainCtx.drawImage(plate, px, py - lift);
+        }
+      }
+
+      // 2.5. Ground Contact Shadows Pass (above ground, decals & pillar plates, strictly below all actors!)
       for (const p of groundedProps) {
         drawContactShadow(mainCtx, s.zone, (p.x + 0.5) * TILE_PX, (p.y + 0.92) * TILE_PX, 6.5, 0);
       }
@@ -2080,14 +2180,28 @@ export function makeGbcView(): GbcView {
         } else {
           hopTiles = Math.max(0, (1.5 - Math.sin(time * 4.5 + p.x) * 1.5) / TILE_PX);
         }
-        drawContactShadow(mainCtx, s.zone, p.x * TILE_PX, p.y * TILE_PX + 5, 4.5, hopTiles);
+        drawContactShadow(
+          mainCtx,
+          s.zone,
+          p.x * TILE_PX,
+          p.y * TILE_PX + 5 - riderLift(p.x, p.y),
+          4.5,
+          hopTiles,
+        );
       }
       for (const b of s.bombs) {
         const onWater =
           b.z <= 0.05 &&
           isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(b.x), Math.floor(b.y)));
         if (!onWater) {
-          drawContactShadow(mainCtx, s.zone, b.x * TILE_PX, b.y * TILE_PX + 5, 5.5 * 0.7, b.z);
+          drawContactShadow(
+            mainCtx,
+            s.zone,
+            b.x * TILE_PX,
+            b.y * TILE_PX + 5 - riderLift(b.x, b.y),
+            5.5 * 0.7,
+            b.z,
+          );
         }
       }
       for (const e of s.enemies) {
@@ -2114,18 +2228,26 @@ export function makeGbcView(): GbcView {
             hopH,
           );
         } else {
-          drawContactShadow(mainCtx, s.zone, e.x * TILE_PX, e.y * TILE_PX + 5, 6, 0);
+          drawContactShadow(
+            mainCtx,
+            s.zone,
+            e.x * TILE_PX,
+            e.y * TILE_PX + 5 - riderLift(e.x, e.y),
+            6,
+            0,
+          );
         }
       }
       if (time >= fallAnimUntil) {
         const rollU =
           s.rollTimer > 0 ? Math.max(0, Math.min(1, 1 - s.rollTimer / ROLL_DURATION)) : 0;
-        const pipHopTiles = s.rollTimer > 0 ? (4 * 2 * rollU * (1 - rollU)) / TILE_PX : 0;
+        const pipHopTiles =
+          (s.rollTimer > 0 ? (4 * 2 * rollU * (1 - rollU)) / TILE_PX : 0) + (s.hopZ ?? 0);
         drawContactShadow(
           mainCtx,
           s.zone,
           s.x * TILE_PX,
-          s.y * TILE_PX + 5,
+          s.y * TILE_PX + 5 - (s.hop ? 0 : riderLift(s.x, s.y)),
           pipShadowRadius(s),
           pipHopTiles,
         );
@@ -2134,9 +2256,34 @@ export function makeGbcView(): GbcView {
       // 3. Pass 3: Unified Foot-Sorted Actors, All Bombs (Grounded & Hopping), 3D Props & Overheads
       interface Drawable extends DepthSortable {
         draw: () => void;
+        /** Pixels to raise it by, riding a pillar. */
+        lift?: number;
       }
       const rawActors: Drawable[] = [];
       let tieSeq = 0;
+
+      // Freestanding pillars with lower ground to their north occlude lower-level actors behind
+      // their raised top edge (`footY < ty`), while staying below riders on the pillar (`footY > ty`).
+      for (let ty = 0; ty < ROOM_H; ty++) {
+        for (let tx = 0; tx < ROOM_W; tx++) {
+          if (!isPillarTile(room, tx, ty)) continue;
+          const baseLevel = Number(room?.levels?.[ty]?.[tx] ?? '0') || 0;
+          const northLevel = levelAt(room, s, tx, ty - 1);
+          if (northLevel === null || northLevel > baseLevel) continue;
+          const lift = Math.round(PILLAR_LIFT_PX * pillarPos(s, tx, ty));
+          if (lift <= 0) continue;
+          rawActors.push({
+            footY: ty - 0.01,
+            orderTie: tieSeq++,
+            draw: () => {
+              const px = tx * TILE_PX;
+              const py = ty * TILE_PX;
+              const plate = getPlacedBg(s.zone, { x: tx, y: ty, tile: BG.liftUp });
+              mainCtx.drawImage(plate, 0, 0, TILE_PX, lift, px, py - lift, TILE_PX, lift);
+            },
+          });
+        }
+      }
 
       for (const p of plan.props) {
         if (isFlatFloorDecal(p.tile)) continue;
@@ -2201,6 +2348,7 @@ export function makeGbcView(): GbcView {
         rawActors.push({
           footY: actorFootY('block', visY),
           orderTie: tieSeq++,
+          lift: riderLift(blk.x + 0.5, blk.y + 0.5),
           draw: () => {
             drawContactShadow(mainCtx, s.zone, px + 8, py + 15, 7, 0);
             const blockTile: BgTile = blk.metal
@@ -2297,6 +2445,7 @@ export function makeGbcView(): GbcView {
         rawActors.push({
           footY: actorFootY('pickup', p.y),
           orderTie: tieSeq++,
+          lift: riderLift(p.x, p.y),
           draw: () => drawPickup(mainCtx, p.kind, dx, dy, time, sx, sy, tiltRad),
         });
       }
@@ -2322,6 +2471,7 @@ export function makeGbcView(): GbcView {
         rawActors.push({
           footY: actorFootY('bomb', b.y),
           orderTie: tieSeq++,
+          lift: riderLift(b.x, b.y),
           draw: () => {
             if (floatingOnWater) {
               drawFloatingWaterRing(
@@ -2347,6 +2497,7 @@ export function makeGbcView(): GbcView {
         rawActors.push({
           footY: actorFootY(ek, e.y),
           orderTie: tieSeq++,
+          lift: riderLift(e.x, e.y),
           draw: () => {
             if (enemyInShallow && e.kind !== 'bat' && e.kind !== 'wickgeist') {
               drawFloatingWaterRing(
@@ -2369,6 +2520,7 @@ export function makeGbcView(): GbcView {
       rawActors.push({
         footY: actorFootY('pip', s.y),
         orderTie: tieSeq,
+        lift: s.hop ? 0 : riderLift(s.x, s.y),
         draw: () => {
           if (pipInShallow) {
             drawFloatingWaterRing(
@@ -2385,7 +2537,19 @@ export function makeGbcView(): GbcView {
       });
 
       const sortedActors = sortDepthItems(rawActors);
-      for (const a of sortedActors) a.draw();
+      for (const a of sortedActors) {
+        if (a.lift) {
+          mainCtx.save();
+          auxCtx.save();
+          mainCtx.translate(0, -a.lift);
+          auxCtx.translate(0, -a.lift);
+          a.draw();
+          auxCtx.restore();
+          mainCtx.restore();
+        } else {
+          a.draw();
+        }
+      }
 
       // 4. Pass 4: True walk-under north doorway lintels, chimney smoke & wind!
       mainCtx.drawImage(canopyLayer, 0, 0);

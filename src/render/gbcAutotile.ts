@@ -37,6 +37,7 @@ import {
   WATER_BLOB,
   resolveBlobTile,
 } from './gbcArt';
+import { type LedgeDrops, hasLevels, ledgeDrops } from '../game/elevation';
 import type { BgPaletteId } from './gbcPalette';
 import { type Crown, placeCrowns } from './thicketCrowns';
 
@@ -233,7 +234,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const warpPads: Array<{ x: number; y: number; active: boolean }> = [];
 
   const isTallCaster = (t: Tile): boolean =>
-    t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S';
+    t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S' || t === 'H';
 
   // Grounded cobble foundations (`st.y + 1`) and welcoming doorstep aprons (`st.y + 2`)
   // under the Mouse House & the Old Smithy
@@ -319,7 +320,8 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     for (let x = 0; x < ROOM_W; x++) {
       const t = at(x, y);
       const key = `${x},${y}`;
-      const castShadow = y > 0 && isTallCaster(at(x, y - 1)) && !isTallCaster(t);
+      const castShadow =
+        y > 0 && isTallCaster(at(x, y - 1)) && room?.rows[y - 1]?.[x] !== 'L' && !isTallCaster(t);
 
       // --- 1. Base Ground Layer ---
       if (isWaterLike(x, y)) {
@@ -662,12 +664,24 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         decals.push({ x, y, tile: solved ? BG.buttonDown : BG.buttonUp, transparentZero: true });
       } else if (t === '!') {
         decals.push({ x, y, tile: BG.spikes, transparentZero: true });
+      } else if (t === '.' && room?.rows[y]?.[x] === 'X') {
+        decals.push({ x, y, tile: BG.spikesSunk, transparentZero: true });
       } else if (t === ',') {
         decals.push({ x, y, tile: BG.dryGrass, transparentZero: true, topShadow: castShadow });
       } else if (t === '1' || t === '2' || t === '3' || t === '4') {
         const currentTile =
           t === '1' ? BG.currentN : t === '2' ? BG.currentS : t === '3' ? BG.currentE : BG.currentW;
         decals.push({ x, y, tile: currentTile, transparentZero: true });
+      } else if (room?.rows[y]?.[x] === 'L') {
+        // A pillar's socket; the pillar itself is drawn live as it rises and sinks
+        decals.push({ x, y, tile: BG.liftDown });
+      } else if (t === 'H') {
+        decals.push({ x, y, tile: ledgeTile(ledgeDrops(room, s, x, y)) });
+      } else if ((t === 'n' || t === 's' || t === 'e' || t === 'w') && hasLevels(room)) {
+        // In a room with floor levels a slope is a ramp; the letter is the way it runs down
+        const rampTile =
+          t === 's' ? BG.rampN : t === 'n' ? BG.rampS : t === 'e' ? BG.rampW : BG.rampE;
+        decals.push({ x, y, tile: rampTile });
       } else if (t === 'n' || t === 's' || t === 'e' || t === 'w') {
         const slopeTile =
           t === 'n' ? BG.slopeN : t === 's' ? BG.slopeS : t === 'e' ? BG.slopeE : BG.slopeW;
@@ -723,4 +737,22 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
 
   const crowns = isCrypt ? [] : placeCrowns(isThicket, s.rx * 31 + s.ry * 17 + 5);
   return { ground, decals, props, overhead, ceiling, interiorWater, warpPads, chimneys, crowns };
+}
+
+/** The ledge edge art for the sides of a tile that drop away (`ELEVATION.md`). */
+function ledgeTile(d: LedgeDrops | null): BgTile {
+  if (!d) return BG.ledgeS;
+  if (d.lower) return d.e ? BG.ledgeFaceLowerE : d.w ? BG.ledgeFaceLowerW : BG.ledgeFaceLower;
+  if (d.s && d.e) return BG.ledgeSE;
+  if (d.s && d.w) return BG.ledgeSW;
+  if (d.n && d.e) return BG.ledgeNE;
+  if (d.n && d.w) return BG.ledgeNW;
+  if (d.s) return BG.ledgeS;
+  if (d.e) return BG.ledgeE;
+  if (d.w) return BG.ledgeW;
+  if (d.n) return BG.ledgeN;
+  if (d.se) return BG.ledgeInnerSE;
+  if (d.sw) return BG.ledgeInnerSW;
+  if (d.ne) return BG.ledgeInnerNE;
+  return BG.ledgeInnerNW;
 }

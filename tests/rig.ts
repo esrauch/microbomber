@@ -1,4 +1,5 @@
 import { DUNGEON_999_ENTRIES } from '../src/game/dungeon999';
+import { isRampTile, levelAt } from '../src/game/elevation';
 import {
   BOMB_FUSES,
   FIXED_DT,
@@ -42,6 +43,15 @@ export function walkable(world: World, s: State): [number, number][] {
       if (seen.has(key)) continue;
       const t = tileAt(world, s, s.zone, s.rx, s.ry, nx, ny);
       if (isTileSolidForWalk(t, s.crystalColor) || t === '!' || t === '>') continue;
+      // Floor levels: Pip steps only onto his own level, except on and off ramps
+      const room = currentRoom(world, s);
+      if (
+        !isRampTile(room, x, y) &&
+        !isRampTile(room, nx, ny) &&
+        levelAt(room, s, nx, ny) !== levelAt(room, s, x, y)
+      ) {
+        continue;
+      }
       if (s.blocks.some((b) => b.x === nx && b.y === ny)) continue;
       seen.add(key);
       queue.push([nx, ny]);
@@ -139,4 +149,104 @@ export function singleBombShortcuts(world: World, rx: number, ry: number): strin
     }
   }
   return found;
+}
+
+/**
+ * A patient walker with no bombs: wanders for `seconds` of game time, changing direction
+ * (or pausing) every half second to two, seeded so a failure replays. True if it ever
+ * solves the room, which catches switches that moving creatures press on their own.
+ */
+export function wanderSolves(
+  world: World,
+  rx: number,
+  ry: number,
+  seed: number,
+  seconds = 120,
+): boolean {
+  const s = arrive(world, rx, ry);
+  let rng = seed >>> 0 || 1;
+  const rand = (): number => {
+    rng ^= rng << 13;
+    rng ^= rng >>> 17;
+    rng ^= rng << 5;
+    return (rng >>> 0) / 4294967296;
+  };
+  let input: Input = { dx: 0, dy: 0 };
+  let hold = 0;
+  for (let t = 0; t < seconds; t += FIXED_DT) {
+    if (hold <= 0) {
+      const a = rand() * Math.PI * 2;
+      input = rand() < 0.2 ? { dx: 0, dy: 0 } : { dx: Math.cos(a), dy: Math.sin(a) };
+      hold = 0.5 + rand() * 1.5;
+    }
+    hold -= FIXED_DT;
+    tick(world, s, input, FIXED_DT);
+    // Stepping on the Lobby pad ends the walk
+    if (s.zone !== 'dungeon-999' || s.rx !== rx || s.ry !== ry) return false;
+    if (s.roomSolved) return true;
+  }
+  return false;
+}
+
+/**
+ * A stubborn walker with no bombs: heads for the nearest goal plate along a route that
+ * treats gates and crystal barriers as open, and keeps pushing against whatever is shut.
+ * True if it ever solves the room (it would slip through any gap a creature opens).
+ */
+export function pushToGoalSolves(world: World, rx: number, ry: number, seconds = 120): boolean {
+  const s = arrive(world, rx, ry);
+  const room = currentRoom(world, s);
+  if (!room) return false;
+  const passable = (x: number, y: number): boolean => {
+    const raw = room.rows[y]?.[x] ?? '#';
+    if (raw === 'G' || raw === 'R' || raw === 'U' || raw === 'O') return true;
+    const tile = tileAt(world, s, s.zone, rx, ry, x, y);
+    return !isTileSolidForWalk(tile, s.crystalColor) && tile !== '!' && tile !== '>';
+  };
+  // Distance to the nearest plate from every tile, by breadth-first search outward
+  const dist = new Map<string, number>();
+  const queue: [number, number][] = [];
+  room.rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === 'O') {
+        dist.set(`${x},${y}`, 0);
+        queue.push([x, y]);
+      }
+    }
+  });
+  while (queue.length > 0) {
+    const [x, y] = queue.shift()!;
+    const d = dist.get(`${x},${y}`)!;
+    for (const [dx, dy] of DIRS) {
+      const key = `${x + dx},${y + dy}`;
+      if (dist.has(key) || !passable(x + dx, y + dy)) continue;
+      dist.set(key, d + 1);
+      queue.push([x + dx, y + dy]);
+    }
+  }
+  for (let t = 0; t < seconds; t += FIXED_DT) {
+    const tx = Math.floor(s.x);
+    const ty = Math.floor(s.y);
+    let best: [number, number] | null = null;
+    let bestD = dist.get(`${tx},${ty}`) ?? Infinity;
+    for (const [dx, dy] of DIRS) {
+      const d = dist.get(`${tx + dx},${ty + dy}`);
+      if (d !== undefined && d < bestD) {
+        bestD = d;
+        best = [tx + dx, ty + dy];
+      }
+    }
+    const input: Input = best
+      ? (() => {
+          const dx = best[0] + 0.5 - s.x;
+          const dy = best[1] + 0.5 - s.y;
+          const len = Math.hypot(dx, dy) || 1;
+          return { dx: dx / len, dy: dy / len };
+        })()
+      : { dx: 0, dy: 0 };
+    tick(world, s, input, FIXED_DT);
+    if (s.zone !== 'dungeon-999' || s.rx !== rx || s.ry !== ry) return false;
+    if (s.roomSolved) return true;
+  }
+  return false;
 }

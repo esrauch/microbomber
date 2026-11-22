@@ -353,7 +353,8 @@ function isShadowCasterTile(t: Tile, crystalColor: 'red' | 'blue'): boolean {
     t === 'D' ||
     t === 'K' ||
     t === 'S' ||
-    t === 'G'
+    t === 'G' ||
+    t === 'H'
   ) {
     return true;
   }
@@ -643,10 +644,12 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
     if (sig === wallSig) return;
     wallSig = sig;
     const data = wallImg.data;
+    const room = currentRoom(world, s);
     for (let y = 0; y < ROOM_H; y++) {
       for (let x = 0; x < ROOM_W; x++) {
         const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
-        const solid = isShadowCasterTile(t, s.crystalColor) ? 255 : 0;
+        const isPillar = room?.rows[y]?.[x] === 'L';
+        const solid = !isPillar && isShadowCasterTile(t, s.crystalColor) ? 255 : 0;
         const i = (y * ROOM_W + x) * 4;
         data[i] = solid;
         data[i + 1] = 0;

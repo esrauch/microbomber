@@ -40,6 +40,8 @@ const VALID_TILES = new Set([
   'O',
   'Q',
   'G',
+  'X',
+  'L',
   '!',
   '>',
   'P',
@@ -55,12 +57,12 @@ const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === '
 describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', () => {
   const world = campaignWorld();
 
-  it('has 36 rooms (5 Basement + 9 Overworld + 10 Ice Cave + 12 Dungeon 999), all exactly ROOM_W × ROOM_H with valid tiles', () => {
+  it('has 37 rooms (5 Basement + 9 Overworld + 10 Ice Cave + 13 Dungeon 999), all exactly ROOM_W × ROOM_H with valid tiles and levels', () => {
     const rooms = [...world.rooms.values()];
     expect(rooms.filter((r) => r.zone === 'basement')).toHaveLength(5);
     expect(rooms.filter((r) => r.zone === 'overworld')).toHaveLength(9);
     expect(rooms.filter((r) => r.zone === 'ice-cave')).toHaveLength(10);
-    expect(rooms.filter((r) => r.zone === 'dungeon-999')).toHaveLength(12);
+    expect(rooms.filter((r) => r.zone === 'dungeon-999')).toHaveLength(13);
 
     for (const r of rooms) {
       expect(r.rows, r.name).toHaveLength(ROOM_H);
@@ -69,6 +71,10 @@ describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', (
         for (const ch of row) {
           expect(VALID_TILES.has(ch), `${r.name} invalid tile '${ch}'`).toBe(true);
         }
+      }
+      if (r.levels) {
+        expect(r.levels, `${r.name} levels`).toHaveLength(ROOM_H);
+        for (const row of r.levels) expect(row, `${r.name} levels`).toMatch(/^[0-2]{11}$/);
       }
     }
   });

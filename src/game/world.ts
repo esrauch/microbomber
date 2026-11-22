@@ -5,6 +5,15 @@
  */
 import { campaignWorld, roomKey } from './campaign';
 import {
+  hasLevels,
+  hopLanding,
+  isPillarMoving,
+  isPillarTile,
+  isRampTile,
+  ledgeDrops,
+  levelAt,
+} from './elevation';
+import {
   type ActivePickup,
   type BlastShape,
   type Bomb,
@@ -22,6 +31,8 @@ import {
   type WindGust,
   type World,
   type ZoneId,
+  type PillarTrigger,
+  type PillarState,
 } from './types';
 
 export { ROOM_H, ROOM_W, campaignWorld, roomKey };
@@ -277,6 +288,7 @@ export function tileAt(
     | 'roomSolved'
     | 'solvedRooms'
     | 'gatesOpen'
+    | 'pillars'
   >,
   zone: ZoneId,
   rx: number,
@@ -297,6 +309,11 @@ export function tileAt(
   if ((t === 'D' || t === 'K') && s.openedDoors.has(ck)) return '.';
   if (t === 'S' && (s.roomSolved || s.solvedRooms.has(roomKey(zone, rx, ry)))) return '.';
   if (t === 'G' && s.gatesOpen) return '.';
+  // Retractable spikes are plain spikes until the room's switches sink them
+  if (t === 'X') return s.gatesOpen ? '.' : '!';
+  // A moving pillar is solid to everything but what rides it
+  if (t === 'L' && isPillarMoving(s, x, y)) return 'H';
+  if (room?.levels && ledgeDrops(room, s, x, y)) return 'H';
   return t;
 }
 
@@ -310,6 +327,7 @@ export function isTileSolidForWalk(t: Tile, crystalColor: 'red' | 'blue'): boole
     t === ';' ||
     t === 'O' ||
     t === 'Q' ||
+    t === 'L' ||
     t === '!' ||
     t === '>' ||
     slopeVector(t) !== null
@@ -330,13 +348,23 @@ function isPushBlockFloor(t: Tile): boolean {
     t === '_' ||
     t === 'O' ||
     t === 'Q' ||
+    t === 'L' ||
     slopeVector(t) !== null
   );
 }
 
 /** Whether tile `t` is a tall wall that stops an airborne bomb. */
 function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
-  if (t === '#' || t === 'Y' || t === '%' || t === 'D' || t === 'K' || t === 'S' || t === 'G') {
+  if (
+    t === '#' ||
+    t === 'Y' ||
+    t === '%' ||
+    t === 'D' ||
+    t === 'K' ||
+    t === 'S' ||
+    t === 'G' ||
+    t === 'H'
+  ) {
     return true;
   }
   if (t === 'R') return crystalColor === 'red';
@@ -406,6 +434,11 @@ export function enterRoom(
   }
   s.frozenTiles = new Set();
   s.gatesOpen = false;
+  delete s.hop;
+  s.hopZ = 0;
+  s.pillars = {};
+  s.roomClock = 0;
+  s.ridingPillar = false;
   if (prevZone === 'dungeon-999' || zone === 'dungeon-999') {
     for (const set of [
       s.brokenTiles,
@@ -771,13 +804,83 @@ function classifyBombBlocker(
   cx: number,
   cy: number,
   z: number,
+  b?: Bomb,
+  dirX = 0,
+  dirY = 0,
 ): BombBlockerKind {
+  if (b) {
+    const verdict = bombLevelVerdict(world, s, b, cx, cy, dirX, dirY);
+    if (verdict) return verdict;
+  }
   const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
   if (t === '%') return 'interactive';
   if (isTallWall(t, s.crystalColor)) return 'wall';
   if (z < 0.42 && (t === 'C' || t === 'T' || t === 'B' || t === 'W')) return 'interactive';
   if (z < 0.22 && (t === '=' || hasBlockAt(s, cx, cy))) return 'wall';
   return 'none';
+}
+
+/** The effective level of a tile, reading the cliff top above a two-level lower face. */
+function edgeLevelAt(room: RoomSpec | undefined, s: State, x: number, y: number): number | null {
+  return ledgeDrops(room, s, x, y)?.lower ? levelAt(room, s, x, y - 1) : levelAt(room, s, x, y);
+}
+
+/**
+ * How floor levels stop a moving bomb (`ELEVATION.md`): it never goes up a level except on
+ * a ramp, goes down over ledge edges, and never down a north rim. `null` defers to the tiles.
+ */
+function bombLevelVerdict(
+  world: World,
+  s: State,
+  b: Bomb,
+  cx: number,
+  cy: number,
+  _dirX: number,
+  dirY: number,
+): BombBlockerKind | null {
+  const room = currentRoom(world, s);
+  if (!hasLevels(room)) return null;
+  const bx = Math.floor(b.x);
+  const by = Math.floor(b.y);
+  if (isRampTile(room, cx, cy) || isRampTile(room, bx, by)) return null;
+  const lt = edgeLevelAt(room, s, cx, cy);
+  const bl = edgeLevelAt(room, s, bx, by);
+  if (lt === null || bl === null) return null;
+  if (lt > bl) return 'wall';
+  if (lt < bl && dirY < 0) return 'wall';
+  if (ledgeDrops(room, s, cx, cy)) return 'none';
+  return null;
+}
+
+/**
+ * After a bomb moves, crossing off a ledge onto lower ground gives it a short fall bounce;
+ * slowing on an edge tips it over the drop.
+ */
+function settleBombLevel(world: World, s: State, b: Bomb, fromX: number, fromY: number): void {
+  const room = currentRoom(world, s);
+  if (!hasLevels(room)) return;
+  const tx = Math.floor(b.x);
+  const ty = Math.floor(b.y);
+  if (isRampTile(room, tx, ty)) return;
+  const edge = ledgeDrops(room, s, tx, ty);
+  if (edge) {
+    // An edge is no place to rest: a bomb slowing to a stop on one tips over the drop
+    if (b.z <= 0.02 && Math.hypot(b.vx, b.vy) < 1.2) {
+      if (edge.s || edge.lower) b.vy = Math.max(b.vy, 2.4);
+      else if (edge.e) b.vx = Math.max(b.vx, 2.4);
+      else if (edge.w) b.vx = Math.min(b.vx, -2.4);
+    }
+    return;
+  }
+  if (tx === fromX && ty === fromY) return;
+  const lt = levelAt(room, s, tx, ty);
+  const bl = edgeLevelAt(room, s, fromX, fromY);
+  if (lt === null || bl === null) return;
+  if (lt < bl && !isRampTile(room, fromX, fromY) && !isPillarTile(room, tx, ty)) {
+    b.z = Math.max(b.z, 0.3 * (bl - lt));
+    b.vz = Math.min(b.vz, 0);
+    s.events.push('bomb-fall');
+  }
 }
 
 /** Clamp a newly spawned bomb inside room bounds and outside adjacent solid walls. */
@@ -847,7 +950,7 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
       if (cy < 0 || cy >= ROOM_H) continue;
       for (let cx = minCx; cx <= maxCx; cx++) {
         if (cx < 0 || cx >= ROOM_W) continue;
-        const kind = classifyBombBlocker(world, s, cx, cy, b.z);
+        const kind = classifyBombBlocker(world, s, cx, cy, b.z, b, Math.sign(dx), 0);
         if (kind === 'none') continue;
         const wasOverlapped = cx >= prevMinCx && cx <= prevMaxCx;
         if (!wasOverlapped) {
@@ -908,7 +1011,7 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
       if (cy < 0 || cy >= ROOM_H) continue;
       for (let cx = minCx; cx <= maxCx; cx++) {
         if (cx < 0 || cx >= ROOM_W) continue;
-        const kind = classifyBombBlocker(world, s, cx, cy, b.z);
+        const kind = classifyBombBlocker(world, s, cx, cy, b.z, b, 0, Math.sign(dy));
         if (kind === 'none') continue;
         const wasOverlapped = cy >= prevMinCy && cy <= prevMaxCy;
         if (!wasOverlapped) {
@@ -992,6 +1095,74 @@ function canStandInside(t: Tile): boolean {
   return t === 'R' || t === 'U' || t === 'G' || t === '^' || isWaterTile(t);
 }
 
+/**
+ * Floor levels (`ELEVATION.md`): Pip walks only onto tiles of his own level, except on and
+ * off ramps. Going down a level is a hop; going up takes a ramp or a lift.
+ */
+function levelBlocks(world: World, s: State, cx: number, cy: number): boolean {
+  const room = currentRoom(world, s);
+  if (!hasLevels(room)) return false;
+  const px = Math.floor(s.x);
+  const py = Math.floor(s.y);
+  if (isRampTile(room, cx, cy) || isRampTile(room, px, py)) return false;
+  const pl = levelAt(room, s, px, py);
+  const l = levelAt(room, s, cx, cy);
+  return pl !== null && l !== null && l !== pl;
+}
+
+const HOP_DURATION = 0.45; // seconds: the Oracle hop is a little under half a second
+const HOP_PEAK = 0.75; // tiles: about 12 pixels up
+
+/**
+ * Pushing straight (never diagonally) into a ledge edge that drops that way hops Pip off at
+ * once, over the edge, onto the first open tile below. North rims never hop.
+ */
+function tryStartHop(world: World, s: State, input: Input, inLen: number): void {
+  const room = currentRoom(world, s);
+  if (!hasLevels(room) || s.hop || s.rollTimer > 0 || inLen < 0.5) return;
+  const ax = Math.abs(input.dx);
+  const ay = Math.abs(input.dy);
+  const horizontal = ax >= ay;
+  if ((horizontal ? ay : ax) > 0.25 * Math.max(ax, ay)) return;
+  const dx = horizontal ? Math.sign(input.dx) : 0;
+  const dy = horizontal ? 0 : Math.sign(input.dy);
+  if (!playerBlockedAt(world, s, s.x + dx * 0.05, s.y + dy * 0.05, false)) return;
+  const isOpen = (tx: number, ty: number): boolean =>
+    !isTileSolidForWalk(tileAt(world, s, s.zone, s.rx, s.ry, tx, ty), s.crystalColor) &&
+    !hasBlockAt(s, tx, ty);
+  const land = hopLanding(room, s, Math.floor(s.x), Math.floor(s.y), dx, dy, isOpen);
+  if (!land) return;
+  const clampAcross = (v: number, tile: number): number =>
+    Math.max(tile + 0.5 - 0.3, Math.min(tile + 0.5 + 0.3, v));
+  s.hop = {
+    x0: s.x,
+    y0: s.y,
+    x1: dx !== 0 ? land.x + 0.5 : clampAcross(s.x, land.x),
+    y1: dy !== 0 ? land.y + 0.5 : clampAcross(s.y, land.y),
+    t: 0,
+    dur: HOP_DURATION,
+  };
+  s.vx = 0;
+  s.vy = 0;
+  s.events.push('player-hop');
+}
+
+/** Carry Pip along his hop arc until he lands on the tile below. */
+function advanceHop(s: State, dt: number): void {
+  const hop = s.hop;
+  if (!hop) return;
+  hop.t = Math.min(hop.dur, hop.t + dt);
+  const f = hop.t / hop.dur;
+  s.x = hop.x0 + (hop.x1 - hop.x0) * f;
+  s.y = hop.y0 + (hop.y1 - hop.y0) * f;
+  s.hopZ = 4 * HOP_PEAK * f * (1 - f);
+  if (f >= 1) {
+    s.hopZ = 0;
+    delete s.hop;
+    s.events.push('player-land');
+  }
+}
+
 function playerBlockedAt(
   world: World,
   s: State,
@@ -1018,6 +1189,7 @@ function playerBlockedAt(
         Math.abs(s.y - (cy + 0.5)) < 0.5 + PLAYER_RADIUS &&
         !((t === '^' || isWaterTile(t)) && Math.floor(x) === cx && Math.floor(y) === cy);
       if (isTileSolidForWalk(t, s.crystalColor) && !hazard && !alreadyInside) return true;
+      if (levelBlocks(world, s, cx, cy)) return true;
       if (hasBlockAt(s, cx, cy)) {
         const overlappingNow =
           Math.abs(s.x - (cx + 0.5)) < 0.5 + PLAYER_RADIUS &&
@@ -1105,19 +1277,155 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
   return false;
 }
 
-/** Lower every `'G'` gate exactly while all `'Q'` switches are weighted. */
+/**
+ * Lower every `'G'` gate and `'X'` spike strip exactly while all `'Q'` switches are
+ * weighted. A gate won't rise while Pip stands in its opening; spikes rise regardless.
+ */
 function updateGates(world: World, s: State): void {
   const room = currentRoom(world, s);
-  if (!room?.rows.some((row) => row.includes('G'))) return;
+  if (!room?.rows.some((row) => row.includes('G') || row.includes('X') || row.includes('L'))) {
+    return;
+  }
   const switches: [number, number][] = [];
+  const gates: [number, number][] = [];
   room.rows.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) if (row[x] === 'Q') switches.push([x, y]);
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === 'Q') switches.push([x, y]);
+      else if (row[x] === 'G') gates.push([x, y]);
+    }
   });
   // Read the switches with the gates up, so a weight standing in a gate never counts
   const wasOpen = s.gatesOpen ?? false;
   s.gatesOpen = false;
-  s.gatesOpen = switches.length > 0 && switches.every(([x, y]) => isButtonPressed(world, s, x, y));
-  if (s.gatesOpen !== wasOpen) s.events.push(s.gatesOpen ? 'gate-open' : 'gate-close');
+  let open = switches.length > 0 && switches.every(([x, y]) => isButtonPressed(world, s, x, y));
+  if (!open && wasOpen) {
+    open = gates.some(
+      ([gx, gy]) =>
+        Math.abs(s.x - (gx + 0.5)) < 0.5 + PLAYER_RADIUS &&
+        Math.abs(s.y - (gy + 0.5)) < 0.5 + PLAYER_RADIUS,
+    );
+  }
+  s.gatesOpen = open;
+  if (open !== wasOpen) s.events.push(open ? 'gate-open' : 'gate-close');
+}
+
+export const PILLAR_TRAVEL = 1.2; // seconds a pillar takes to rise or sink, rumbling
+
+/** What raises the pillar at `(x, y)`: its spec, or the room's switches by default. */
+function pillarTrigger(room: RoomSpec, x: number, y: number): PillarTrigger {
+  return room.pillars?.find((p) => p.x === x && p.y === y)?.trigger ?? 'switches';
+}
+
+function pillarWantsUp(s: State, trigger: PillarTrigger): boolean {
+  if (trigger === 'switches') return s.gatesOpen ?? false;
+  if (trigger === 'red' || trigger === 'blue') return s.crystalColor === trigger;
+  const period = trigger.down + trigger.up;
+  const phase = ((((s.roomClock ?? 0) + (trigger.offset ?? 0)) % period) + period) % period;
+  return phase >= trigger.down;
+}
+
+/** Push a body of half-size `r` at `(px, py)` out of tile `(tx, ty)` the shortest way. */
+function nudgeOutOfTile(
+  px: number,
+  py: number,
+  r: number,
+  tx: number,
+  ty: number,
+): [number, number] | null {
+  if (px + r <= tx || px - r >= tx + 1 || py + r <= ty || py - r >= ty + 1) return null;
+  const ways: [number, number, number][] = [
+    [px + r - tx, -1, 0],
+    [tx + 1 - (px - r), 1, 0],
+    [py + r - ty, 0, -1],
+    [ty + 1 - (py - r), 0, 1],
+  ];
+  const [d, dx, dy] = ways.reduce((best, w) => (w[0] < best[0] ? w : best));
+  return [px + dx * (d + 0.01), py + dy * (d + 0.01)];
+}
+
+/**
+ * A pillar starts moving. Its riders are settled once, now: anything whose centre is on the
+ * tile rides it to the end; anything only overlapping its edge is nudged off to its side.
+ */
+function startPillar(s: State, st: PillarState, x: number, y: number, dir: -1 | 1): void {
+  st.dir = dir;
+  s.events.push(dir > 0 ? 'pillar-rise' : 'pillar-sink');
+  const onTile = (px: number, py: number): boolean => Math.floor(px) === x && Math.floor(py) === y;
+  if (!s.hop && onTile(s.x, s.y)) {
+    s.ridingPillar = true;
+    s.vx = 0;
+    s.vy = 0;
+    // Keep his whole body on the pillar for the ride
+    const m = PLAYER_RADIUS + 0.01;
+    s.x = Math.max(x + m, Math.min(x + 1 - m, s.x));
+    s.y = Math.max(y + m, Math.min(y + 1 - m, s.y));
+  } else if (!s.hop) {
+    const out = nudgeOutOfTile(s.x, s.y, PLAYER_RADIUS, x, y);
+    if (out) [s.x, s.y] = out;
+  }
+  for (const b of s.bombs) {
+    if (b.z <= 0.05 && onTile(b.x, b.y)) {
+      b.ridingPillar = true;
+      b.vx = 0;
+      b.vy = 0;
+    } else if (b.z <= 0.05) {
+      const out = nudgeOutOfTile(b.x, b.y, BOMB_RADIUS, x, y);
+      if (out) [b.x, b.y] = out;
+    }
+  }
+  for (const e of s.enemies) {
+    if (onTile(e.x, e.y)) {
+      e.ridingPillar = true;
+      e.vx = 0;
+      e.vy = 0;
+    }
+  }
+}
+
+/** The pillar arrives: riders step back into the world on its new level. */
+function stopPillar(s: State, st: PillarState, x: number, y: number): void {
+  st.pos = st.dir > 0 ? 1 : 0;
+  st.dir = 0;
+  s.events.push('pillar-stop');
+  const onTile = (px: number, py: number): boolean => Math.floor(px) === x && Math.floor(py) === y;
+  if (s.ridingPillar && onTile(s.x, s.y)) {
+    s.ridingPillar = false;
+  }
+  for (const b of s.bombs) {
+    if (b.ridingPillar && onTile(b.x, b.y)) {
+      b.ridingPillar = false;
+    }
+  }
+  for (const e of s.enemies) {
+    if (e.ridingPillar && onTile(e.x, e.y)) e.ridingPillar = false;
+  }
+}
+
+/**
+ * Pillars follow their triggers. Each move runs to the end (a trigger that flips mid-move is
+ * answered once it stops), taking `PILLAR_TRAVEL` seconds.
+ */
+function updatePillars(world: World, s: State, dt: number): void {
+  const room = currentRoom(world, s);
+  if (!room?.rows.some((row) => row.includes('L'))) return;
+  s.roomClock = (s.roomClock ?? 0) + dt;
+  const pillars = (s.pillars ??= {});
+  room.rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] !== 'L') continue;
+      const key = `${x},${y}`;
+      const wantsUp = pillarWantsUp(s, pillarTrigger(room, x, y));
+      const st = (pillars[key] ??= { pos: wantsUp ? 1 : 0, dir: 0 });
+      if (st.dir === 0) {
+        if (wantsUp !== st.pos >= 1) startPillar(s, st, x, y, wantsUp ? 1 : -1);
+      } else {
+        st.pos = Math.max(0, Math.min(1, st.pos + (st.dir * dt) / PILLAR_TRAVEL));
+        if ((st.dir > 0 && st.pos >= 1) || (st.dir < 0 && st.pos <= 0)) {
+          stopPillar(s, st, x, y);
+        }
+      }
+    }
+  });
 }
 
 function checkSolveCondition(world: World, s: State): void {
@@ -1252,7 +1560,8 @@ function radialDir(
 }
 
 function isSolidBlastWall(t: Tile): boolean {
-  return t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S';
+  // A ledge edge is a wall to blasts: they reach lower ground only past it, never up a face
+  return t === '#' || t === 'Y' || t === 'D' || t === 'K' || t === 'S' || t === 'H';
 }
 
 /** False when a solid indestructible stone/door wall sits directly between blast origin and target. */
@@ -2508,7 +2817,11 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const prevPipX = s.x;
   const prevPipY = s.y;
 
-  if (wasHoldingBombAtTickStart) {
+  if (s.hop) {
+    advanceHop(s, dt);
+  } else if (s.ridingPillar) {
+    // Carried by a moving pillar: no stepping on or off until it stops
+  } else if (wasHoldingBombAtTickStart) {
     // While holding a bomb overhead, B is Drop (not Roll) and movement speed is halved
     s.rollBufferTimer = 0;
     advanceWalk(world, s, input, inLen, dt);
@@ -2552,6 +2865,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       s.rollBufferTimer = Math.max(0, s.rollBufferTimer - dt);
     }
     advanceWalk(world, s, input, inLen, dt);
+  }
+  if (!s.hop && !s.ridingPillar) {
+    tryStartHop(world, s, input, inLen);
   }
 
   const knockDx = s.vx * dt;
@@ -2740,7 +3056,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     let swallowed = false;
     let impactDetonated = false;
 
-    for (let step = 0; step < bombSubSteps; step++) {
+    for (let step = 0; step < bombSubSteps && !b.ridingPillar; step++) {
       let appliedSlopeThisStep = false;
       let strongDryWind = false;
       if (b.z <= 0.12) {
@@ -2779,7 +3095,10 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         }
       }
 
+      const fromTileX = Math.floor(b.x);
+      const fromTileY = Math.floor(b.y);
       stepBombPlanar(world, s, b, bombSubDt, true);
+      settleBombLevel(world, s, b, fromTileX, fromTileY);
 
       if (b.z > 0 || b.vz > 0) {
         const effGrav = catapultedSet.has(b.id) ? BOMB_GRAVITY * 0.55 : BOMB_GRAVITY;
@@ -3097,6 +3416,12 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   // 6. Update systemic enemy FSM, fuse awareness, world reactions & boss AI
   const roomLit = isRoomLit(world, s);
   for (const e of s.enemies) {
+    // A creature riding a moving pillar holds still until it stops
+    if (e.ridingPillar) {
+      e.vx = 0;
+      e.vy = 0;
+      continue;
+    }
     e.aiState ??= 'patrol';
     e.stateTimer ??= 0;
     e.stumbleTimer ??= 0;
@@ -3569,6 +3894,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
   // 8. Check puzzle/combat completion, wind-drifted light objects & magnetized pickup collection
   updateGates(world, s);
+  updatePillars(world, s, dt);
   checkSolveCondition(world, s);
 
   const canPickupStand = (nx: number, ny: number): boolean => {

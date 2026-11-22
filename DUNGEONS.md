@@ -454,7 +454,7 @@ then hit him with a plain **Bomb** while stunned:
 
 ## 999. The Developer Dungeon (`zone: 'dungeon-999'`)
 
-A gallery of candidate Shrine rooms. Each of the `11` trials is a puzzle room, or
+A gallery of candidate Shrine rooms. Each of the `12` trials is a puzzle room, or
 a part of one, that could ship in the campaign, solved with a campaign-sized kit.
 None of them can be solved by walking onto something: every goal plate (`O`) and
 puzzle brazier sits behind a gate, barrier, fence, pit or current, and pressing it
@@ -497,8 +497,11 @@ takes the room's chain.
 Building real rooms forced four engine decisions, now in the game:
 
 - **Momentary switch `Q` and iron gate `G`.** A gate lies flat exactly while
-  every `Q` in the room is weighted, and rises the moment one is not. A gate that
-  rises on Pip lets him step out either side, but not further in.
+  every `Q` in the room is weighted, and rises the moment one is not, except
+  while Pip stands in its opening. Gates gate; they don't time a run.
+- **Retractable spikes `X`.** Spikes on the same switches, sunk flat while every
+  `Q` is held. They rise under Pip regardless, which sends him back to the
+  entrance like any spikes. A timed run is a strip of these.
 - **A bomb is too light to latch a plate.** A ticking bomb holds a `Q` for one
   fuse, but only Pip, a block or a creature presses an `O`. (Before this, any
   bomb thrown onto a fenced-off plate solved the room.)
@@ -506,6 +509,9 @@ Building real rooms forced four engine decisions, now in the game:
   same way from its own tile if it is free, then glides there. It stays on the
   grid, so walking into your own wall, or pinning it against its wall, shifts the
   two out of line by exactly one tile.
+- **Floor levels** (`ELEVATION.md`). A room may have up to three levels, with
+  solid ledge edges you hop down and never climb, ramps between levels, and pillars that rise and sink
+  on the room's switches. Trial 12 uses them.
 - **Spawns can face a way.** `EnemySpawn.facing` sets where a creature starts
   looking; an Iron Tortoise patrols along it.
 
@@ -523,7 +529,8 @@ Building real rooms forced four engine decisions, now in the game:
 | **8** | **Catch It in the Gale** `(4, 0)` | Fire + Rock | `R6`, `T28` | In the east gale every bomb drifts until something stops it. A Rock block downwind of each brazier catches the Fire Bomb under it. | Fire under a brazier on its own blows past. |
 | **9** | **Eye of the Gale** `(1, 1)` | Bomb + Wind | `R3`, `T13` | A Wind Bomb blast-jumps Pip over the fence onto the lip. A second one's whirlwind catapults a thrown Bomb over the chasm into the crystal, which lowers the double `R` to the plate. | A plain throw from the lip falls into the chasm. |
 | **10** | **Follow the Chirp** `(2, 1)` | Squeak | `R2`, `T08` | A Squeak Bomb lures the Brass Beetle from only `4.5` tiles, so it takes a relay: one chirp to the middle, one on the plate. | A chirp on the plate alone is out of earshot. |
-| **11** | **Tortoise Time** `(3, 1)` | Ice | Tier 6 trial | The patrolling Iron Tortoise holds the switch for about a second per crossing, too short to run six gates. Freeze it on the switch for `8 s`. | Waiting at the gates for a crossing. |
+| **11** | **Tortoise Time** `(3, 1)` | Ice | Tier 6 trial | The patrolling Iron Tortoise sinks the spike run for about a second per crossing, too short to run six tiles of it. Freeze it on the switch for `8 s`. | Dashing in on a crossing: the spikes rise under Pip and send him back to the entrance. |
+| **12** | **Up and Over** `(4, 1)` | Bomb | Elevation | Three floor levels. The plate is on the top terrace, reached only by a pillar in its face that rises while the switch on the floor below is held. A risen pillar is a wall from below, so stand on the pillar and throw the Bomb off the ledge onto the switch. | Hopping down and dropping the Bomb on the switch by hand: the pillar rises without Pip, and is a wall to him. |
 
 ### 4. How the rig keeps rooms honest
 
@@ -532,6 +539,11 @@ Building real rooms forced four engine decisions, now in the game:
 - **No single-bomb solve** (`tests/dungeon999Shortcuts.test.ts`): from every
   tile Pip can walk to, drop and throw each kit bomb in all four directions and
   let it play out. Nothing may solve the room.
+- **No patient walking solve** (`tests/dungeon999Shortcuts.test.ts`): with no
+  bombs, three seeded walkers wander for two minutes each, and a stubborn one
+  heads for the plate and keeps pushing against every shut gate and barrier. None
+  may solve the room. This catches creatures that press switches on their own.
+  Room 11 adds a walker that dashes in on every Tortoise crossing for two minutes.
 - **Intended solve, and the tempting wrong one** (`tests/dungeon999.test.ts`):
   each trial is played through as designed, and the naive attempt is shown to
   fail.
@@ -544,7 +556,7 @@ Building real rooms forced four engine decisions, now in the game:
 Each room is `11` tiles wide by `13` tall, the game's room size. These maps are
 copied from the code; when a room changes, regenerate them rather than editing
 by hand. `>` is a warp pad, `O` a goal plate, `Q` a momentary switch, `G` an iron
-gate, `M` a metal block, `P` a push block, `R` / `U` the red and blue crystal
+gate, `X` retractable spikes, `L` a pillar, `M` a metal block, `P` a push block, `R` / `U` the red and blue crystal
 barriers, `B` brambles, and `1`–`4` currents (north, south, east, west).
 
 #### Lobby `(0, 0)`
@@ -557,7 +569,7 @@ barriers, `B` brambles, and `1`–`4` currents (north, south, east, west).
 ##.......##
 ##>.>.>.>##
 ##.......##
-##>.>.>..##
+##>.>.>.>##
 ##.......##
 ##......>##
 ##.......##
@@ -752,13 +764,33 @@ barriers, `B` brambles, and `1`–`4` currents (north, south, east, west).
 ###########
 ##...Q...##
 ##=======##
-##......G##
-##.....#G##
-##.....#G##
-##.....#G##
-##.....#G##
-##.....#G##
+##......X##
+##.....#X##
+##.....#X##
+##.....#X##
+##.....#X##
+##.....#X##
 ##>....#O##
 ###########
 ###########
+```
+
+#### 12. Up and Over `(4, 1)` · kit: Bomb
+
+Tiles on the left, floor levels on the right.
+
+```text
+###########   22222222222
+###########   22222222222
+##......O##   22222222222
+##...L...##   22222122222
+##>......##   11111111111
+##.......##   11111111111
+##.....s.##   11111111111
+##...Q...##   00000000000
+##.......##   00000000000
+##.......##   00000000000
+##.......##   00000000000
+###########   00000000000
+###########   00000000000
 ```

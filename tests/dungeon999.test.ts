@@ -3,6 +3,7 @@ import { DUNGEON_999_ENTRIES, DUNGEON_999_ROOMS } from '../src/game/dungeon999';
 import {
   ALL_BOMBS,
   BOMB_FUSE,
+  PILLAR_TRAVEL,
   BOMB_FUSES,
   WHIRLWIND_DURATION,
   type State,
@@ -418,24 +419,26 @@ describe('Dungeon 999: the trial rooms', () => {
   });
 
   describe('11. Tortoise Time', () => {
-    it('one crossing of the switch is too short to run the six gates', () => {
+    it('walking alone never gets through, however long Pip keeps at it', () => {
+      // Two minutes of game time: wait at the corridor mouth and dash in every time the
+      // Tortoise crosses the switch. The spikes rise under Pip before he reaches the end,
+      // and send him back to the entrance.
       const s = enter(11);
-      walkPath(world, s, [[7, 4]]);
-      for (let i = 0; i < 1200 && !isButtonPressed(world, s, 5, 2); i++) wait(world, s, 1 / 60);
-      wait(world, s, 1 / 30);
-      expect(s.gatesOpen).toBe(true);
-      expect(
-        walkPath(
-          world,
-          s,
-          [
-            [8, 4],
-            [8, 10],
-          ],
-          3,
-        ),
-      ).toBe(false);
+      let spiked = 0;
+      for (let t = 0; t < 120 && !s.roomSolved; t += 1 / 60) {
+        const atMouth = Math.floor(s.x) === 7 && Math.floor(s.y) === 4;
+        const inCorridor = Math.floor(s.x) === 8;
+        const toward: [number, number] =
+          inCorridor || (atMouth && s.gatesOpen) ? [8.5, 10.5] : [7.5, 4.5];
+        const dx = toward[0] - s.x;
+        const dy = toward[1] - s.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const input = len > 0.1 || inCorridor ? { dx: dx / len, dy: dy / len } : { dx: 0, dy: 0 };
+        tick(world, s, inCorridor && Math.abs(dx) < 0.05 ? { dx: 0, dy: 1 } : input);
+        if (s.events.includes('player-hurt')) spiked++;
+      }
       expect(s.roomSolved).toBe(false);
+      expect(spiked).toBeGreaterThan(3);
     });
     it('solves by freezing the Tortoise on its switch', () => {
       const s = enter(11);
@@ -455,6 +458,52 @@ describe('Dungeon 999: the trial rooms', () => {
       ];
       expect(walkPath(world, s, corridor, 4)).toBe(true);
       expect(s.roomSolved).toBe(true);
+    });
+  });
+
+  describe('12. Up and Over', () => {
+    it('solves by throwing the Bomb off the ledge onto the switch while standing on the pillar', () => {
+      const s = enter(12);
+      walkPath(world, s, [
+        [5, 4],
+        [5, 3],
+      ]);
+      useBomb(world, s, 'bomb', 'throw', 0, 1);
+      wait(world, s, 1 + PILLAR_TRAVEL);
+      expect(s.gatesOpen).toBe(true);
+      expect(
+        walkPath(
+          world,
+          s,
+          [
+            [5, 2],
+            [8, 2],
+          ],
+          3,
+        ),
+      ).toBe(true);
+      expect(s.roomSolved).toBe(true);
+    });
+    it('fails dropping the Bomb on the switch by hand: the pillar rises without Pip, a wall to him', () => {
+      const s = enter(12);
+      walkPath(world, s, [[5, 5]]);
+      for (let i = 0; i < 90 && (s.hop || Math.floor(s.y) < 7); i++) {
+        tick(world, s, { dx: 0, dy: 1 });
+      }
+      expect(Math.floor(s.y)).toBe(7);
+      walkPath(world, s, [[5, 7]]);
+      useBomb(world, s, 'bomb', 'drop', 0, 1);
+      const route: [number, number][] = [
+        [7, 7],
+        [7, 6],
+        [7, 5],
+        [5, 4],
+        [5, 3],
+        [5, 2],
+        [8, 2],
+      ];
+      walkPath(world, s, route, 8);
+      expect(s.roomSolved).toBe(false);
     });
   });
 });

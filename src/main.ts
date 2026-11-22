@@ -24,6 +24,7 @@ import {
   roomKey,
   showBanner,
   tick,
+  PILLAR_TRAVEL,
 } from './game/world';
 import { OBJ, type ObjSpriteName } from './render/gbcArt';
 import { hudIconDataUrl, makeGbcView } from './render/gbc';
@@ -1281,6 +1282,14 @@ function applyImpactFeedback(ev: string): void {
     triggerShake(4.5, 0.26);
     triggerHitStop(0.055);
     pulseHaptics([22, 28, 34]);
+  } else if (ev === 'pillar-rise' || ev === 'pillar-sink') {
+    // A low rumble for the whole travel, then a thump as it lands
+    triggerShake(1.2, PILLAR_TRAVEL);
+    pulseHaptics(8);
+  } else if (ev === 'pillar-stop') {
+    triggerShake(3.0, 0.14);
+    triggerHitStop(0.03);
+    pulseHaptics([18, 24]);
   } else if (ev === 'enemy-defeat') {
     triggerShake(2.0, 0.1);
     triggerHitStop(0.032);

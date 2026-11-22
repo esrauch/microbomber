@@ -36,6 +36,9 @@ export type BombKind = 'bomb' | 'fire' | 'squeak' | 'wind' | 'magnet' | 'ice' | 
  * 'O' floor button (opens shutter / spawns reward under Pip, a block or a creature; a bomb is too light)
  * 'Q' momentary floor switch (held by Pip, a block, a creature, or a live bomb for one fuse; opens 'G')
  * 'G' iron gate (raised while any 'Q' in the room is unweighted; flat while every 'Q' is held)
+ * 'L' pillar (rises one level and sinks again on its trigger; see `ELEVATION.md`)
+ * 'H' ledge edge (never written in rows: derived from `levels`, solid high ground)
+ * 'X' retractable spikes (spikes '!' while any 'Q' is unweighted; sunk flat while every 'Q' is held)
  * '!' floor spikes (deal 1 half-heart hazard damage on contact)
  * '>' stair / warp portal (transitions between zones or midpoint warp pad)
  * 'n' | 's' | 'e' | 'w' directional stone slope / chute (rolls grounded bombs downhill N/S/E/W)
@@ -70,6 +73,9 @@ export type Tile =
   | 'O'
   | 'Q'
   | 'G'
+  | 'X'
+  | 'L'
+  | 'H'
   | '!'
   | '>'
   | 'n'
@@ -201,10 +207,36 @@ export interface RoomSpec {
   stamps?: StampSpec[];
   /** Optional ambient wind vector `(dx, dy)` in tiles/s carrying smoke, fire & light objects. */
   wind?: { dx: number; dy: number };
+  /**
+   * Optional floor levels (`ELEVATION.md`): ROOM_H strings of `'0'..'2'`, one per tile.
+   * Tiles beside lower ground become solid ledge edges; slopes on an edge are ramps.
+   */
+  levels?: string[];
+  /** What raises each `'L'` pillar; a pillar not listed rises while every `'Q'` is held. */
+  pillars?: PillarSpec[];
   /** Dungeon 999 only: the bombs, satchel size and blast reach this room hands Pip on entry. */
   kit?: { bombs: BombKind[]; maxBombs?: number; blastRadius?: number };
   /** Fourfold Tower barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
   spireSeal?: boolean;
+}
+
+/**
+ * What raises a pillar: the room's switches (all `'Q'` held), a crystal colour, or a clock
+ * (`down` seconds down, then `up` seconds up, shifted by `offset`).
+ */
+export type PillarTrigger =
+  'switches' | 'red' | 'blue' | { down: number; up: number; offset?: number };
+
+export interface PillarSpec {
+  x: number;
+  y: number;
+  trigger?: PillarTrigger;
+}
+
+/** A pillar's travel: `pos` 0 (down) to 1 (up), and which way it is moving now. */
+export interface PillarState {
+  pos: number;
+  dir: -1 | 0 | 1;
 }
 
 export interface World {
@@ -230,6 +262,8 @@ export interface Bomb {
   graceOverlap: boolean;
   /** Number of blast shoves absorbed; a shoved bomb (`>= 1`) hit again chain-detonates. */
   shoveCount: number;
+  /** True while riding a moving pillar: it holds still until the pillar stops. */
+  ridingPillar?: boolean;
   /** True while rolling from Pip's kick (enables Bomb enemy impact detonation). */
   kicked?: boolean;
 }
@@ -289,6 +323,8 @@ export interface Projectile {
 export interface Enemy {
   id: number;
   kind: EnemyKind;
+  /** True while riding a moving pillar: it holds still until the pillar stops. */
+  ridingPillar?: boolean;
   x: number;
   y: number;
   vx: number;
@@ -404,8 +440,18 @@ export interface State {
   brokenTiles: Set<string>;
   burnedTiles: Set<string>;
   frozenTiles?: Set<string>;
-  /** True while every 'Q' switch in the room is weighted, so its 'G' gates lie flat. */
+  /** True while every 'Q' switch in the room is weighted, so its 'G' gates and 'X' spikes lie flat. */
   gatesOpen?: boolean;
+  /** Each `'L'` pillar's travel, keyed `"x,y"`. */
+  pillars?: Record<string, PillarState>;
+  /** Seconds since entering the room (drives timed pillars). */
+  roomClock?: number;
+  /** True while Pip rides a moving pillar (he can't step on or off until it stops). */
+  ridingPillar?: boolean;
+  /** A hop down off a ledge in progress: from, to, elapsed and total seconds. */
+  hop?: { x0: number; y0: number; x1: number; y1: number; t: number; dur: number };
+  /** Pip's height above the floor during a hop, in tiles (for drawing). */
+  hopZ?: number;
   openedDoors: Set<string>;
   solvedRooms: Set<string>;
   fledMinibossRooms: Set<string>;

@@ -319,15 +319,15 @@ const TRIALS: Trial[] = [
     },
   },
 
-  // Ice: the patrolling Iron Tortoise holds the switch for a moment each time it crosses,
-  // too short to run six gates. Freeze it on the switch to hold them open.
+  // Ice: the patrolling Iron Tortoise sinks the spike run for a moment each time it crosses
+  // the switch, too short to run six tiles of it. Freeze it on the switch to keep them down.
   {
     entry: [4.5, 6.5],
     room: {
       rx: 3,
       ry: 1,
       name: '11. Tortoise Time',
-      objective: 'Freeze the Tortoise on its switch, then run the gate corridor',
+      objective: 'Freeze the Tortoise on its switch to keep the spikes down, then run the corridor',
       kit: kit('ice'),
       condition: 'hold-buttons',
       rows: [
@@ -335,17 +335,63 @@ const TRIALS: Trial[] = [
         '###########',
         '##...Q...##',
         '##=======##',
-        '##......G##',
-        '##.....#G##',
-        '##.....#G##',
-        '##.....#G##',
-        '##.....#G##',
-        '##.....#G##',
+        '##......X##',
+        '##.....#X##',
+        '##.....#X##',
+        '##.....#X##',
+        '##.....#X##',
+        '##.....#X##',
         '##>....#O##',
         '###########',
         '###########',
       ],
       enemies: [{ kind: 'tortoise', x: 2.5, y: 2.5, facing: { dx: 1, dy: 0 } }],
+    },
+  },
+
+  // Elevation: three floor levels. The plate is on the top terrace, reached only by the
+  // pillar set in its face, which rises while the switch on the floor below is held. A
+  // risen pillar is a wall from below, so Pip has to be standing on it when the switch
+  // goes down: throw the Bomb off the ledge from the pillar itself.
+  {
+    entry: [3.5, 4.5],
+    room: {
+      rx: 4,
+      ry: 1,
+      name: '12. Up and Over',
+      objective: 'Ride the pillar to the top terrace: its switch is on the floor below the ledge',
+      kit: kit('bomb'),
+      condition: 'hold-buttons',
+      rows: [
+        '###########',
+        '###########',
+        '##......O##',
+        '##...L...##',
+        '##>......##',
+        '##.......##',
+        '##.....s.##',
+        '##...Q...##',
+        '##.......##',
+        '##.......##',
+        '##.......##',
+        '###########',
+        '###########',
+      ],
+      levels: [
+        '22222222222',
+        '22222222222',
+        '22222222222',
+        '22222122222',
+        '11111111111',
+        '11111111111',
+        '11111111111',
+        '00000000000',
+        '00000000000',
+        '00000000000',
+        '00000000000',
+        '00000000000',
+        '00000000000',
+      ],
     },
   },
 ];
