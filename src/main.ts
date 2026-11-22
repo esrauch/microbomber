@@ -40,7 +40,7 @@ const SAVE_KEY = 'microbomber.save.v3';
 const LEGACY_SAVE_KEY = 'microbomber.save.v2';
 const ROLL_ICON = 'HUD_ROLL' as ObjSpriteName;
 const INTRO_BANNER =
-  'The Iron Tower rusted every blade on Cinderholm! Talk to Bram, press B to Roll, or tap/hold A behind the smithy.';
+  'The Iron Tower rusted every blade on Cinderholm! Talk to Grandma, press B to Roll, or tap/hold A to place a bomb.';
 
 function pxIcon(name: ObjSpriteName, size: number): string {
   if (!(name in OBJ)) {

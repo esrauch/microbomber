@@ -44,7 +44,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('placed Bomb breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
     const world = campaignWorld();
-    // Millbrook Square has a cracked smithy wall at (7, 1)
+    // Mouse House has a cracked smithy wall at (7, 1)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
     const startHp = s.hp;
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('%');

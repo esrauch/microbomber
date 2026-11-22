@@ -613,7 +613,7 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
   it('keeps every Overworld cracked-wall (%) and bramble (B) secret solvable with physics bombs', () => {
     const world = campaignWorld();
 
-    // 1. Millbrook Square (3, 2): rusted smithy '%' at (7, 1) -> ow-smithy-shard at (8.5, 1.5)
+    // 1. Mouse House (3, 2): rusted smithy '%' at (7, 1) -> ow-smithy-shard at (8.5, 1.5)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
     s.unlockedBombs.push('fire');
     placeDownChute(world, s);

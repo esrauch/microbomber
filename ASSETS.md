@@ -109,7 +109,7 @@ Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in t
 
 ### 3.3 Cast, Enemies & Bosses
 - **Cinderholm Cast (`16 × 18`, `2`-frame lively idle):**
-  - **Master Bram** (white beard, brass monocle, singed leather sapper apron), **Guard Hal** (weathered cloak & rusted spear hilt), **Keeper Fern** (botanical hood & satchel), and **Carved Runed Stele** (`spire-plaque`).
+  - **Grandma** (`16 × 16`, `'mouse'` palette): the only character who speaks. A mouse with a white bun, gold spectacles, brown shawl and white apron; frame 2 blinks. She stands outside the Mouse House (`3,2`).
 - **Common Foes (`16 × 18`):**
   - **Moss-Slime (`3` frames):** Glossy emerald jelly with inner leaf/core (`Idle, Squash, Hop`).
   - **Cinder-Bat (`3` frames):** Plum wings + bright ember eyes (`Wings Up, Glide, Tuck`).

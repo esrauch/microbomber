@@ -16,6 +16,7 @@ minute campaign.
 | **Campaign** | **Half of *Oracle* in physical size (~120 rooms total):** a `6 × 6` overworld (~36 screens), **4 Elemental Shrines** scaling along the half-*Oracle* dungeon curve (`10 → 16 → 20 → 24` rooms, introducing two-floor `1F + B1F/2F` layouts from Shrine 2 onward), and **1 Final Tower** (`16` rooms). Because traversal and quest backtracking multiply runtime non-linearly with world size, half the physical size of *Oracle* (~12–15 h) naturally plays in under a quarter of the time (~1.5–2.5 h blind, ~45–60 min known). |
 | **World** | One interconnected island in a single state (no time or world swapping): all the depth comes from the bombs and how they combine. |
 | **Tone** | An earnest storybook adventure with a light touch. Original world, characters, monsters and lore. |
+| **One voice** | The game opens in the **mouse house** with **Grandma**, the only character who speaks in the whole game. Talk to her any time you're home and she says where to go next. Everything else is told without words: the room's objective line, the map, and what you can see. |
 | **Bomb economy** | **Bottomless satchel**, limited only by how many bombs can be live at once (`2`, upgradeable to `3`, then `4`). Never grind bushes for ammo; never soft-lock. |
 | **Self-blast** | Your own blast does **no damage**, but its **knockback is real**: about `1` tile, so blasting yourself beside a pit, spikes or lava hurts. Enemy attacks and hazards deal real heart damage. |
 | **Health and retry** | Start with **3 hearts**, up to **10** (4 boss Heart Containers, plus 6 Heart Shards at 2 per heart). On death, respawn at the **doorway of the room** where you fell. |
@@ -67,7 +68,8 @@ village guards were left holding empty hilts.
 
 Enter **Pip** (alternatives: Flint, Tallow), an apprentice alchemist-sapper whose
 glass-and-brass **Spark Satchel** holds no iron at all: only alchemical bombs.
-Guided by retired Master Sapper **Bram** of **Millbrook Village**, Pip ventures
+Guided by **Grandma**, who raised Pip in the **mouse house** at the edge of
+**Millbrook**, Pip ventures
 into the four Elemental Shrines in order (**Ice Cave → Rock Quarry → Fire
 Mountain → Wind Cliffs**). Each Shrine holds the bomb that beats it (**Fire, Wind,
 Ice, Rock**): Pip reclaims each **Primeval Core**, learning its bomb along the way, breaks
@@ -86,8 +88,8 @@ fights the way Pip does, with the same four kinds of bomb.
 1 │ WIND      │ High      │ Tower     │ Millbrook │ River     │ Steam     │
   │ CLIFFS (4)│ Bridge    │ Causeway  │ North     │ Ford      │ Falls     │
   ├───────────┼───────────┼───────────┼───────────┼───────────┼───────────┤
-2 │ Cliff     │ Old       │ Millbrook │ Millbrook │ Reed      │ Otter     │
-  │ Overlook  │ Windmill  │ West      │ Square ★  │ Marsh     │ Shallows  │
+2 │ Cliff     │ Old       │ Millbrook │ Mouse     │ Reed      │ Otter     │
+  │ Overlook  │ Windmill  │ West      │ House ★   │ Marsh     │ Shallows  │
   ├───────────┼───────────┼───────────┼───────────┼───────────┼───────────┤
 3 │ Quarry    │ Sunken    │ Orchard   │ Bramble   │ Driftwood │ CRESCENT  │
   │ Rim       │ Approach  │ Gate      │ Woods     │ Beach     │ COVE      │
@@ -101,16 +103,16 @@ fights the way Pip does, with the same four kinds of bomb.
 ```
 
 Every two or three screens should hold something: a shard, a satchel upgrade,
-a shortcut, a hint, or a character.
+or a shortcut.
 
 ### Campaign flow
 
 1. **Prologue: Millbrook and the Tower Courtyard** (Bomb). Wake in
-   Bram's workshop (`3,2`), test the Bomb on cracked rubble behind
-   the smithy, see the fourfold barrier seal the Tower (`2,0`), and blast open
+   the **mouse house** (`3,2`), where Grandma sends Pip out; test the Bomb on
+   cracked rubble behind the house, see the fourfold barrier seal the Tower (`2,0`), and blast open
    the cracked **Orchard Gate** (`2,3`).
-2. **Chapter 1: Bramble Woods and the Ice Cave** (Fire). Rescue the groundskeeper
-   cornered by moss-slimes, and bomb through a cracked rock wall to unseal the
+2. **Chapter 1: Bramble Woods and the Ice Cave** (Fire). Clear the moss-slimes
+   out of the woods, and bomb through a cracked rock wall to unseal the
    **Ice Cave** (`3,5`): dark frozen halls, ice blocks and braziers. Reward:
    **Fire Bomb** and the first Core (Cinder).
 3. **Chapter 2: the Old Windmill and Rock Quarry** (Wind). Burn away the brambles
@@ -122,8 +124,8 @@ a shortcut, a hint, or a character.
    bridge east to **Crescent Cove** (`5,3`), where a band of **Pack-Otters**
    steal the satchel's **fuses**: every bomb is a dud until you corner the otter
    holding its fuse, across `4` tight beach and burrow rooms, each recovered
-   fuse helping you corner the next. Winning them back earns the ferryman's
-   key north to **Fire Mountain** (`5,0`): lava streams and flame jets. Reward:
+   fuse helping you corner the next. Winning them back frees the old ferry
+   north to **Fire Mountain** (`5,0`): lava streams and flame jets. Reward:
    **Ice Bomb** and the third Core (Rime).
 5. **Chapter 4: River Ford and Wind Cliffs** (Rock). Freeze **River Ford**
    (`4,1`) and the flooded **High Bridge** (`1,1`) with Ice Bombs to reach

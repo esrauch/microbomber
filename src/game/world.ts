@@ -870,7 +870,7 @@ function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln =
       showBanner(s, 'Knocked out! Returned to the dungeon foyer.', 2.8);
     } else {
       enterRoom(world, s, 'overworld', 3, 2, 5.5, 6.5);
-      showBanner(s, 'Knocked out! Returned to Millbrook Square.', 2.8);
+      showBanner(s, 'Knocked out! Returned to Mouse House.', 2.8);
     }
     return true;
   }
@@ -950,6 +950,20 @@ function checkSolveCondition(world: World, s: State): void {
       s.pickups.push({ id: ps.id, kind: ps.kind, x: ps.x, y: ps.y });
     }
   }
+}
+
+/** Grandma's advice: where Pip should go next, from what Pip has done so far. */
+export function grandmaAdvice(s: State): string {
+  if (!s.unlockedBombs.includes('fire')) {
+    return 'Grandma: Your bombs still work, dear! Blast the cracked Orchard Gate to the southwest, then head south to the Ice Cave.';
+  }
+  if (!s.cores.includes('cinder')) {
+    return 'Grandma: A Fire Bomb! It melts ice and lights braziers. Find the Core deep in the Ice Cave.';
+  }
+  if (!s.spireCinderSlotted) {
+    return 'Grandma: The Cinder Core! Set it in the seal at Tower Courtyard, up north.';
+  }
+  return 'Grandma: One seal broken, three to go. Rest a while, dear, and try Fire on the brambles west of town.';
 }
 
 function lightTorchAt(world: World, s: State, tx: number, ty: number): void {
@@ -2006,15 +2020,12 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     if (damagePlayer(world, s, 1)) return false;
   }
 
-  // NPC proximity greeting
+  // Grandma, the only one who speaks, says where to go next when Pip is beside her
   const room = currentRoom(world, s);
   for (const npc of room?.npcs ?? []) {
     if (Math.hypot(s.x - npc.x, s.y - npc.y) < 1.15) {
-      const text =
-        s.cores.includes('cinder') && npc.afterCinderDialogue
-          ? npc.afterCinderDialogue
-          : npc.dialogue;
-      if (s.bannerText !== text) showBanner(s, text, 4.5);
+      const text = npc.id === 'grandma' ? grandmaAdvice(s) : npc.dialogue;
+      if (s.bannerText !== text) showBanner(s, text, 5.5);
     }
   }
 

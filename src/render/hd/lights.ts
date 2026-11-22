@@ -214,7 +214,7 @@ export function computeLighting(
     add({ x: s.x * TILE, y: s.y * TILE - 4, z: 20, radius: 58, color: LANTERN, intensity: 1.05 });
   }
   for (const st of room?.stamps ?? []) {
-    if (st.id === 'bram-workshop' || st.id === 'rusted-smithy') {
+    if (st.id === 'mouse-house' || st.id === 'rusted-smithy') {
       add({
         x: (st.x + 1.5) * TILE,
         y: (st.y + 2.2) * TILE,

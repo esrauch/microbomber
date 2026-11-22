@@ -829,23 +829,11 @@ export function makeGbcView(): GbcView {
     time: number,
   ): void {
     const dx = Math.round(npc.x * TILE_PX - 8);
-    if (npc.id === 'spire-plaque') {
-      drawObjSprite(ctx, 'NPC_PLAQUE', dx, Math.round(npc.y * TILE_PX - 11));
-      return;
-    }
     const phase = Math.floor(time * 2.6 + npc.x * 1.7) % 3;
-    const bob = phase === 1 ? 1 : 0;
-    const dy = Math.round(npc.y * TILE_PX - 12) + bob;
-    const activePose = phase === 2;
+    const dy = Math.round(npc.y * TILE_PX - 12);
     const nearPip = Math.hypot(pipX - npc.x, pipY - npc.y) < 4.2;
     const flipX = nearPip && pipX < npc.x - 0.25;
-    if (npc.id === 'fern') {
-      drawScaledSprite(ctx, activePose ? 'NPC_FERN_2' : 'NPC_FERN', dx, dy, 1, 1, flipX);
-    } else if (npc.id === 'hal') {
-      drawScaledSprite(ctx, activePose ? 'NPC_HAL_2' : 'NPC_HAL', dx, dy, 1, 1, flipX);
-    } else {
-      drawScaledSprite(ctx, activePose ? 'NPC_BRAM_2' : 'NPC_BRAM', dx, dy, 1, 1, flipX);
-    }
+    drawScaledSprite(ctx, phase === 2 ? 'NPC_GRANDMA_2' : 'NPC_GRANDMA', dx, dy, 1, 1, flipX);
   }
 
   /**
@@ -1841,11 +1829,7 @@ export function makeGbcView(): GbcView {
         drawContactShadow(mainCtx, s.zone, (p.x + 0.5) * TILE_PX, (p.y + 0.92) * TILE_PX, 6.5, 0);
       }
       for (const npc of room?.npcs ?? []) {
-        if (npc.id === 'spire-plaque') {
-          drawContactShadow(mainCtx, s.zone, npc.x * TILE_PX, npc.y * TILE_PX + 4, 6, 0);
-        } else {
-          drawContactShadow(mainCtx, s.zone, npc.x * TILE_PX, npc.y * TILE_PX + 4, 5.5, 0);
-        }
+        drawContactShadow(mainCtx, s.zone, npc.x * TILE_PX, npc.y * TILE_PX + 4, 5.5, 0);
       }
       for (const p of s.pickups) {
         const born = pickupSpawnTime.get(p.id) ?? -1;

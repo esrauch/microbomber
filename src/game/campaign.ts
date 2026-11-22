@@ -16,7 +16,7 @@ const ROOM_LIST: RoomSpec[] = [
     zone: 'overworld',
     rx: 3,
     ry: 2,
-    name: 'Millbrook Square',
+    name: 'Mouse House',
     objective: 'Check Tower (N) or Orchard (SW)',
     rows: [
       '####:::YYYY',
@@ -34,7 +34,7 @@ const ROOM_LIST: RoomSpec[] = [
       'YYYYYYYYYY#',
     ],
     stamps: [
-      { id: 'bram-workshop', x: 1, y: 1 },
+      { id: 'mouse-house', x: 1, y: 1 },
       { id: 'rusted-smithy', x: 7, y: 2 },
     ],
     torches: [
@@ -44,15 +44,13 @@ const ROOM_LIST: RoomSpec[] = [
     ],
     npcs: [
       {
-        id: 'bram',
-        name: 'Master Bram',
+        // The only one in the game who speaks: her advice follows Pip's progress (world.ts)
+        id: 'grandma',
+        name: 'Grandma',
         x: 2.5,
         y: 3.6,
-        color: 0xd9a441,
-        dialogue:
-          'Bram: Every iron blade rusted overnight when the Tower rose! Your glass Spark Satchel still works, Pip—head SW to Orchard Gate.',
-        afterCinderDialogue:
-          'Bram: You reclaimed the Cinder Core! Slot it at Tower Courtyard (NW), and try Fire on the brambles west of town!',
+        color: 0xd8b890,
+        dialogue: 'Grandma: Off you go, dear. Mind the slimes!',
       },
     ],
     pickups: [
@@ -91,19 +89,6 @@ const ROOM_LIST: RoomSpec[] = [
       { x: 6, y: 2, initiallyLit: true },
       { x: 2, y: 10, initiallyLit: true },
       { x: 8, y: 10, initiallyLit: true },
-    ],
-    npcs: [
-      {
-        id: 'hal',
-        name: 'Guard Hal',
-        x: 5.5,
-        y: 4.5,
-        color: 0x7a8b99,
-        dialogue:
-          'Hal: My spear turned to red dust in my hands! Hold and release B to throw bombs at slimes along Tower Causeway to the west.',
-        afterCinderDialogue:
-          'Hal: That warm glow in your satchel—the Ice Cave is cleared! Maybe we stand a chance after all.',
-      },
     ],
   },
   {
@@ -169,19 +154,6 @@ const ROOM_LIST: RoomSpec[] = [
       { x: 7, y: 3 },
       { x: 2, y: 10, initiallyLit: true },
       { x: 8, y: 10, initiallyLit: true },
-    ],
-    npcs: [
-      {
-        id: 'spire-plaque',
-        name: 'Fourfold Seal',
-        x: 5.5,
-        y: 5.5,
-        color: 0xc53030,
-        dialogue:
-          'Seal Plaque: "Four Primeval Cores—Cinder, Zephyr, Rime, Stone—bind the Iron Tower." Seek Ice Cave in the SE woods!',
-        afterCinderDialogue:
-          'Seal Plaque: The Cinder seal blazes gold (1 of 4 Cores restored)! Three Elemental Shrines remain across Cinderholm.',
-      },
     ],
   },
   {
@@ -280,19 +252,6 @@ const ROOM_LIST: RoomSpec[] = [
       { kind: 'slime', x: 5.5, y: 4.5 },
       { kind: 'slime', x: 7.5, y: 7.5 },
       { kind: 'slime', x: 3.5, y: 8.5 },
-    ],
-    npcs: [
-      {
-        id: 'fern',
-        name: 'Keeper Fern',
-        x: 3.5,
-        y: 3.5,
-        color: 0x68d391,
-        dialogue:
-          'Fern: Phew—thank you, Pip! Those monsters crawled up from Ice Cave to the south. Its old stone seal is cracked!',
-        afterCinderDialogue:
-          'Fern: The woods feel warmer already! With Fire Bombs, you can burn dry brambles like the thicket behind me.',
-      },
     ],
     pickups: [
       {

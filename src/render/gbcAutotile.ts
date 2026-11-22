@@ -126,7 +126,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
         stampedSolid.add(`${st.x + d.dx},${st.y + d.dy}`);
       }
     }
-    if (st.id === 'bram-workshop') {
+    if (st.id === 'mouse-house') {
       chimneys.push([(st.x + 2) * 16 + 7, st.y * 16 - 4]);
     }
   }
@@ -235,12 +235,12 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     t === '#' || t === '%' || t === 'D' || t === 'K' || t === 'S';
 
   // Grounded cobble foundations (`st.y + 1`) and welcoming doorstep aprons (`st.y + 2`)
-  // under Bram's Workshop & the Rusted Smithy
+  // under the Mouse House & the Rusted Smithy
   const apronCells = new Set<string>();
   const plinthTiles = [BG.buildingPlinthW, BG.buildingPlinthM, BG.buildingPlinthE] as const;
   const apronTiles = [BG.buildingApronW, BG.buildingApronDoor, BG.buildingApronE] as const;
   for (const st of room?.stamps ?? []) {
-    if (st.id !== 'bram-workshop' && st.id !== 'rusted-smithy') continue;
+    if (st.id !== 'mouse-house' && st.id !== 'rusted-smithy') continue;
     const fy = st.y + 1;
     if (fy >= 0 && fy < ROOM_H) {
       for (let dx = 0; dx < 3; dx++) {
@@ -676,7 +676,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
     decals.push({ x: 5, y: 6, tile: BG.sealRingCenter, transparentZero: true });
   }
 
-  // --- 7. Bespoke Multi-Tile Landmark Stamps (`bram-workshop`, `rusted-smithy`, `crypt-mausoleum`, `spire-gate`, `spire-seal`) ---
+  // --- 7. Bespoke Multi-Tile Landmark Stamps (`mouse-house`, `rusted-smithy`, `crypt-mausoleum`, `spire-gate`, `spire-seal`) ---
   const cinderLit = s.spireCinderSlotted || s.cores.includes('cinder');
   for (const st of room?.stamps ?? []) {
     for (const cell of STAMP_DEFS[st.id]) {

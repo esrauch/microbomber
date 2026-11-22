@@ -1,7 +1,7 @@
 /**
  * Generates two magnified pixel-art inspection PNGs (`ASSETS.md` §4):
  * 1. Contact sheet of all 6-colour OBJ sprites (up to 32x32) and 4-colour BG tiles.
- * 2. Stitched 6-room proof sheet (`Millbrook Square`, `Tower Courtyard`, `Ice Cave Arch`,
+ * 2. Stitched 6-room proof sheet (`Mouse House`, `Tower Courtyard`, `Ice Cave Arch`,
  *    `Entry Hall`, `Crystal Crossroads`, `Sanctum of Ash`) rendered via `buildRoomLayout`.
  *
  *   npm run make-sprites [contact.png] [rooms.png]
@@ -203,7 +203,7 @@ const SAMPLE_ROOMS: Array<{
   py: number;
   cinder?: boolean;
 }> = [
-  { zone: 'overworld', rx: 3, ry: 2, px: 5.5, py: 6.5 }, // Millbrook Square
+  { zone: 'overworld', rx: 3, ry: 2, px: 5.5, py: 6.5 }, // Mouse House
   { zone: 'overworld', rx: 2, ry: 0, px: 5.5, py: 8.5, cinder: true }, // Tower Courtyard
   { zone: 'overworld', rx: 3, ry: 5, px: 5.5, py: 8.0 }, // Ice Cave Arch
   { zone: 'ice-cave', rx: 1, ry: 3, px: 5.5, py: 8.5 }, // Entry Hall

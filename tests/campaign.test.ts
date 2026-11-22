@@ -4,6 +4,7 @@ import {
   ROOM_H,
   ROOM_W,
   campaignWorld,
+  grandmaAdvice,
   isShallowWaterTile,
   isTileSolidForWalk,
   newState,
@@ -168,5 +169,27 @@ describe('crypt lighting', () => {
       const lit = s.torches.some((t) => t.lit);
       expect(lit, room.name).toBe(room.condition !== 'boss');
     }
+  });
+});
+
+describe('Grandma, the only voice', () => {
+  it('is the only character who speaks, at the Mouse House', () => {
+    const world = campaignWorld();
+    const speakers = [...world.rooms.values()].flatMap((r) =>
+      (r.npcs ?? []).map((n) => `${r.name}:${n.id}`),
+    );
+    expect(speakers).toEqual(['Mouse House:grandma']);
+  });
+
+  it('points Pip at the next goal as the story moves on', () => {
+    const world = campaignWorld();
+    const s = newState(world);
+    expect(grandmaAdvice(s)).toMatch(/Orchard Gate/);
+    s.unlockedBombs.push('fire');
+    expect(grandmaAdvice(s)).toMatch(/Ice Cave/);
+    s.cores.push('cinder');
+    expect(grandmaAdvice(s)).toMatch(/Tower Courtyard/);
+    s.spireCinderSlotted = true;
+    expect(grandmaAdvice(s)).toMatch(/three to go/);
   });
 });

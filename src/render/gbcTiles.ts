@@ -2274,7 +2274,7 @@ export const BG_TILES = {
   // 4. Multi-Tile Landmark Stamp Tiles (Workshop, Smithy, Crypt Arch, Tower)
   // =========================================================================
 
-  // --- Bram's Alchemist Workshop (3x2 = 48x32 px: blue-slate roof + brass flue + timber door) ---
+  // --- The Mouse House, Grandma's home (3x2 = 48x32 px: blue-slate roof + brass flue + timber door) ---
   workshop_0_0: bg(
     ['blue', 'blue', 'blue', 'blue'],
     [
@@ -2983,7 +2983,7 @@ export interface StampTilePlacement {
 }
 
 export const STAMP_DEFS: Record<StampId, readonly StampTilePlacement[]> = {
-  'bram-workshop': [
+  'mouse-house': [
     { dx: 0, dy: 0, tile: 'workshop_0_0', overhead: true },
     { dx: 1, dy: 0, tile: 'workshop_1_0', overhead: true },
     { dx: 2, dy: 0, tile: 'workshop_2_0', overhead: true },

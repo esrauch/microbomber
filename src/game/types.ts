@@ -74,7 +74,7 @@ export type Tile =
   | 'w';
 
 export type StampId =
-  'bram-workshop' | 'rusted-smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';
+  'mouse-house' | 'rusted-smithy' | 'crypt-mausoleum' | 'spire-gate' | 'spire-seal';
 
 export interface StampSpec {
   id: StampId;
@@ -134,9 +134,8 @@ export interface NpcSpec {
   x: number;
   y: number;
   color: number;
+  /** Fallback line; Grandma's advice is chosen from Pip's progress (`grandmaAdvice`). */
   dialogue: string;
-  /** Alternate dialogue shown once Ice Cave's Cinder Core is reclaimed. */
-  afterCinderDialogue?: string;
 }
 
 export interface PickupSpec {
