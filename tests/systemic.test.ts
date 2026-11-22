@@ -653,7 +653,8 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       geistEvents.push(...gs.events);
       if (gs.gusts.length > 0) sawGust = true;
     }
-    expect(geist.phase).toBe(2);
+    expect(geist.phase).toBe(3);
+    expect(geistEvents).toContain('ice-storm');
 
     for (let step = 0; step < 210 && (!sawGust || !geistEvents.includes('wind-gust')); step++) {
       gs.hp = gs.maxHp;

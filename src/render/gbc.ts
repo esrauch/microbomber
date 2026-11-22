@@ -412,6 +412,7 @@ export function makeGbcView(): GbcView {
   let fallAnimUntil = 0;
   let holdAnimUntil = 0;
   let warpAnimUntil = 0;
+  let iceStormUntil = 0;
   let heldKind: PickupKind = 'fire-bomb';
   let activeBlasts: BlastInstance[] = [];
   let activeScorches: Array<{ x: number; y: number; born: number }> = [];
@@ -1204,7 +1205,31 @@ export function makeGbcView(): GbcView {
         : e.armored
           ? (darkFrames[phase] ?? 'WICKGEIST_DARK')
           : (litFrames[phase] ?? 'WICKGEIST_LIT');
+      if (e.armored && !hitFlash) {
+        ctx.globalAlpha = 0.34 + 0.08 * Math.sin(time * 6);
+      }
       drawScaledSprite(ctx, name, dx + wobbleX, dy, sx, sy, false, flashPal, tiltRad);
+      ctx.globalAlpha = 1;
+      if (time < iceStormUntil) {
+        const u = Math.max(0, Math.min(1, 1 - (iceStormUntil - time) / 0.65));
+        const cx = Math.round(e.x * TILE_PX);
+        const cy = Math.round(e.y * TILE_PX);
+        const r1 = 8 + u * 64;
+        const r2 = 4 + u * 42;
+        for (let k = 0; k < 8; k++) {
+          const a1 = (k * Math.PI) / 4 + time * 11;
+          const a2 = (k * Math.PI) / 4 - time * 14 + 0.4;
+          const x1 = Math.round(cx + Math.cos(a1) * r1);
+          const y1 = Math.round(cy + Math.sin(a1) * r1);
+          const x2 = Math.round(cx + Math.cos(a2) * r2);
+          const y2 = Math.round(cy + Math.sin(a2) * r2);
+          ctx.fillStyle = cssRgb(OBJ_PALETTES.spectral[0]);
+          ctx.fillRect(x1 - 1, y1, 3, 1);
+          ctx.fillRect(x1, y1 - 1, 1, 3);
+          ctx.fillStyle = cssRgb(OBJ_PALETTES.spectral[1]);
+          ctx.fillRect(x2, y2, 2, 2);
+        }
+      }
       headTopY = dy;
     } else if (e.kind === 'cinderhull') {
       // Full 32x32 (2x2 tile) Oracle Shrine Boss!
@@ -1548,6 +1573,8 @@ export function makeGbcView(): GbcView {
           fallAnimUntil = time + 0.36;
         } else if (ev === 'portal-warp') {
           warpAnimUntil = time + 0.55;
+        } else if (ev === 'ice-storm') {
+          iceStormUntil = time + 0.65;
         } else if (ev.startsWith('pickup-') && ev !== 'pickup-heart-drop') {
           holdAnimUntil = time + 1.05;
           heldKind = ev.replace('pickup-', '') as PickupKind;

@@ -886,7 +886,7 @@ function syncHud(force = false): void {
   // Boss HP bar
   if (boss) {
     bossBarWrap.style.display = 'flex';
-    const bName = boss.kind === 'cinderhull' ? 'ICE GOLEM · BOSS' : 'ICE WRAITH · PHANTOM';
+    const bName = boss.kind === 'wickgeist' ? 'ICE WRAITH · BOSS' : 'ICE GOLEM · MINIBOSS';
     const shieldTag = boss.armored
       ? boss.kind === 'cinderhull'
         ? 'ICE ARMOUR (USE FIRE!)'

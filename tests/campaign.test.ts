@@ -160,13 +160,13 @@ describe('vertical slice campaign integrity (Prologue + Ice Cave)', () => {
 });
 
 describe('crypt lighting', () => {
-  it('starts every crypt room with a lit torch, except the dark mini-boss hall', () => {
+  it('starts every crypt room with a lit torch, except the dark boss sanctum', () => {
     const world = campaignWorld();
     for (const room of world.rooms.values()) {
       if (room.zone !== 'ice-cave') continue;
       const s = newState(world, room.zone, room.rx, room.ry);
       const lit = s.torches.some((t) => t.lit);
-      expect(lit, room.name).toBe(room.condition !== 'miniboss');
+      expect(lit, room.name).toBe(room.condition !== 'boss');
     }
   });
 });

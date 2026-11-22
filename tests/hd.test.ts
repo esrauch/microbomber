@@ -19,7 +19,7 @@ describe('HD-2D lighting model', () => {
     const world = campaignWorld();
     const field = computeLighting(world, newState(world, 'overworld', 3, 2), 0, []);
     const crypt = computeLighting(world, newState(world, 'ice-cave', 1, 3), 0, []);
-    const dark = newState(world, 'ice-cave', 1, 1); // Lantern Hall, braziers unlit
+    const dark = newState(world, 'ice-cave', 0, 0); // Frozen Sanctum, braziers unlit
     const darkLit = computeLighting(world, dark, 0, []);
 
     expect(brightness(field.ambient)).toBeGreaterThan(brightness(crypt.ambient));

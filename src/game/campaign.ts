@@ -578,8 +578,7 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 1,
     ry: 1,
     name: 'Lantern Hall',
-    objective: 'Light a brazier with a Fire Bomb to illuminate the dark & expose the Ice Wraith!',
-    dark: true,
+    objective: 'Melt the Ice Golem’s armour with Fire, then blast its bare core with a Bomb!',
     condition: 'miniboss',
     rows: [
       '###########',
@@ -597,12 +596,12 @@ const ROOM_LIST: RoomSpec[] = [
       '#####S#####',
     ],
     torches: [
-      { x: 2, y: 2, timedSeconds: 9 },
-      { x: 8, y: 2, timedSeconds: 9 },
-      { x: 2, y: 10, timedSeconds: 9 },
-      { x: 8, y: 10, timedSeconds: 9 },
+      { x: 2, y: 2, initiallyLit: true },
+      { x: 8, y: 2, initiallyLit: true },
+      { x: 2, y: 10, initiallyLit: true },
+      { x: 8, y: 10, initiallyLit: true },
     ],
-    enemies: [{ kind: 'wickgeist', x: 5.5, y: 5.5 }],
+    enemies: [{ kind: 'cinderhull', x: 5.5, y: 4.5 }],
     portals: [
       {
         x: 5,
@@ -736,7 +735,8 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 0,
     ry: 0,
     name: 'Frozen Sanctum',
-    objective: 'Melt the Ice Golem’s armour with Fire, then blast its bare core with a Bomb!',
+    objective: 'Light a corner brazier with Fire to expose the Ice Wraith, then blast it!',
+    dark: true,
     condition: 'boss',
     rows: [
       '###########',
@@ -754,12 +754,12 @@ const ROOM_LIST: RoomSpec[] = [
       '#####S#####',
     ],
     torches: [
-      { x: 2, y: 2, initiallyLit: true },
-      { x: 8, y: 2, initiallyLit: true },
-      { x: 2, y: 10, initiallyLit: true },
-      { x: 8, y: 10, initiallyLit: true },
+      { x: 2, y: 2 },
+      { x: 8, y: 2 },
+      { x: 2, y: 10 },
+      { x: 8, y: 10 },
     ],
-    enemies: [{ kind: 'cinderhull', x: 5.5, y: 4.5 }],
+    enemies: [{ kind: 'wickgeist', x: 5.5, y: 5.5 }],
     pickups: [
       {
         id: 'boss-heart-container',

@@ -203,6 +203,29 @@ export class ParticleSystem {
           10,
           30,
         );
+      } else if (ev === 'ice-storm') {
+        const wraith = s.enemies.find((e) => e.kind === 'wickgeist');
+        const wx = wraith ? wraith.x * TILE : px;
+        const wy = wraith ? wraith.y * TILE : py;
+        this.burst(
+          32,
+          wx,
+          wy,
+          (a, v) => ({
+            kind: 'spark',
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v,
+            life: 0.4 + r() * 0.35,
+            maxLife: 0.75,
+            size: 1.4 + r() * 1.2,
+            color: r() < 0.5 ? 0x80f4ff : 0xffffff,
+            gravity: 0,
+            drag: 0.25,
+            glow: true,
+          }),
+          55,
+          145,
+        );
       } else if (ev === 'portal-warp') {
         this.burst(
           18,

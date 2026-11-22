@@ -250,13 +250,12 @@ function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
   return false;
 }
 
-/** Whether a room is currently illuminated (true for normal rooms, or dark rooms with fire/lit torches). */
+/** Whether a room is currently illuminated (true for normal rooms, or dark rooms with a lit torch). */
 export function isRoomLit(world: World, s: State): boolean {
   const room = currentRoom(world, s);
   if (!room?.dark) return true;
   if (s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry))) return true;
-  if (s.torches.some((t) => t.lit)) return true;
-  if (s.fires.length > 0) return true;
+  if (s.torches.some((t) => !t.decor && t.lit)) return true;
   return false;
 }
 
@@ -930,9 +929,9 @@ function checkSolveCondition(world: World, s: State): void {
 
   if (room.condition === 'miniboss') {
     s.cryptWarpUnlocked = true;
-    showBanner(s, 'Ice Wraith banished! The Midpoint Warp Pad (>) is now active.', 4.2);
+    showBanner(s, 'Ice Golem shattered! The Midpoint Warp Pad (>) is now active.', 4.2);
   } else if (room.condition === 'boss') {
-    showBanner(s, 'Ice Golem shattered! Claim your Heart Container and the Cinder Core!', 5.0);
+    showBanner(s, 'Ice Wraith banished! Claim your Heart Container and the Cinder Core!', 5.0);
   }
 
   for (const ps of room.pickups ?? []) {
@@ -1387,25 +1386,48 @@ function applyBombHitToEnemy(
   if (enemy.kind === 'wickgeist') {
     if (!roomLit) {
       s.events.push('armor-clank');
-      showBanner(s, 'The Ice Wraith fades into the dark—light a brazier with Fire first!', 2.6);
+      showBanner(
+        s,
+        'The Ice Wraith is immune in the dark—light a corner brazier with Fire first!',
+        2.6,
+      );
       return;
     }
     enemy.armored = false;
-    enemy.hp -= kind === 'bomb' ? 2 : 1;
+    enemy.hp = Math.max(0, enemy.hp - (kind === 'bomb' ? 2 : 1));
     enemy.invulnTimer = 0.25;
     s.events.push('enemy-hit');
     if (enemy.hp > 0) {
-      if (enemy.hp <= 4 && enemy.phase === 1) {
-        enemy.phase = 2;
-        // Snuff one lit torch and blink across the room
-        const litTorch = s.torches.find((t) => t.lit);
-        if (litTorch) litTorch.lit = false;
+      // 3 fixed health thresholds (6 HP, 4 HP, 2 HP): unleash an Ice Storm that snuffs all braziers!
+      const targetPhase = enemy.hp <= 2 ? 4 : enemy.hp <= 4 ? 3 : enemy.hp <= 6 ? 2 : 1;
+      if (targetPhase > enemy.phase) {
+        enemy.phase = targetPhase;
+        for (const t of s.torches) {
+          if (!t.decor) t.lit = false;
+        }
+        s.fires = [];
+        enemy.armored = true;
+        enemy.aiState = 'windup';
+        enemy.stateTimer = 0.65;
+        enemy.invulnTimer = 0.65;
         enemy.x = enemy.x < ROOM_W / 2 ? ROOM_W - 3.5 : 3.5;
         enemy.y = enemy.y < ROOM_H / 2 ? ROOM_H - 4.5 : 4.5;
         enemy.vx = 0;
         enemy.vy = 0;
+        for (const [gx, gy] of [
+          [-2.2, -2.2],
+          [2.2, -2.2],
+          [-2.2, 2.2],
+          [2.2, 2.2],
+        ] as const) {
+          spawnWindGust(s, enemy.x, enemy.y, gx, gy, 3.2, 0.55);
+        }
+        s.events.push('ice-storm');
+        s.events.push('flame-snuff');
+        showBanner(s, 'The Ice Wraith unleashes an Ice Storm—all braziers snuffed!', 2.8);
+      } else {
+        markEnemyStumble(s, enemy);
       }
-      markEnemyStumble(s, enemy);
     }
     return;
   }
@@ -2368,7 +2390,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     let speed = 0;
     if (e.kind === 'wickgeist') {
       e.armored = !roomLit;
-      if (e.hp <= 4) e.phase = 2;
+      if (e.hp <= 4 && e.phase < 2) e.phase = 2;
       if (e.stumbleTimer > 0) {
         speed = 0;
       } else if (e.aiState === 'windup') {

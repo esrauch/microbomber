@@ -117,6 +117,10 @@ export function makeSfx(): SfxPlayer {
       } else if (ev === 'flame-snuff') {
         tone(480, 120, 0.12, 'sawtooth', 0.1, 0);
         tone(260, 80, 0.14, 'triangle', 0.11, 0.02);
+      } else if (ev === 'ice-storm') {
+        tone(720, 210, 0.26, 'sawtooth', 0.15, 0);
+        tone(540, 140, 0.3, 'triangle', 0.14, 0.05);
+        tone(960, 320, 0.22, 'sine', 0.12, 0.1);
       } else if (ev === 'slime-split') {
         tone(280, 560, 0.065, 'sine', 0.13, 0);
         tone(380, 740, 0.075, 'sine', 0.12, 0.055);

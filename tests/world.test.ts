@@ -122,9 +122,9 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.pickups.some((p) => p.kind === 'boss-key')).toBe(true);
   });
 
-  it('Wickgeist requires lighting a brazier in the dark, and unlocks the midpoint warp on defeat', () => {
+  it('Wickgeist is immune unless a corner brazier is lit (not just a bomb fire), and unleashes 3 ice storms at fixed health thresholds', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ice-cave', 1, 1, 5.5, 7.5);
+    const s = newState(world, 'ice-cave', 0, 0, 5.5, 7.5);
     s.unlockedBombs.push('fire');
     const geist = s.enemies[0]!;
     expect(geist.kind).toBe('wickgeist');
@@ -137,6 +137,27 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     kickA(world, s, s.aimX, s.aimY);
     stepSeconds(world, s, 0.45);
     expect(geist.hp).toBe(8);
+
+    // A Fire bomb fire patch on the floor (not lighting a corner torch) does NOT expose Wickgeist!
+    s.fires.push({ x: 5, y: 6, remaining: 2.0, tickCooldown: 0, generation: 0 });
+    expect(isRoomLit(world, s)).toBe(false);
+    geist.invulnTimer = 0;
+    s.bombs.push({
+      id: 888,
+      kind: 'bomb',
+      x: geist.x,
+      y: geist.y,
+      vx: 0,
+      vy: 0,
+      z: 0,
+      vz: 0,
+      fuse: 0.005,
+      graceOverlap: false,
+      shoveCount: 0,
+    });
+    tick(world, s, idle, FIXED_DT);
+    expect(geist.hp).toBe(8);
+    s.fires = [];
 
     // Light NW brazier (2, 2) with Fire, then damage Wickgeist
     s.x = 3.5;
@@ -156,10 +177,12 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.torches.some((t) => t.lit)).toBe(true);
     expect(isRoomLit(world, s)).toBe(true);
 
-    // Deal 8 damage with Bomb throws (re-lighting if phase 2 snuffs a torch)
+    // Deal 8 damage across 4 phases (re-lighting after each of the 3 Ice Storm snuffs at 6, 4, 2 HP)
+    let iceStormCount = 0;
     equipBomb(s, 'bomb');
     for (let volley = 0; volley < 8 && s.enemies.length > 0; volley++) {
       if (!s.torches.some((t) => t.lit)) {
+        iceStormCount++;
         s.hp = s.maxHp;
         s.x = 3.5;
         s.y = 2.5;
@@ -187,13 +210,15 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       kickA(world, s, s.aimX, s.aimY);
       stepSeconds(world, s, 0.45);
     }
+    expect(iceStormCount).toBe(3);
     expect(s.enemies).toHaveLength(0);
-    expect(s.cryptWarpUnlocked).toBe(true);
+    expect(s.roomSolved).toBe(true);
+    expect(s.pickups.map((p) => p.kind).sort()).toEqual(['cinder-core', 'heart-container']);
   });
 
-  it('Cinderhull requires Fire to burn thorn wraps before Bomb can damage its core', () => {
+  it('Cinderhull requires Fire to burn thorn wraps before Bomb can damage its core, and unlocks the midpoint warp on defeat', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ice-cave', 0, 0, 5.5, 8.5);
+    const s = newState(world, 'ice-cave', 1, 1, 5.5, 8.5);
     s.unlockedBombs.push('fire');
     const boss = s.enemies[0]!;
     expect(boss.kind).toBe('cinderhull');
@@ -252,7 +277,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     expect(s.enemies).toHaveLength(0);
     expect(s.roomSolved).toBe(true);
-    expect(s.pickups.map((p) => p.kind).sort()).toEqual(['cinder-core', 'heart-container']);
+    expect(s.cryptWarpUnlocked).toBe(true);
   });
 
   it('respawns at the current room doorway on death and round-trips v3 autosaves cleanly', () => {

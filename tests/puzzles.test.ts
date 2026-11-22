@@ -365,43 +365,40 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     expect(enteredLantern).toBe(true);
     expect([s.rx, s.ry]).toEqual([1, 1]);
 
-    // --- 6. Lantern Hall (1, 1): kick Fire into corner brazier & defeat Wickgeist ---
+    // --- 6. Lantern Hall (1, 1): defeat Ice Golem (cinderhull) miniboss to unlock midpoint warp ---
     expect(s.cryptWarpUnlocked).toBe(false);
-    equipBomb(s, 'fire');
-    s.x = 2.5;
-    s.y = 4.5;
-    s.bombCooldown = 0;
-    kickA(world, s, 0, -1);
-    stepSeconds(world, s, 0.4);
-    expect(s.torches.some((t) => t.lit)).toBe(false);
-    stepSeconds(world, s, FIRE_FUSE);
-    expect(s.torches.some((t) => t.lit)).toBe(true);
-
-    // Defeat Wickgeist with Bomb (re-lighting SE brazier (8, 10) when Phase 2 snuffs a torch)
-    equipBomb(s, 'bomb');
-    for (let volley = 0; volley < 10 && s.enemies.length > 0; volley++) {
-      if (!s.torches.some((t) => t.lit)) {
+    const miniboss = s.enemies[0]!;
+    expect(miniboss.kind).toBe('cinderhull');
+    for (let step = 0; step < 40 && s.enemies.length > 0; step++) {
+      const b = s.enemies[0]!;
+      b.invulnTimer = 0;
+      s.hp = s.maxHp;
+      if (b.armored) {
+        b.x = 5.5;
+        b.y = 5.2;
         equipBomb(s, 'fire');
-        s.x = 8.5;
-        s.y = 8.5;
+        s.x = 5.5;
+        s.y = 8.2;
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
-        kickA(world, s, 0, 1);
-        stepSeconds(world, s, FIRE_FUSE + 0.15);
+        kickA(world, s, 0, -1);
+        for (let i = 0; i < 95 && b.armored; i++) {
+          b.x = 5.5;
+          b.y = 5.2;
+          s.hp = s.maxHp;
+          tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
+        }
         equipBomb(s, 'bomb');
+      } else {
+        s.x = b.x;
+        s.y = Math.min(10.0, b.y + 1.8);
+        s.vx = 0;
+        s.vy = 0;
+        s.bombCooldown = 0;
+        kickA(world, s, 0, -1);
+        stepTicks(world, s, 28);
       }
-      const geist = s.enemies[0];
-      if (!geist) break;
-      geist.invulnTimer = 0;
-      s.hp = s.maxHp;
-      s.x = geist.x;
-      s.y = Math.min(10.0, geist.y + 1.8);
-      s.vx = 0;
-      s.vy = 0;
-      s.bombCooldown = 0;
-      kickA(world, s, 0, -1);
-      stepSeconds(world, s, 0.45);
     }
     expect(s.enemies).toHaveLength(0);
     expect(s.roomSolved).toBe(true);
@@ -538,60 +535,34 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     expect(enteredBoss).toBe(true);
     expect([s.rx, s.ry]).toEqual([0, 0]);
 
-    // --- 10. Sanctum of Ash (0, 0): verify kicked Fire shot burns Cinderhull's thorn wraps ---
+    // --- 10. Frozen Sanctum (0, 0): light corner braziers across 3 Ice Storm snuffs to defeat Ice Wraith ---
     const boss = s.enemies[0]!;
-    expect(boss.kind).toBe('cinderhull');
+    expect(boss.kind).toBe('wickgeist');
     expect(boss.armored).toBe(true);
 
-    boss.x = 3.5;
-    boss.y = 5.2;
-    boss.vx = 0;
-    boss.vy = 0;
-    equipBomb(s, 'fire');
-    s.x = 3.5;
-    s.y = 8.2;
-    s.bombCooldown = 0;
-    kickA(world, s, 0, -1);
-    for (let i = 0; i < 95 && boss.armored; i++) {
-      boss.x = 3.5;
-      boss.y = 5.2;
-      s.hp = s.maxHp;
-      tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
-    }
-    expect(boss.armored).toBe(false);
-
-    // Finish all remaining boss phases to claim Heart Container & Cinder Core
-    equipBomb(s, 'bomb');
-    for (let step = 0; step < 40 && s.enemies.length > 0; step++) {
-      const b = s.enemies[0]!;
-      b.invulnTimer = 0;
-      s.hp = s.maxHp;
-      if (b.armored) {
-        b.x = 7.5;
-        b.y = 5.2;
+    for (let volley = 0; volley < 10 && s.enemies.length > 0; volley++) {
+      if (!s.torches.some((t) => t.lit)) {
         equipBomb(s, 'fire');
-        s.x = 7.5;
-        s.y = 8.2;
+        s.x = 2.5;
+        s.y = 4.5;
         s.vx = 0;
         s.vy = 0;
         s.bombCooldown = 0;
         kickA(world, s, 0, -1);
-        for (let i = 0; i < 95 && b.armored; i++) {
-          b.x = 7.5;
-          b.y = 5.2;
-          s.hp = s.maxHp;
-          tick(world, s, { dx: 0, dy: 1 }, FIXED_DT);
-        }
+        stepSeconds(world, s, FIRE_FUSE + 0.15);
         equipBomb(s, 'bomb');
-      } else {
-        s.x = b.x;
-        s.y = Math.min(10.0, b.y + 1.8);
-        s.vx = 0;
-        s.vy = 0;
-        s.bombCooldown = 0;
-        kickA(world, s, 0, -1);
-        stepTicks(world, s, 28);
       }
+      const geist = s.enemies[0];
+      if (!geist) break;
+      geist.invulnTimer = 0;
+      s.hp = s.maxHp;
+      s.x = geist.x;
+      s.y = Math.min(10.0, geist.y + 1.8);
+      s.vx = 0;
+      s.vy = 0;
+      s.bombCooldown = 0;
+      kickA(world, s, 0, -1);
+      stepSeconds(world, s, 0.45);
     }
     expect(s.enemies).toHaveLength(0);
     expect(s.roomSolved).toBe(true);
