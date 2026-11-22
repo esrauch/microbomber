@@ -74,7 +74,7 @@ export class ParticleSystem {
       const x = bl.x * TILE;
       const y = bl.y * TILE;
       const hub = !bl.shape || bl.shape === 'hub' || bl.shape === 'single';
-      if (bl.kind === 'powder') {
+      if (bl.kind === 'bomb') {
         this.burst(
           hub ? 14 : 5,
           x,
@@ -174,7 +174,8 @@ export class ParticleSystem {
             life: 0.5 + r() * 0.4,
             maxLife: 0.9,
             size: 1.5 + r() * 1.5,
-            color: ev === 'tile-burn' ? 0x3a2a1a : 0x8a7a68,
+            // Ice Cave obstacles melt into pale droplets; brambles burn to soot
+            color: ev === 'tile-burn' ? (s.zone === 'ice-cave' ? 0xa8d8f8 : 0x3a2a1a) : 0x8a7a68,
             gravity: 260,
             drag: 0.3,
             glow: false,
@@ -194,7 +195,7 @@ export class ParticleSystem {
             life: 0.3 + r() * 0.2,
             maxLife: 0.5,
             size: 2 + r() * 2,
-            color: s.zone === 'ember-crypt' ? 0x8a7aa0 : 0xc8b890,
+            color: s.zone === 'ice-cave' ? 0xb8d0e0 : 0xc8b890,
             gravity: -10,
             drag: 0.1,
             glow: false,

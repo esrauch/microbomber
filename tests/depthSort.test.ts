@@ -28,7 +28,7 @@ describe('Phase 6.4 foot-position depth sort and height-aware shadows', () => {
   });
 
   it('sorts stacked slimes, props, braziers, flames, and 3/4 overhead tiles by true ground contact', () => {
-    // Ember Crypt Arch / general stack:
+    // Ice Cave Arch / general stack:
     // - Pip north of mausoleum at y=3.72 -> behind mausoleum overhead (y=4)
     // - Mausoleum overhead at y=4 -> behind brazier prop & flame at y=5
     // - Slime at y=5.8 -> behind Pip at y=6.5 -> behind crate prop at y=7

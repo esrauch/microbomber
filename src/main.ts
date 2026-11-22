@@ -40,7 +40,7 @@ const SAVE_KEY = 'microbomber.save.v3';
 const LEGACY_SAVE_KEY = 'microbomber.save.v2';
 const ROLL_ICON = 'HUD_ROLL' as ObjSpriteName;
 const INTRO_BANNER =
-  'The Ironblight Spire rusted every blade on Cinderholm! Talk to Bram, press B to Roll, or tap/hold A behind the smithy.';
+  'The Iron Tower rusted every blade on Cinderholm! Talk to Bram, press B to Roll, or tap/hold A behind the smithy.';
 
 function pxIcon(name: ObjSpriteName, size: number): string {
   if (!(name in OBJ)) {
@@ -409,8 +409,8 @@ Object.assign(startBtn.style, {
 topRow.append(satchelPips, startBtn);
 
 const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; label: string }> = {
-  powder: { sprite: 'POWDER_1', label: 'Blackpowder' },
-  ember: { sprite: 'EMBER_1', label: 'Ember' },
+  bomb: { sprite: 'BOMB_1', label: 'Bomb' },
+  fire: { sprite: 'FIREBOMB_1', label: 'Fire' },
 };
 
 /** Fixed-verb buttons held right now: `[holdB (Roll), holdA (Place)]`. */
@@ -760,17 +760,17 @@ function syncZoneChrome(force = false): void {
   const bannerActive = Boolean(state.bannerText);
   if (force || state.zone !== prevSkinnedZone) {
     prevSkinnedZone = state.zone;
-    const isCrypt = state.zone === 'ember-crypt';
-    stageEl.style.backgroundColor = isCrypt ? '#181420' : '#182818';
+    const isCrypt = state.zone === 'ice-cave';
+    stageEl.style.backgroundColor = isCrypt ? '#121a28' : '#182818';
     stageEl.style.backgroundImage = `url("${bezelTileDataUrl(state.zone, 2)}")`;
     hd.canvas.style.boxShadow = isCrypt
-      ? '0 0 0 2px #181420, 0 0 0 4px #685088, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.75)'
+      ? '0 0 0 2px #181420, 0 0 0 4px #4a6a98, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.75)'
       : '0 0 0 2px #181420, 0 0 0 4px #406838, 0 0 0 6px #181420, 0 6px 18px rgba(0, 0, 0, 0.72)';
     applyGbcBoxFrame(topbarEl, state.zone, 'normal');
     applyGbcBoxFrame(bossBarWrap, state.zone, 'boss');
     applyGbcBoxFrame(settingsModal, state.zone, 'gold');
-    controlsEl.style.background = isCrypt ? '#1c1628' : '#182018';
-    controlsEl.style.boxShadow = isCrypt ? 'inset 0 2px 0 #584870' : 'inset 0 2px 0 #485848';
+    controlsEl.style.background = isCrypt ? '#141c2a' : '#182018';
+    controlsEl.style.boxShadow = isCrypt ? 'inset 0 2px 0 #3c5478' : 'inset 0 2px 0 #485848';
     prevBannerActive = null;
   }
   if (force || bannerActive !== prevBannerActive) {
@@ -839,15 +839,15 @@ function syncHud(force = false): void {
   heartsRow.innerHTML = `<span style="display:inline-flex;gap:2px;align-items:center">${heartImgs.join('')}</span>${extras.length ? `<span style="display:inline-flex;gap:5px;align-items:center;margin-left:4px;font-size:9.5px">${extras.join('')}</span>` : ''}`;
 
   // Non-truncated room name + full objective (wraps cleanly across 2 pixel lines, zero `...`)
-  const zonePrefix = state.zone === 'ember-crypt' ? 'Ember Crypt' : 'Cinderholm';
+  const zonePrefix = state.zone === 'ice-cave' ? 'Ice Cave' : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
   roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
 
   // Auto-drawn minimap (`GAME.md` §5)
   minimapEl.replaceChildren();
-  const cols = state.zone === 'ember-crypt' ? 3 : 4;
-  const rows = state.zone === 'ember-crypt' ? 4 : 6;
-  const minX = state.zone === 'ember-crypt' ? 0 : 2;
+  const cols = state.zone === 'ice-cave' ? 3 : 4;
+  const rows = state.zone === 'ice-cave' ? 4 : 6;
+  const minX = state.zone === 'ice-cave' ? 0 : 2;
   minimapEl.style.gridTemplateColumns = `repeat(${cols}, 7px)`;
   for (let my = 0; my < rows; my++) {
     for (let mx = minX; mx < minX + cols; mx++) {
@@ -863,7 +863,7 @@ function syncHud(force = false): void {
         background: isCur
           ? '#f8d848'
           : visited
-            ? state.zone === 'ember-crypt'
+            ? state.zone === 'ice-cave'
               ? '#a078e8'
               : '#60c878'
             : exists
@@ -886,10 +886,10 @@ function syncHud(force = false): void {
   // Boss HP bar
   if (boss) {
     bossBarWrap.style.display = 'flex';
-    const bName = boss.kind === 'cinderhull' ? 'CINDERHULL · BOSS' : 'WICKGEIST · PHANTOM';
+    const bName = boss.kind === 'cinderhull' ? 'ICE GOLEM · BOSS' : 'ICE WRAITH · PHANTOM';
     const shieldTag = boss.armored
       ? boss.kind === 'cinderhull'
-        ? 'THORNS (USE EMBER!)'
+        ? 'ICE ARMOUR (USE FIRE!)'
         : 'IN DARK (LIGHT BRAZIER!)'
       : 'EXPOSED!';
     bossTitleEl.innerHTML = `<span>${bName}</span><span>${shieldTag}</span>`;
@@ -907,11 +907,11 @@ function syncHud(force = false): void {
     arrow.style.color = '#f8d848';
     dialogueContent.append(arrow, document.createTextNode(state.bannerText));
   } else {
-    dialogueContent.style.color = state.zone === 'ember-crypt' ? '#b0a0c8' : '#98b098';
+    dialogueContent.style.color = state.zone === 'ice-cave' ? '#b0c8e0' : '#98b098';
     const line1 = document.createElement('div');
     line1.textContent = `▸ ${room?.objective ?? 'Explore Cinderholm Isle'}`;
     const line2 = document.createElement('div');
-    line2.style.color = state.zone === 'ember-crypt' ? '#8878a0' : '#789078';
+    line2.style.color = state.zone === 'ice-cave' ? '#7890b0' : '#789078';
     line2.style.marginTop = '2px';
     line2.textContent = '[B] ROLL · [A] PLACE · [START] SATCHEL';
     dialogueContent.append(line1, line2);

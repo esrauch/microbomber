@@ -10,7 +10,7 @@ left from them is under [Future milestones](#future-milestones).
 
 ## Phase 6: Make it look professional
 
-Phone screenshots of the Square, Crypt Foyer, Lantern Hall and Bramble Woods
+Phone screenshots of the Square, Entry Hall, Lantern Hall and Bramble Woods
 showed the pixel art is mostly fine; the jank is in the framing, filtering, depth
 sorting and dressing. Five changes, in order of impact.
 
@@ -100,7 +100,7 @@ Left over from earlier phases, not yet scheduled.
 - [ ] **Roll:** roll length, i-frame window and input-buffer feel.
 - [ ] **Bomb physics:** friction, bounciness and kick strength.
 - [ ] **Place and kick:** how placing in front of Pip and kicking feel.
-- [ ] **Physics puzzles:** every Ember Crypt room solvable and readable.
+- [ ] **Physics puzzles:** every Ice Cave room solvable and readable.
 - [ ] **Systemic world and AI:** fire spread, wind and enemy reactions stay fair
       and readable.
 - [ ] **Lighting:** bombs and blast reach stay readable under the lit renderer.

@@ -42,7 +42,7 @@ export function auxKind(name: string): AuxKind {
 }
 
 function isBombWithGlowingCore(name: string): boolean {
-  return name.startsWith('POWDER_') || name.startsWith('EMBER_');
+  return name.startsWith('BOMB_') || name.startsWith('FIREBOMB_');
 }
 
 /**
@@ -131,7 +131,7 @@ export function bakeAuxData(name: ObjSpriteName): AuxImageData {
         // Ink and darkest ember shade stay non-emissive so flames & blasts keep crisp outlines
         data[i + 1] = idx <= 4 ? 255 : 0;
       } else if (bombCore && (idx === 1 || idx === 2)) {
-        // Live fuse spark (POWDER_*) and incandescent Ember flask core (EMBER_*) glow & bloom
+        // Live fuse spark (BOMB_*) and incandescent Fire flask core (FIREBOMB_*) glow & bloom
         data[i + 1] = 220;
       }
       data[i + 3] = 255;
@@ -146,8 +146,8 @@ export function bakeAux(name: ObjSpriteName): HTMLCanvasElement {
 }
 
 /** Pure RGBA pixel data for an emissive background tile (`warp` rune or `sealLit` Cinder socket). */
-export function bakeTileEmissiveAuxData(kind: 'warp' | 'sealLit'): AuxImageData {
-  const tile = kind === 'warp' ? BG.warp0 : BG.sealSocketLit;
+export function bakeTileEmissiveAuxData(kind: 'warp' | 'sealLit' | 'ice'): AuxImageData {
+  const tile = kind === 'warp' ? BG.warp0 : kind === 'ice' ? BG.iceBlock : BG.sealSocketLit;
   const height = tile.rows.length;
   const width = tile.rows[0]?.length ?? 16;
   const data = new Uint8ClampedArray(width * height * 4);
@@ -157,14 +157,26 @@ export function bakeTileEmissiveAuxData(kind: 'warp' | 'sealLit'): AuxImageData 
       const idx = Number(row[x] ?? 0);
       if (idx === 0) continue;
       const i = (y * width + x) * 4;
-      data[i + 1] = idx === 1 ? 230 : idx === 2 ? 140 : 0;
+      // Ice only catches the light faintly; runes and seals glow
+      data[i + 1] =
+        kind === 'ice'
+          ? idx === 1
+            ? 120
+            : idx === 2
+              ? 70
+              : 0
+          : idx === 1
+            ? 230
+            : idx === 2
+              ? 140
+              : 0;
       data[i + 3] = 255;
     }
   }
   return { width, height, data };
 }
 
-/** Bake a 16x16 emissive G-buffer tile mask for active warp pads and lit Spire seal sockets. */
-export function bakeTileEmissiveAux(kind: 'warp' | 'sealLit'): HTMLCanvasElement {
+/** Bake a 16x16 emissive G-buffer tile mask for active warp pads and lit Tower seal sockets. */
+export function bakeTileEmissiveAux(kind: 'warp' | 'sealLit' | 'ice'): HTMLCanvasElement {
   return toAuxCanvas(bakeTileEmissiveAuxData(kind));
 }

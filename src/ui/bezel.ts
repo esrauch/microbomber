@@ -295,10 +295,10 @@ export function bezelTileDataUrl(zone: ZoneId, scale = 2): string {
 
   const zp = BG_PALETTES[zone];
   const palette: readonly [Rgb, Rgb, Rgb, Rgb] =
-    zone === 'ember-crypt'
+    zone === 'ice-cave'
       ? [INK_RGB, zp.floor[3], zp.floor[3], zp.floor[3]]
       : [INK_RGB, zp.foliage[3], zp.foliage[3], zp.foliage[3]];
-  const rows = zone === 'ember-crypt' ? CRYPT_BEZEL_PATTERN : OW_BEZEL_PATTERN;
+  const rows = zone === 'ice-cave' ? CRYPT_BEZEL_PATTERN : OW_BEZEL_PATTERN;
 
   const url = encodeRgbaPngDataUrl(
     16,
@@ -341,15 +341,15 @@ function frameColorsFor(zone: ZoneId, accent: GbcBoxAccent): FrameColors {
       outerHi: rgb555(248, 232, 144),
       outerMid: rgb555(216, 168, 64),
       hairline: rgb555(120, 184, 112),
-      fill: zone === 'ember-crypt' ? rgb555(24, 16, 32) : rgb555(16, 24, 24),
+      fill: zone === 'ice-cave' ? rgb555(14, 20, 36) : rgb555(16, 24, 24),
     };
   }
-  if (zone === 'ember-crypt') {
+  if (zone === 'ice-cave') {
     return {
-      outerHi: rgb555(200, 184, 224),
-      outerMid: rgb555(128, 104, 160),
+      outerHi: rgb555(200, 224, 240),
+      outerMid: rgb555(72, 112, 160),
       hairline: rgb555(232, 184, 80),
-      fill: rgb555(20, 16, 32),
+      fill: rgb555(14, 20, 36),
     };
   }
   return {

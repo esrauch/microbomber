@@ -147,7 +147,8 @@ function makeZoneBgPalettes(
 }
 
 const OW_GRASS_BASE = rgb555(96, 184, 64);
-const CRYPT_FLOOR_BASE = rgb555(96, 80, 120);
+// Ice Cave: pale glacier stone, so the warm mouse and fire light both stand off it
+const CRYPT_FLOOR_BASE = rgb555(112, 136, 160);
 
 export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
   overworld: makeZoneBgPalettes(
@@ -161,13 +162,13 @@ export const BG_PALETTES: Record<ZoneId, Record<BgPaletteId, BgPalette>> = {
     // out-shouting it
     [OW_GRASS_BASE, rgb555(88, 152, 72), rgb555(40, 108, 56), rgb555(20, 48, 36)],
   ),
-  'ember-crypt': makeZoneBgPalettes(
-    // 0: stone highlight, 1: matte crypt flagstone, 2: recessed trim, 3: deep mortar/abyss
-    [rgb555(136, 120, 160), CRYPT_FLOOR_BASE, rgb555(64, 52, 88), rgb555(32, 24, 48)],
-    // 0: sunlit cornice, 1: sloped purple-slate wall, 2: outer cap stone, 3: deep masonry joint
-    [rgb555(168, 152, 192), rgb555(104, 88, 136), rgb555(56, 44, 80), rgb555(28, 20, 44)],
-    // 0: crypt stone base, 1: burnished gold/thorn tip, 2: olive briar / bronze, 3: ink
-    [CRYPT_FLOOR_BASE, rgb555(232, 192, 80), rgb555(104, 120, 40), INK],
+  'ice-cave': makeZoneBgPalettes(
+    // 0: frost highlight, 1: glacier stone floor, 2: recessed trim, 3: deep crevasse
+    [rgb555(176, 200, 216), CRYPT_FLOOR_BASE, rgb555(64, 84, 112), rgb555(24, 32, 56)],
+    // 0: frosted rim, 1: blue ice-rock wall, 2: outer cap stone, 3: deep ice joint
+    [rgb555(200, 224, 240), rgb555(80, 112, 152), rgb555(44, 64, 100), rgb555(20, 28, 52)],
+    // 0: stone base, 1: icicle white / gilt, 2: glacier blue (ice blocks), 3: ink
+    [CRYPT_FLOOR_BASE, rgb555(232, 240, 248), rgb555(136, 184, 216), INK],
   ),
 };
 

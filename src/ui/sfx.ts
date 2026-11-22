@@ -74,10 +74,10 @@ export function makeSfx(): SfxPlayer {
       } else if (ev === 'bomb-swallow') {
         tone(420, 95, 0.16, 'sine', 0.12, 0);
         tone(180, 55, 0.12, 'triangle', 0.09, 0.05);
-      } else if (ev === 'boom-powder') {
+      } else if (ev === 'boom-bomb') {
         tone(150, 38, 0.24, 'sawtooth', 0.22);
         tone(95, 28, 0.28, 'square', 0.14);
-      } else if (ev === 'boom-ember') {
+      } else if (ev === 'boom-fire') {
         tone(340, 110, 0.22, 'sawtooth', 0.18);
         tone(620, 260, 0.18, 'triangle', 0.12, 0.03);
       } else if (ev === 'crystal-flip') {

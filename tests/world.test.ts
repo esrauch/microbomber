@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { idle, kickA, stepSeconds, tapA } from './input';
 import {
-  EMBER_FUSE,
+  FIRE_FUSE,
   FIXED_DT,
-  POWDER_FUSE,
+  BOMB_FUSE,
   ROOM_W,
   campaignWorld,
   enterRoom,
@@ -24,10 +24,10 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.x).toBeGreaterThan(2.12);
 
     // Stand slightly off-centre below the 1-tile doorway at x=5 in Crystal Crossroads (1, 2)
-    enterRoom(world, s, 'ember-crypt', 1, 2, 5.28, 10.8);
+    enterRoom(world, s, 'ice-cave', 1, 2, 5.28, 10.8);
     stepSeconds(world, s, 1.2, { ...idle, dy: 1 });
-    // Corner-slide nudges x toward 5.5 and transitions south into Crypt Foyer (1, 3)
-    expect([s.zone, s.rx, s.ry]).toEqual(['ember-crypt', 1, 3]);
+    // Corner-slide nudges x toward 5.5 and transitions south into Entry Hall (1, 3)
+    expect([s.zone, s.rx, s.ry]).toEqual(['ice-cave', 1, 3]);
   });
 
   it('walking off an open edge cuts to the adjacent room', () => {
@@ -42,7 +42,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.x).toBeGreaterThan(ROOM_W - 1);
   });
 
-  it('placed Blackpowder breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
+  it('placed Bomb breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
     const world = campaignWorld();
     // Millbrook Square has a cracked smithy wall at (7, 1)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
@@ -56,7 +56,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     tapA(world, s);
     expect(s.bombs).toHaveLength(1);
 
-    stepSeconds(world, s, POWDER_FUSE + 0.15);
+    stepSeconds(world, s, BOMB_FUSE + 0.15);
     expect(s.bombs).toHaveLength(0);
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('.');
     // Self-blast dealt 0 heart damage, and knocked Pip back west, away from the bomb
@@ -64,11 +64,11 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.x).toBeLessThan(6.0);
   });
 
-  it('a kicked Blackpowder bomb detonates on enemy impact', () => {
+  it('a kicked Bomb bomb detonates on enemy impact', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 2, 5.5, 7.5);
+    const s = newState(world, 'ice-cave', 1, 2, 5.5, 7.5);
 
-    // Impact detonation on enemy: Spire Causeway (2, 1) has a slime at (5.5, 4.5)
+    // Impact detonation on enemy: Tower Causeway (2, 1) has a slime at (5.5, 4.5)
     enterRoom(world, s, 'overworld', 2, 1, 5.5, 6.5);
     s.aimX = 0;
     s.aimY = -1;
@@ -80,26 +80,26 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.enemies.length).toBeLessThan(initialEnemies);
   });
 
-  it('Ember burns brambles, strips wooden shields, and enforces ordered braziers (I → II → III)', () => {
+  it('Fire burns brambles, strips wooden shields, and enforces ordered braziers (I → II → III)', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 3, 3.5, 6.5);
-    s.unlockedBombs.push('ember');
-    equipBomb(s, 'ember');
+    const s = newState(world, 'ice-cave', 1, 3, 3.5, 6.5);
+    s.unlockedBombs.push('fire');
+    equipBomb(s, 'fire');
 
-    // Burn inset west bramble at (2, 6) in Crypt Foyer
-    expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('B');
+    // Burn inset west bramble at (2, 6) in Entry Hall
+    expect(tileAt(world, s, 'ice-cave', 1, 3, 2, 6)).toBe('B');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tapA(world, s);
-    stepSeconds(world, s, EMBER_FUSE + 0.15);
-    expect(tileAt(world, s, 'ember-crypt', 1, 3, 2, 6)).toBe('.');
+    stepSeconds(world, s, FIRE_FUSE + 0.15);
+    expect(tileAt(world, s, 'ice-cave', 1, 3, 2, 6)).toBe('.');
 
     // Ordered braziers in Hall of Three Flames (0, 2): (2,9)=1, (2,2)=2, (8,2)=3
-    enterRoom(world, s, 'ember-crypt', 0, 2, 2.5, 5.5);
+    enterRoom(world, s, 'ice-cave', 0, 2, 2.5, 5.5);
     s.enemies = [];
     // Kicking into torch #2 first fizzles back to 0!
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     kickA(world, s, 0, -1);
-    stepSeconds(world, s, EMBER_FUSE + 0.15);
+    stepSeconds(world, s, FIRE_FUSE + 0.15);
     expect(s.orderedStep).toBe(0);
     expect(s.torches.filter((t) => !t.decor).every((t) => !t.lit)).toBe(true);
 
@@ -116,7 +116,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.vy = 0;
       s.bombCooldown = 0; // staged setup, not a test of the cooldown
       kickA(world, s, kdx, kdy);
-      stepSeconds(world, s, EMBER_FUSE + 0.15);
+      stepSeconds(world, s, FIRE_FUSE + 0.15);
     }
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.some((p) => p.kind === 'boss-key')).toBe(true);
@@ -124,13 +124,13 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('Wickgeist requires lighting a brazier in the dark, and unlocks the midpoint warp on defeat', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 1, 5.5, 7.5);
-    s.unlockedBombs.push('ember');
+    const s = newState(world, 'ice-cave', 1, 1, 5.5, 7.5);
+    s.unlockedBombs.push('fire');
     const geist = s.enemies[0]!;
     expect(geist.kind).toBe('wickgeist');
 
-    // In the dark, Blackpowder deals 0 damage
-    equipBomb(s, 'powder');
+    // In the dark, Bomb deals 0 damage
+    equipBomb(s, 'bomb');
     s.aimX = 0;
     s.aimY = -1;
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
@@ -138,14 +138,14 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     stepSeconds(world, s, 0.45);
     expect(geist.hp).toBe(8);
 
-    // Light NW brazier (2, 2) with Ember, then damage Wickgeist
+    // Light NW brazier (2, 2) with Fire, then damage Wickgeist
     s.x = 3.5;
     s.y = 2.5;
     s.vx = 0;
     s.vy = 0;
     s.aimX = -1;
     s.aimY = 0;
-    equipBomb(s, 'ember');
+    equipBomb(s, 'fire');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     kickA(world, s, s.aimX, s.aimY);
     stepSeconds(world, s, 0.3);
@@ -156,8 +156,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.torches.some((t) => t.lit)).toBe(true);
     expect(isRoomLit(world, s)).toBe(true);
 
-    // Deal 8 damage with Blackpowder throws (re-lighting if phase 2 snuffs a torch)
-    equipBomb(s, 'powder');
+    // Deal 8 damage with Bomb throws (re-lighting if phase 2 snuffs a torch)
+    equipBomb(s, 'bomb');
     for (let volley = 0; volley < 8 && s.enemies.length > 0; volley++) {
       if (!s.torches.some((t) => t.lit)) {
         s.hp = s.maxHp;
@@ -167,11 +167,11 @@ describe('core movement, bombs, puzzles, and bosses', () => {
         s.vy = 0;
         s.aimX = -1;
         s.aimY = 0;
-        equipBomb(s, 'ember');
+        equipBomb(s, 'fire');
         s.bombCooldown = 0; // staged setup, not a test of the cooldown
         kickA(world, s, s.aimX, s.aimY);
         stepSeconds(world, s, 1.45);
-        equipBomb(s, 'powder');
+        equipBomb(s, 'bomb');
       }
       const target = s.enemies[0];
       if (!target) break;
@@ -191,16 +191,16 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.cryptWarpUnlocked).toBe(true);
   });
 
-  it('Cinderhull requires Ember to burn thorn wraps before Blackpowder can damage its core', () => {
+  it('Cinderhull requires Fire to burn thorn wraps before Bomb can damage its core', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 0, 0, 5.5, 8.5);
-    s.unlockedBombs.push('ember');
+    const s = newState(world, 'ice-cave', 0, 0, 5.5, 8.5);
+    s.unlockedBombs.push('fire');
     const boss = s.enemies[0]!;
     expect(boss.kind).toBe('cinderhull');
     expect(boss.hp).toBe(12);
 
-    // Blackpowder clanks off thorn armor
-    equipBomb(s, 'powder');
+    // Bomb clanks off thorn armor
+    equipBomb(s, 'bomb');
     s.x = boss.x;
     s.y = boss.y + 1.8;
     s.aimX = 0;
@@ -211,9 +211,9 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(boss.hp).toBe(12);
     expect(boss.armored).toBe(true);
 
-    // Through every phase: burn the wraps with Ember whenever they're up, then blast the
-    // exposed core with Blackpowder until the thorns regrow
-    equipBomb(s, 'powder');
+    // Through every phase: burn the wraps with Fire whenever they're up, then blast the
+    // exposed core with Bomb until the thorns regrow
+    equipBomb(s, 'bomb');
     for (let step = 0; step < 40 && s.enemies.length > 0; step++) {
       const b = s.enemies[0]!;
       b.invulnTimer = 0;
@@ -223,10 +223,10 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       s.vx = 0;
       s.vy = 0;
       if (b.armored) {
-        // Plant an Ember on the boss with its fuse nearly spent (no kick needed)
+        // Plant a Fire on the boss with its fuse nearly spent (no kick needed)
         s.bombs.push({
           id: 999 + step,
-          kind: 'ember',
+          kind: 'fire',
           x: b.x,
           y: b.y,
           vx: 0,
@@ -267,16 +267,16 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect([s.x, s.y]).toEqual([9.2, 6.5]);
 
     // Autosave export & import
-    s.unlockedBombs.push('ember');
-    equipBomb(s, 'ember');
+    s.unlockedBombs.push('fire');
+    equipBomb(s, 'fire');
     s.cores.push('cinder');
     s.maxBombs = 3;
     const saved = exportSave(s);
     expect(saved.version).toBe(3);
     const loaded = importSave(world, saved);
     expect(loaded).not.toBeNull();
-    expect(loaded!.unlockedBombs).toEqual(['powder', 'ember']);
-    expect(loaded!.equipped).toBe('ember');
+    expect(loaded!.unlockedBombs).toEqual(['bomb', 'fire']);
+    expect(loaded!.equipped).toBe('fire');
     expect(loaded!.cores).toEqual(['cinder']);
     expect(loaded!.maxBombs).toBe(3);
   });

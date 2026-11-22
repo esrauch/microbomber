@@ -20,7 +20,7 @@ import {
   windVectorAt,
 } from '../game/world';
 import { BG, type BgTile, OBJ, type ObjSprite, type ObjSpriteName } from './gbcArt';
-import { bakeAux } from './gbcAux';
+import { bakeAux, bakeTileEmissiveAux } from './gbcAux';
 import { CROWN_H, CROWN_VARIANTS, CROWN_W } from './thicketCrowns';
 import { type PlacedTile, type RoomRenderPlan, buildRoomLayout } from './gbcAutotile';
 import {
@@ -226,7 +226,7 @@ export function hudIconDataUrl(name: ObjSpriteName, scale = 2): string {
 interface BlastInstance {
   x: number;
   y: number;
-  kind: 'powder' | 'ember';
+  kind: 'bomb' | 'fire';
   shape: BlastShape;
   born: number;
 }
@@ -254,12 +254,12 @@ interface BombKinSnapshot {
   vy: number;
   vz: number;
   shoveCount: number;
-  kind: 'powder' | 'ember';
+  kind: 'bomb' | 'fire';
 }
 
 interface MicroVfxInstance {
   kind: 'splash' | 'swallow';
-  bombKind: 'powder' | 'ember';
+  bombKind: 'bomb' | 'fire';
   x: number;
   y: number;
   born: number;
@@ -300,6 +300,7 @@ export function makeGbcView(): GbcView {
   const auxCtx = maybeAuxCtx;
   auxCtx.imageSmoothingEnabled = false;
   const auxCache = new Map<ObjSpriteName, HTMLCanvasElement>();
+  const iceAux = bakeTileEmissiveAux('ice');
   const getAux = (name: ObjSpriteName): HTMLCanvasElement => {
     let c = auxCache.get(name);
     if (!c) {
@@ -411,7 +412,7 @@ export function makeGbcView(): GbcView {
   let fallAnimUntil = 0;
   let holdAnimUntil = 0;
   let warpAnimUntil = 0;
-  let heldKind: PickupKind = 'ember-bomb';
+  let heldKind: PickupKind = 'fire-bomb';
   let activeBlasts: BlastInstance[] = [];
   let activeScorches: Array<{ x: number; y: number; born: number }> = [];
   let activeMicroVfx: MicroVfxInstance[] = [];
@@ -583,7 +584,7 @@ export function makeGbcView(): GbcView {
     }
   }
 
-  const pickupMap: Record<Exclude<PickupKind, 'ember-bomb'>, ObjSpriteName> = {
+  const pickupMap: Record<Exclude<PickupKind, 'fire-bomb'>, ObjSpriteName> = {
     'small-key': 'PICKUP_SMALL_KEY',
     'boss-key': 'PICKUP_BOSS_KEY',
     'heart-shard': 'PICKUP_HEART_SHARD',
@@ -603,15 +604,15 @@ export function makeGbcView(): GbcView {
     sy = 1,
     tiltRad = 0,
   ): void {
-    if (kind === 'ember-bomb' || kind === 'cinder-core') {
+    if (kind === 'fire-bomb' || kind === 'cinder-core') {
       if (Math.floor(time * 6) % 2 === 0) {
         drawScaledSprite(ctx, 'SPARKLE_CELL', dx, dy, sx, sy, false, undefined, tiltRad);
       }
     }
-    if (kind === 'ember-bomb') {
+    if (kind === 'fire-bomb') {
       drawScaledSprite(
         ctx,
-        Math.floor(time * 5) % 2 === 0 ? 'EMBER_1' : 'EMBER_2',
+        Math.floor(time * 5) % 2 === 0 ? 'FIREBOMB_1' : 'FIREBOMB_2',
         dx + 3,
         dy + 3,
         sx,
@@ -647,19 +648,19 @@ export function makeGbcView(): GbcView {
       const rate = b.fuse > 0.7 ? 8 : b.fuse > 0.35 ? 14 : 22;
       idx = Math.floor(time * rate + b.id) % 4;
     }
-    const powderFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-      'POWDER_1',
-      'POWDER_2',
-      'POWDER_3',
-      'POWDER_4',
+    const bombFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+      'BOMB_1',
+      'BOMB_2',
+      'BOMB_3',
+      'BOMB_4',
     ];
-    const emberFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
-      'EMBER_1',
-      'EMBER_2',
-      'EMBER_3',
-      'EMBER_4',
+    const fireFrames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
+      'FIREBOMB_1',
+      'FIREBOMB_2',
+      'FIREBOMB_3',
+      'FIREBOMB_4',
     ];
-    const list = b.kind === 'ember' ? emberFrames : powderFrames;
+    const list = b.kind === 'fire' ? fireFrames : bombFrames;
     drawScaledSprite(ctx, list[idx] ?? list[0], dx, dy, sx, sy, false, undefined, tiltRad);
   }
 
@@ -774,7 +775,7 @@ export function makeGbcView(): GbcView {
     const rimLight = cssRgb(OBJ_PALETTES.powder[2]);
     const rimMid = cssRgb(OBJ_PALETTES.powder[3]);
     const bodyCol =
-      fx.bombKind === 'ember' ? cssRgb(OBJ_PALETTES.fire[3]) : cssRgb(OBJ_PALETTES.powder[4]);
+      fx.bombKind === 'fire' ? cssRgb(OBJ_PALETTES.fire[3]) : cssRgb(OBJ_PALETTES.powder[4]);
     const dropY = Math.round(u * 4);
 
     const r = Math.max(1, Math.round((1 - u) * 5));
@@ -859,7 +860,7 @@ export function makeGbcView(): GbcView {
     heightTiles: number,
   ): void {
     const { rx, ry, alpha } = computeShadowMetrics(baseRadiusPx, heightTiles);
-    const rgb = zone === 'ember-crypt' ? '18, 12, 34' : '14, 28, 32';
+    const rgb = zone === 'ice-cave' ? '12, 20, 44' : '14, 28, 32';
     const cx = Math.round(cxPx);
     const cy = Math.round(footYPx);
 
@@ -990,7 +991,7 @@ export function makeGbcView(): GbcView {
       const leafGoldCss =
         zone === 'overworld'
           ? cssRgb(BG_PALETTES.overworld.wood[1])
-          : cssRgb(BG_PALETTES['ember-crypt'].floor[0]);
+          : cssRgb(BG_PALETTES['ice-cave'].floor[0]);
       const leafShadeCss =
         zone === 'overworld' ? cssRgb(BG_PALETTES.overworld.wood[2]) : streakBodyCss;
       const vxPx = roomWind.dx * TILE_PX * 1.9;
@@ -1408,7 +1409,7 @@ export function makeGbcView(): GbcView {
     const dy = Math.round(bl.y * TILE_PX - 8);
     const stage = Math.min(3, Math.floor((age / 0.28) * 4));
 
-    if (bl.shape === 'single' || bl.kind === 'ember' || stage >= 2) {
+    if (bl.shape === 'single' || bl.kind === 'fire' || stage >= 2) {
       const radial: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
         'BLAST_1',
         'BLAST_2',
@@ -1577,7 +1578,7 @@ export function makeGbcView(): GbcView {
 
       const resolveHazardSpot = (
         targetTile: '~' | '^',
-      ): { x: number; y: number; bombKind: 'powder' | 'ember' } => {
+      ): { x: number; y: number; bombKind: 'bomb' | 'fire' } => {
         for (let i = 0; i < vanishedBombs.length; i++) {
           const cand = vanishedBombs[i];
           if (!cand) continue;
@@ -1615,7 +1616,7 @@ export function makeGbcView(): GbcView {
             bombKind: firstVanished.kind,
           };
         }
-        const fallbackKind: 'powder' | 'ember' = s.equipped ?? 'powder';
+        const fallbackKind: 'bomb' | 'fire' = s.equipped ?? 'bomb';
         for (const dist of [0.65, 1.15, 1.8, 2.4, 3.0]) {
           const sx = s.x + s.aimX * dist;
           const sy = s.y + s.aimY * dist;
@@ -1781,7 +1782,7 @@ export function makeGbcView(): GbcView {
         drawOpeningDoor(mainCtx, s.zone, d, Math.max(0, time - d.startTime));
       }
 
-      // 2. Burning Ember hearth patches (4-frame fire leaning with wind)
+      // 2. Burning Fire hearth patches (4-frame fire leaning with wind)
       const fireNames: readonly [ObjSpriteName, ObjSpriteName, ObjSpriteName, ObjSpriteName] = [
         'FIRE_1',
         'FIRE_2',
@@ -1894,6 +1895,8 @@ export function makeGbcView(): GbcView {
             const img = getPlacedBg(s.zone, p);
             mainCtx.drawImage(img, p.x * TILE_PX, p.y * TILE_PX);
             eraseAux(img, p.x * TILE_PX, p.y * TILE_PX);
+            // Ice blocks catch the light, so they still read as ice in a dim cave
+            if (p.tile === BG.iceBlock) auxCtx.drawImage(iceAux, p.x * TILE_PX, p.y * TILE_PX);
           },
         });
       }

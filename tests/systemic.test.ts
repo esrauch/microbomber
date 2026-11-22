@@ -7,7 +7,7 @@ import {
   FIRE_SPREAD_INTERVAL,
   FIXED_DT,
   MAX_FIRE_GENERATION,
-  POWDER_FUSE,
+  BOMB_FUSE,
   ROOM_H,
   ROOM_W,
   type RoomSpec,
@@ -90,7 +90,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     ] as const) {
       s.bombs.push({
         id,
-        kind: 'ember',
+        kind: 'fire',
         x: 1.5,
         y,
         vx: 0,
@@ -139,7 +139,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     const stripState = newState(stripWorld, 'overworld', 0, 0, 8.5, 6.5);
     stripState.bombs.push({
       id: 104,
-      kind: 'ember',
+      kind: 'fire',
       x: 1.5,
       y: 2.5,
       vx: 0,
@@ -212,10 +212,10 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     expect(eastBomb.z).toBe(0);
     expect(eastBomb.x).toBeGreaterThan(landedX + 0.8);
 
-    stepSeconds(eastWorld, es, POWDER_FUSE);
+    stepSeconds(eastWorld, es, BOMB_FUSE);
     expect(tileAt(eastWorld, es, 'overworld', 0, 0, 7, 6)).toBe('.');
 
-    // 2. Place/drop an Ember bomb onto a South ('2') current -> floats downstream to light 'T'
+    // 2. Place/drop a Fire bomb onto a South ('2') current -> floats downstream to light 'T'
     const southRows = openRows();
     for (let y = 2; y <= 7; y++) setCell(southRows, 5, y, '2');
     setCell(southRows, 5, 8, 'T');
@@ -224,11 +224,11 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       torches: [{ x: 5, y: 8 }],
     });
     const ss = newState(southWorld, 'overworld', 0, 0, 3.5, 2.5);
-    ss.unlockedBombs.push('ember');
-    equipBomb(ss, 'ember');
+    ss.unlockedBombs.push('fire');
+    equipBomb(ss, 'fire');
     ss.bombs.push({
       id: 201,
-      kind: 'ember',
+      kind: 'fire',
       x: 5.5,
       y: 2.5,
       vx: 0,
@@ -282,7 +282,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
 
     fs.bombs.push({
       id: 301,
-      kind: 'powder',
+      kind: 'bomb',
       x: 3.5,
       y: 6.5,
       vx: 0,
@@ -309,7 +309,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     ps.bombs.push(
       {
         id: 302,
-        kind: 'powder',
+        kind: 'bomb',
         x: 3.5,
         y: 4.5,
         vx: 0,
@@ -322,7 +322,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       },
       {
         id: 303,
-        kind: 'powder',
+        kind: 'bomb',
         x: 3.5,
         y: 6.5,
         vx: 0,
@@ -376,7 +376,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       const st = newState(w, 'overworld', 0, 0, 5.5, 2.5);
       st.bombs.push({
         id: 304,
-        kind: 'ember',
+        kind: 'fire',
         x: 1.5,
         y: 6.5,
         vx: 0,
@@ -471,7 +471,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
 
     s.bombs.push({
       id: 501,
-      kind: 'powder',
+      kind: 'bomb',
       x: 5.5,
       y: 5.4,
       vx: 0,
@@ -493,11 +493,11 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     });
     const sts = newState(stumbleWorld, 'overworld', 0, 0, 5.5, 9.5);
     const shielder = sts.enemies[0]!;
-    shielder.armored = false; // 2-HP unarmored shielder hit by 1-damage Ember -> 1 HP (non-lethal)
+    shielder.armored = false; // 2-HP unarmored shielder hit by 1-damage Fire -> 1 HP (non-lethal)
 
     sts.bombs.push({
       id: 502,
-      kind: 'ember',
+      kind: 'fire',
       x: 5.5,
       y: 6.0,
       vx: 0,
@@ -534,14 +534,14 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     expect(batEvents).toContain('flame-snuff');
     expect(bs.fires).toHaveLength(0);
 
-    // 2. Hitting a full slime with 'ember' splits it into 2 1-HP mini-slimes (splitGen === 1), no re-split
+    // 2. Hitting a full slime with 'fire' splits it into 2 1-HP mini-slimes (splitGen === 1), no re-split
     const slimeWorld = sandboxWorld(openRows(), {
       enemies: [{ kind: 'slime', x: 5.5, y: 5.5 }],
     });
     const sls = newState(slimeWorld, 'overworld', 0, 0, 5.5, 9.5);
     sls.bombs.push({
       id: 601,
-      kind: 'ember',
+      kind: 'fire',
       x: 5.5,
       y: 5.0,
       vx: 0,
@@ -563,13 +563,13 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       expect(mini.splitGen).toBe(1);
     }
 
-    // Subsequent Ember hits defeat both mini-slimes without splitting again
+    // Subsequent Fire hits defeat both mini-slimes without splitting again
     sls.fires = [];
     sls.enemies.forEach((mini, idx) => {
       mini.invulnTimer = 0;
       sls.bombs.push({
         id: 602 + idx,
-        kind: 'ember',
+        kind: 'fire',
         x: mini.x,
         y: mini.y,
         vx: 0,
@@ -596,7 +596,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
 
     shs.bombs.push({
       id: 604,
-      kind: 'powder',
+      kind: 'bomb',
       x: 5.5,
       y: 5.35,
       vx: 0,
@@ -638,7 +638,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       gs.torches[0]!.lit = true;
       gs.bombs.push({
         id: 701 + hit,
-        kind: 'powder',
+        kind: 'bomb',
         x: geist.x,
         y: geist.y + 0.4,
         vx: 0,
@@ -693,11 +693,11 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     expect(firstWindupTick).toBeGreaterThanOrEqual(0);
     expect(firstBarrageTick).toBeGreaterThan(firstWindupTick);
 
-    // Burn away Cinderhull's thorn wraps with Ember, then blast exposed core with Blackpowder -> stumble!
+    // Burn away Cinderhull's thorn wraps with Fire, then blast exposed core with Bomb -> stumble!
     boss.invulnTimer = 0;
     cs.bombs.push({
       id: 710,
-      kind: 'ember',
+      kind: 'fire',
       x: boss.x,
       y: boss.y + 0.5,
       vx: 0,
@@ -711,13 +711,13 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
     tick(bossWorld, cs, idle, FIXED_DT);
     expect(boss.armored).toBe(false);
 
-    // The Ember's fire patch may already have burned the exposed core; measure the
-    // Blackpowder hit on its own
-    const hpBeforePowder = boss.hp;
+    // The Fire's fire patch may already have burned the exposed core; measure the
+    // Bomb hit on its own
+    const hpBeforeBomb = boss.hp;
     boss.invulnTimer = 0;
     cs.bombs.push({
       id: 711,
-      kind: 'powder',
+      kind: 'bomb',
       x: boss.x,
       y: boss.y + 0.5,
       vx: 0,
@@ -729,7 +729,7 @@ describe('Phase 4: Systemic world (fire spread, water currents, wind) and enemy/
       shoveCount: 0,
     });
     tick(bossWorld, cs, idle, FIXED_DT);
-    expect(boss.hp).toBe(hpBeforePowder - 2);
+    expect(boss.hp).toBe(hpBeforeBomb - 2);
     expect(boss.stumbleTimer).toBeGreaterThan(0);
     expect(cs.events).toContain('enemy-stumble');
   });

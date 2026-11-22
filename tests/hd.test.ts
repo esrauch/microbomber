@@ -18,8 +18,8 @@ describe('HD-2D lighting model', () => {
   it('lights the overworld brightly, the crypt dimmer, and an unlit dark room barely at all', () => {
     const world = campaignWorld();
     const field = computeLighting(world, newState(world, 'overworld', 3, 2), 0, []);
-    const crypt = computeLighting(world, newState(world, 'ember-crypt', 1, 3), 0, []);
-    const dark = newState(world, 'ember-crypt', 1, 1); // Lantern Hall, braziers unlit
+    const crypt = computeLighting(world, newState(world, 'ice-cave', 1, 3), 0, []);
+    const dark = newState(world, 'ice-cave', 1, 1); // Lantern Hall, braziers unlit
     const darkLit = computeLighting(world, dark, 0, []);
 
     expect(brightness(field.ambient)).toBeGreaterThan(brightness(crypt.ambient));
@@ -34,29 +34,29 @@ describe('HD-2D lighting model', () => {
     expect(chromaSpan(lantern?.color ?? [0, 0, 0])).toBeLessThan(0.1);
   });
 
-  it('uses chromatic non-grey zone shadow inks for overworld and ember-crypt', () => {
+  it('uses chromatic non-grey zone shadow inks for overworld and ice-cave', () => {
     const owInk = zoneShadowInk('overworld');
-    const cryptInk = zoneShadowInk('ember-crypt');
+    const cryptInk = zoneShadowInk('ice-cave');
     expect(chromaSpan(owInk)).toBeGreaterThan(0.05);
     expect(chromaSpan(cryptInk)).toBeGreaterThan(0.05);
     expect(owInk).not.toEqual(cryptInk);
 
     const world = campaignWorld();
     const field = computeLighting(world, newState(world, 'overworld', 3, 2), 0, []);
-    const crypt = computeLighting(world, newState(world, 'ember-crypt', 1, 3), 0, []);
+    const crypt = computeLighting(world, newState(world, 'ice-cave', 1, 3), 0, []);
     expect(field.shadowInk).toEqual(owInk);
     expect(crypt.shadowInk).toEqual(cryptInk);
   });
 
   it('adds a flickering light for each lit brazier, dips ambient on blast flash, and fades flashes out', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 3); // Crypt Foyer: two braziers start lit
+    const s = newState(world, 'ice-cave', 1, 3); // Entry Hall: two braziers start lit
     const lit = s.torches.filter((t) => t.lit).length;
     expect(lit).toBeGreaterThan(0);
     const baseLighting = computeLighting(world, s, 0, []);
     expect(baseLighting.lights).toHaveLength(lit);
 
-    const flash = { x: 5.5, y: 6.5, kind: 'powder' as const, born: 1 };
+    const flash = { x: 5.5, y: 6.5, kind: 'bomb' as const, born: 1 };
     const flashLighting = computeLighting(world, s, 1.0, [flash]);
     // Active bomb explosion flash dips base ambient so radial blast shadows pop across the room
     expect(brightness(flashLighting.ambient)).toBeLessThan(brightness(baseLighting.ambient));
@@ -84,11 +84,11 @@ describe('HD-2D lighting model', () => {
 });
 
 describe('HD-2D particles', () => {
-  it('bursts sparks and smoke from a Blackpowder blast, then lets them burn out', () => {
+  it('bursts sparks and smoke from a Bomb blast, then lets them burn out', () => {
     const world = campaignWorld();
     const s = newState(world);
     const ps = new ParticleSystem(42);
-    ps.spawnFromFrame(s, ['boom-powder'], [{ x: 5.5, y: 6.5, kind: 'powder', shape: 'hub' }]);
+    ps.spawnFromFrame(s, ['boom-bomb'], [{ x: 5.5, y: 6.5, kind: 'bomb', shape: 'hub' }]);
     const kinds = new Set(ps.particles.map((p) => p.kind));
     expect(kinds.has('spark')).toBe(true);
     expect(kinds.has('smoke')).toBe(true);
@@ -101,7 +101,7 @@ describe('HD-2D particles', () => {
     const s = newState(world);
     const run = (): number[] => {
       const ps = new ParticleSystem(7);
-      ps.spawnFromFrame(s, ['bomb-kick'], [{ x: 3.5, y: 3.5, kind: 'ember', shape: 'hub' }]);
+      ps.spawnFromFrame(s, ['bomb-kick'], [{ x: 3.5, y: 3.5, kind: 'fire', shape: 'hub' }]);
       ps.update(0.1);
       return ps.particles.map((p) => Math.round(p.x * 100));
     };
@@ -111,7 +111,7 @@ describe('HD-2D particles', () => {
     const blasts = Array.from({ length: 200 }, () => ({
       x: 5,
       y: 5,
-      kind: 'powder' as const,
+      kind: 'bomb' as const,
       shape: 'hub' as const,
     }));
     flood.spawnFromFrame(s, [], blasts);
@@ -134,7 +134,7 @@ describe('HD-2D sprite G-buffer', () => {
     expect(auxKind('SLIME_4')).toBe('plain');
     expect(auxKind('BAT_3')).toBe('plain');
     expect(auxKind('SHIELDER_4')).toBe('plain');
-    expect(auxKind('POWDER_1')).toBe('plain');
+    expect(auxKind('BOMB_1')).toBe('plain');
   });
 
   it('gives the fuse mouse ears more height than the fur and the ink outline the least', () => {
@@ -166,16 +166,16 @@ describe('HD-2D sprite G-buffer', () => {
     expect(maxEmissive(blast.data)).toBe(255);
     expect(bakeAux('FIRE_1').width).toBe(fire.width);
 
-    // Powder & Ember bombs glow (G = 220) ONLY on spark/core indices 1 & 2, never on cast-iron body
-    const powder = bakeAuxData('POWDER_1');
-    const ember = bakeAuxData('EMBER_1');
-    expect(maxEmissive(powder.data)).toBe(220);
-    expect(maxEmissive(ember.data)).toBe(220);
-    const powderRows = OBJ.POWDER_1.rows;
-    for (let y = 0; y < powder.height; y++) {
-      for (let x = 0; x < powder.width; x++) {
-        const ch = powderRows[y]?.[x] ?? '.';
-        const g = powder.data[(y * powder.width + x) * 4 + 1] ?? 0;
+    // Bomb & Fire Bomb sprites glow (G = 220) ONLY on spark/core indices 1 & 2, never on cast-iron body
+    const bomb = bakeAuxData('BOMB_1');
+    const fireBomb = bakeAuxData('FIREBOMB_1');
+    expect(maxEmissive(bomb.data)).toBe(220);
+    expect(maxEmissive(fireBomb.data)).toBe(220);
+    const bombRows = OBJ.BOMB_1.rows;
+    for (let y = 0; y < bomb.height; y++) {
+      for (let x = 0; x < bomb.width; x++) {
+        const ch = bombRows[y]?.[x] ?? '.';
+        const g = bomb.data[(y * bomb.width + x) * 4 + 1] ?? 0;
         if (ch === '1' || ch === '2') {
           expect(g).toBe(220);
         } else {
@@ -188,7 +188,7 @@ describe('HD-2D sprite G-buffer', () => {
     expect(maxEmissive(bakeAuxData('SLIME_1').data)).toBe(0);
     expect(maxEmissive(bakeAuxData('MOUSE_SOUTH_IDLE').data)).toBe(0);
 
-    // Active warp pads and lit Spire seal sockets bake emissive rune masks
+    // Active warp pads and lit Tower seal sockets bake emissive rune masks
     expect(maxEmissive(bakeTileEmissiveAuxData('warp').data)).toBe(230);
     expect(maxEmissive(bakeTileEmissiveAuxData('sealLit').data)).toBe(230);
   });

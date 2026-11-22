@@ -38,7 +38,7 @@ export interface Lighting {
 export interface Flash {
   x: number;
   y: number;
-  kind: 'powder' | 'ember';
+  kind: 'bomb' | 'fire';
   born: number;
 }
 
@@ -54,7 +54,7 @@ const LANTERN: Rgb3 = [0.96, 0.94, 0.98];
 
 /** Deep chromatic GBC shadow ink per zone (forest-pine teal outdoors, plum-indigo in shrines). */
 export function zoneShadowInk(zone: ZoneId): Rgb3 {
-  return zone === 'ember-crypt' ? [0.07, 0.05, 0.14] : [0.04, 0.09, 0.16];
+  return zone === 'ice-cave' ? [0.03, 0.07, 0.18] : [0.04, 0.09, 0.16];
 }
 
 /** Deterministic flicker in roughly [0.85, 1.1] that differs per light. */
@@ -69,7 +69,7 @@ export function computeLighting(
   flashes: readonly Flash[],
 ): Lighting {
   const room = currentRoom(world, s);
-  const crypt = s.zone === 'ember-crypt';
+  const crypt = s.zone === 'ice-cave';
   const darkUnlit = Boolean(room?.dark) && !isRoomLit(world, s);
 
   // Stark moonlit night outdoors (~25% cool silver-blue ambient), moody shadow in the crypt,
@@ -87,7 +87,7 @@ export function computeLighting(
   const baseAmbient: Rgb3 = darkUnlit
     ? [0.07, 0.07, 0.12]
     : crypt
-      ? [0.22, 0.19, 0.27]
+      ? [0.2, 0.24, 0.3]
       : [0.24, 0.28, 0.4];
   const ambient: Rgb3 = [baseAmbient[0] * dip, baseAmbient[1] * dip, baseAmbient[2] * dip];
   const sunColor: Rgb3 = crypt || darkUnlit ? [0.08, 0.07, 0.1] : [0.32, 0.42, 0.65];
@@ -104,7 +104,7 @@ export function computeLighting(
     const age = time - fl.born;
     if (age < 0 || age > FLASH_SECONDS) continue;
     const k = 1 - age / FLASH_SECONDS;
-    const tailColor = fl.kind === 'ember' ? FIRE : SPARK;
+    const tailColor = fl.kind === 'fire' ? FIRE : SPARK;
     const hotMix = age < 0.065 ? 1 - age / 0.065 : 0;
     const color: Rgb3 = [
       tailColor[0] + (BLAST_CORE[0] - tailColor[0]) * hotMix,
@@ -158,7 +158,7 @@ export function computeLighting(
   for (const b of s.bombs) {
     const x = b.x * TILE;
     const y = (b.y - b.z) * TILE;
-    if (b.kind === 'ember') {
+    if (b.kind === 'fire') {
       add({ x, y, z: 8, radius: 34, color: FIRE, intensity: 0.82 * flicker(time, b.id) });
     } else {
       // The fuse spark brightens as it burns down
@@ -174,7 +174,15 @@ export function computeLighting(
     }
   }
   for (const pr of s.projectiles) {
-    add({ x: pr.x * TILE, y: pr.y * TILE, z: 8, radius: 22, color: FIRE, intensity: 0.7 });
+    // Ice Cave casters throw ice shards; anything else throws fire
+    add({
+      x: pr.x * TILE,
+      y: pr.y * TILE,
+      z: 8,
+      radius: 22,
+      color: crypt ? CYAN : FIRE,
+      intensity: 0.7,
+    });
   }
   for (const e of s.enemies) {
     if (e.kind === 'cinderhull' && !e.armored) {

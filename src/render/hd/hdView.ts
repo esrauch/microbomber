@@ -773,10 +773,10 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       u.uSunDir.set(lighting.sunDir);
       u.uSunColor.set(lighting.sunColor);
       u.uShadowInk.set(lighting.shadowInk);
-      const crypt = s.zone === 'ember-crypt';
+      const crypt = s.zone === 'ice-cave';
       // saturation, contrast, tint mix, wall shade
       u.uGrade.set(crypt ? [1.06, 1.03, 0.35, 0.72] : [1.08, 1.03, 0.3, 0.82]);
-      u.uTint.set(crypt ? [0.95, 0.92, 1.08] : [0.94, 0.98, 1.08]);
+      u.uTint.set(crypt ? [0.94, 0.99, 1.08] : [0.94, 0.98, 1.08]);
       u.uLightCount = lighting.lights.length;
       lighting.lights.forEach((l, i) => {
         u.uLightPos.set([l.x, l.y, l.z, l.radius], i * 4);

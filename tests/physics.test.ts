@@ -5,7 +5,7 @@ import {
   BOMB_WALL_BOUNCE,
   FIXED_DT,
   KICK_SPEED,
-  POWDER_FUSE,
+  BOMB_FUSE,
   ROOM_H,
   ROOM_W,
   SHOVE_BOMB_SPEED,
@@ -193,9 +193,9 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     const ps = newState(pitWorld, 'overworld', 0, 0, 5.5, 9.8);
     kickA(pitWorld, ps, 0, -1);
 
-    const pitEvents = stepSeconds(pitWorld, ps, POWDER_FUSE + 0.2);
+    const pitEvents = stepSeconds(pitWorld, ps, BOMB_FUSE + 0.2);
     expect(pitEvents).toContain('bomb-swallow');
-    expect(pitEvents).not.toContain('boom-powder');
+    expect(pitEvents).not.toContain('boom-bomb');
     expect(ps.bombs).toHaveLength(0);
 
     // 1b. Grounded bomb kicked into a pit ('^') is also swallowed without blast
@@ -247,7 +247,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(wb.vy).toBe(0);
 
     const boomEvents = stepSeconds(waterWorld, ws, fuseAfterSplash + 0.1);
-    expect(boomEvents).toContain('boom-powder');
+    expect(boomEvents).toContain('boom-bomb');
     expect(ws.bombs).toHaveLength(0);
   });
 
@@ -330,7 +330,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     s.bombs.push(
       {
         id: 201,
-        kind: 'powder',
+        kind: 'bomb',
         x: 5.5,
         y: 6.5,
         vx: 0,
@@ -343,7 +343,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       },
       {
         id: 202,
-        kind: 'powder',
+        kind: 'bomb',
         x: 6.5,
         y: 6.5,
         vx: 0,
@@ -359,7 +359,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     tick(world, s, idle, FIXED_DT);
 
     // 1. Blast fired; Pip took 0 damage and received southward knockback
-    expect(s.events).toContain('boom-powder');
+    expect(s.events).toContain('boom-bomb');
     expect(s.hp).toBe(startHp);
     expect(s.vy).toBeGreaterThan(0);
 
@@ -386,7 +386,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(shoved.x).toBeGreaterThan(7.0);
   });
 
-  it('chain-detonates an already-shoved bomb on its 2nd blast hit and preserves thrown Blackpowder impact detonation', () => {
+  it('chain-detonates an already-shoved bomb on its 2nd blast hit and preserves thrown Bomb impact detonation', () => {
     const world = sandboxWorld(OPEN_ROOM);
     const s = newState(world, 'overworld', 0, 0, 1.8, 10.5);
 
@@ -394,7 +394,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     s.bombs.push(
       {
         id: 301,
-        kind: 'powder',
+        kind: 'bomb',
         x: 3.5,
         y: 6.5,
         vx: 0,
@@ -407,7 +407,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       },
       {
         id: 302,
-        kind: 'powder',
+        kind: 'bomb',
         x: 4.5,
         y: 6.5,
         vx: 0,
@@ -430,7 +430,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     stepTicks(world, s, 2);
     s.bombs.push({
       id: 303,
-      kind: 'powder',
+      kind: 'bomb',
       x: Math.floor(target.x) + 0.5,
       y: 7.5,
       vx: 0,
@@ -443,11 +443,11 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     });
 
     const chainEvents = stepTicks(world, s, 4);
-    const boomCount = chainEvents.filter((e) => e === 'boom-powder').length;
+    const boomCount = chainEvents.filter((e) => e === 'boom-bomb').length;
     expect(boomCount).toBe(2); // both bomb 303 and shoved bomb 302 detonated >1.2s early!
     expect(s.bombs).toHaveLength(0);
 
-    // Every kicked bomb impact-detonates on an enemy, Blackpowder and Ember alike
+    // Every kicked bomb impact-detonates on an enemy, Bomb and Fire alike
     const pState = newState(world, 'overworld', 0, 0, 5.5, 7.5);
     pState.enemies.push({
       id: 401,
@@ -472,14 +472,14 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       homeY: 5.5,
     });
     kickA(world, pState, 0, -1);
-    const impactEvents = stepSeconds(world, pState, 0.4); // << POWDER_FUSE (1.5s)
-    expect(impactEvents).toContain('boom-powder');
+    const impactEvents = stepSeconds(world, pState, 0.4); // << BOMB_FUSE (1.5s)
+    expect(impactEvents).toContain('boom-bomb');
     expect(pState.bombs).toHaveLength(0);
     expect(pState.enemies).toHaveLength(0);
 
     const eState = newState(world, 'overworld', 0, 0, 5.5, 7.5);
-    eState.unlockedBombs.push('ember');
-    equipBomb(eState, 'ember');
+    eState.unlockedBombs.push('fire');
+    equipBomb(eState, 'fire');
     eState.enemies.push({
       id: 402,
       kind: 'slime',
@@ -503,8 +503,8 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       homeY: 5.5,
     });
     kickA(world, eState, 0, -1);
-    const emberEvents = stepSeconds(world, eState, 0.4); // << EMBER_FUSE (1.3s)
-    expect(emberEvents).toContain('boom-ember');
+    const fireEvents = stepSeconds(world, eState, 0.4); // << FIRE_FUSE (1.3s)
+    expect(fireEvents).toContain('boom-fire');
     expect(eState.bombs).toHaveLength(0);
   });
 
@@ -564,7 +564,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     shovedDoor.bombs.push(
       {
         id: 501,
-        kind: 'powder',
+        kind: 'bomb',
         x: 5.5,
         y: 10.5,
         vx: 0,
@@ -577,7 +577,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       },
       {
         id: 502,
-        kind: 'powder',
+        kind: 'bomb',
         x: 5.5,
         y: 11.5,
         vx: 0,

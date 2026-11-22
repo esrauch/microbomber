@@ -175,7 +175,7 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
   it('never lays the equipped bomb: rolling is a pure dodge whatever is equipped', () => {
     const world = sandboxWorld(OPEN_ROOM);
     const s = newState(world, 'overworld', 0, 0, 4.5, 6.5);
-    expect(s.equipped).toBe('powder');
+    expect(s.equipped).toBe('bomb');
     rollB(world, s, 1, 0);
     expect(s.bombs).toHaveLength(0);
     expect(s.bombCooldown).toBe(0);
@@ -259,22 +259,22 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     const world = campaignWorld();
     const base = exportSave(newState(world));
 
-    const v2WithEmber = {
+    const v2WithFire = {
       ...base,
       version: 2,
-      unlockedBombs: ['powder', 'ember'],
+      unlockedBombs: ['bomb', 'fire'],
       equipped: undefined,
-      slots: ['ember', 'powder'],
+      slots: ['fire', 'bomb'],
     };
-    const loadedEmber = importSave(world, v2WithEmber);
-    expect(loadedEmber?.equipped).toBe('ember');
+    const loadedFire = importSave(world, v2WithFire);
+    expect(loadedFire?.equipped).toBe('fire');
 
     const v2WithNone = {
       ...base,
       version: 2,
-      unlockedBombs: ['powder', 'ember'],
+      unlockedBombs: ['bomb', 'fire'],
       equipped: undefined,
-      slots: [null, 'powder'],
+      slots: [null, 'bomb'],
     };
     const loadedNone = importSave(world, v2WithNone);
     expect(loadedNone?.equipped).toBeNull();

@@ -21,8 +21,8 @@ describe('fuse mouse hero and compact bombs', () => {
       expect(name in OBJ).toBe(true);
     }
     for (let f = 1; f <= 4; f++) {
-      expect(`POWDER_${f}` in OBJ).toBe(true);
-      expect(`EMBER_${f}` in OBJ).toBe(true);
+      expect(`BOMB_${f}` in OBJ).toBe(true);
+      expect(`FIREBOMB_${f}` in OBJ).toBe(true);
     }
   });
 

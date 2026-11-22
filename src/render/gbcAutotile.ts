@@ -5,7 +5,7 @@
  * - `ground`:   11x13 base terrain BgTiles (grass, curved paths, waterbanks, pit rims,
  *               recessed dungeon floor trim, flagstone variants, walls, cliffs & locked doors)
  * - `decals`:   flat floor overlays drawn directly over `ground` and ALWAYS below ground actors
- *               (medallions, Fourfold Spire seal, carved stone chutes, bridges, buttons, spikes,
+ *               (medallions, Fourfold Tower seal, carved stone chutes, bridges, buttons, spikes,
  *               stairs, warps, lowered barriers, crypt floor decals, forest-edge trims, building aprons)
  * - `props`:    raised 3D obstacle/wall BgTiles Y-sorted with actors by foot position
  *               (crates, fences, balustrades, brambles, braziers, crystal switches, raised barriers,
@@ -98,7 +98,7 @@ function cellHash(x: number, y: number, rx: number, ry: number): number {
 
 export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const room = currentRoom(world, s);
-  const isCrypt = s.zone === 'ember-crypt';
+  const isCrypt = s.zone === 'ice-cave';
   const solved = s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry));
 
   const grid: Tile[][] = [];
@@ -582,6 +582,9 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
                   : BG.fenceSingle;
           props.push({ x, y, tile: ft, transparentZero: true });
         }
+      } else if (t === 'B' && isCrypt) {
+        // In the Ice Cave the meltable obstacle is a single block of ice
+        props.push({ x, y, tile: BG.iceBlock, transparentZero: true });
       } else if (t === 'B') {
         const connV = (y > 0 && at(x, y - 1) === 'B') || (y < ROOM_H - 1 && at(x, y + 1) === 'B');
         props.push({

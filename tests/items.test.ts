@@ -20,7 +20,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
     tapA(world, east);
     expect(east.bombs).toHaveLength(1);
     const eb = east.bombs[0]!;
-    expect(eb.kind).toBe('powder');
+    expect(eb.kind).toBe('bomb');
     expect(eb.x).toBeGreaterThan(5.3 + 0.3);
     expect(eb.y).toBe(6.6); // exact cross-axis coordinate, not snapped to 6.5
     expect(eb.graceOverlap).toBe(false); // clear of Pip, so walking forward kicks it
@@ -54,36 +54,61 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
   it('START menu equipBomb selects an unlocked bomb or None (null), and v3 saves round-trip it', () => {
     const world = campaignWorld();
     const s = newState(world);
-    equipBomb(s, 'ember'); // not unlocked yet
-    expect(s.equipped).toBe('powder');
+    equipBomb(s, 'fire'); // not unlocked yet
+    expect(s.equipped).toBe('bomb');
 
-    s.unlockedBombs.push('ember');
-    equipBomb(s, 'ember');
-    expect(s.equipped).toBe('ember');
+    s.unlockedBombs.push('fire');
+    equipBomb(s, 'fire');
+    expect(s.equipped).toBe('fire');
 
-    const savedEmber = exportSave(s);
-    expect(savedEmber.version).toBe(3);
-    expect(savedEmber.equipped).toBe('ember');
-    expect(importSave(world, JSON.parse(JSON.stringify(savedEmber)))?.equipped).toBe('ember');
+    const savedFire = exportSave(s);
+    expect(savedFire.version).toBe(3);
+    expect(savedFire.equipped).toBe('fire');
+    expect(importSave(world, JSON.parse(JSON.stringify(savedFire)))?.equipped).toBe('fire');
 
     equipBomb(s, null);
     expect(s.equipped).toBeNull();
     expect(importSave(world, JSON.parse(JSON.stringify(exportSave(s))))?.equipped).toBeNull();
   });
 
+  it('loads saves from before the rename (powder, ember) as Bomb and Fire', () => {
+    const world = campaignWorld();
+    const s = newState(world);
+    s.unlockedBombs.push('fire');
+    equipBomb(s, 'fire');
+    const old = JSON.parse(
+      JSON.stringify({ ...exportSave(s), unlockedBombs: ['powder', 'ember'], equipped: 'ember' }),
+    );
+    const loaded = importSave(world, old);
+    expect(loaded?.unlockedBombs).toEqual(['bomb', 'fire']);
+    expect(loaded?.equipped).toBe('fire');
+  });
+
+  it('loads saves from before the first shrine became Ice Cave (ember-crypt)', () => {
+    const world = campaignWorld();
+    const s = newState(world, 'ice-cave', 1, 3);
+    s.solvedRooms.add('ice-cave:1,3');
+    const old = JSON.parse(JSON.stringify(exportSave(s)).replaceAll('ice-cave', 'ember-crypt'));
+    expect(old.zone).toBe('ember-crypt');
+    const loaded = importSave(world, old);
+    expect(loaded?.zone).toBe('ice-cave');
+    expect(loaded?.solvedRooms.has('ice-cave:1,3')).toBe(true);
+    expect([...(loaded?.visitedRooms ?? [])].every((k) => !k.startsWith('ember-crypt'))).toBe(true);
+  });
+
   it('migrates version 2 saves (slots or legacy selectedBomb) cleanly to equipped', () => {
     const world = campaignWorld();
     const s = newState(world);
-    s.unlockedBombs.push('ember');
+    s.unlockedBombs.push('fire');
     const base = exportSave(s);
 
-    const v2Ember = { ...base, version: 2, equipped: undefined, slots: ['ember', 'powder'] };
-    expect(importSave(world, JSON.parse(JSON.stringify(v2Ember)))?.equipped).toBe('ember');
+    const v2Fire = { ...base, version: 2, equipped: undefined, slots: ['fire', 'bomb'] };
+    expect(importSave(world, JSON.parse(JSON.stringify(v2Fire)))?.equipped).toBe('fire');
 
-    const v2None = { ...base, version: 2, equipped: undefined, slots: [null, 'powder'] };
+    const v2None = { ...base, version: 2, equipped: undefined, slots: [null, 'bomb'] };
     expect(importSave(world, JSON.parse(JSON.stringify(v2None)))?.equipped).toBeNull();
 
-    const v2Legacy = { ...base, version: 2, equipped: undefined, selectedBomb: 'ember' };
-    expect(importSave(world, JSON.parse(JSON.stringify(v2Legacy)))?.equipped).toBe('ember');
+    const v2Legacy = { ...base, version: 2, equipped: undefined, selectedBomb: 'fire' };
+    expect(importSave(world, JSON.parse(JSON.stringify(v2Legacy)))?.equipped).toBe('fire');
   });
 });

@@ -48,13 +48,13 @@ const VALID_TILES = new Set([
 
 const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === 'Y';
 
-describe('vertical slice campaign integrity (Prologue + Ember Crypt)', () => {
+describe('vertical slice campaign integrity (Prologue + Ice Cave)', () => {
   const world = campaignWorld();
 
-  it('has 19 rooms (9 Overworld + 10 Ember Crypt), all exactly ROOM_W × ROOM_H with valid tiles', () => {
+  it('has 19 rooms (9 Overworld + 10 Ice Cave), all exactly ROOM_W × ROOM_H with valid tiles', () => {
     const rooms = [...world.rooms.values()];
     expect(rooms.filter((r) => r.zone === 'overworld')).toHaveLength(9);
-    expect(rooms.filter((r) => r.zone === 'ember-crypt')).toHaveLength(10);
+    expect(rooms.filter((r) => r.zone === 'ice-cave')).toHaveLength(10);
 
     for (const r of rooms) {
       expect(r.rows, r.name).toHaveLength(ROOM_H);
@@ -163,7 +163,7 @@ describe('crypt lighting', () => {
   it('starts every crypt room with a lit torch, except the dark mini-boss hall', () => {
     const world = campaignWorld();
     for (const room of world.rooms.values()) {
-      if (room.zone !== 'ember-crypt') continue;
+      if (room.zone !== 'ice-cave') continue;
       const s = newState(world, room.zone, room.rx, room.ry);
       const lit = s.torches.some((t) => t.lit);
       expect(lit, room.name).toBe(room.condition !== 'miniboss');

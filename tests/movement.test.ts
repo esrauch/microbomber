@@ -33,7 +33,7 @@ describe('movement feel', () => {
   it('corner assist settles on the lane centre without overshooting', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1,2): one-tile south doorway at x=5, approached off-centre
-    const s = newState(world, 'ember-crypt', 1, 2, 5.28, 10.8);
+    const s = newState(world, 'ice-cave', 1, 2, 5.28, 10.8);
     s.enemies = [];
     const xs: number[] = [];
     for (let i = 0; i < 6; i++) {
@@ -46,11 +46,11 @@ describe('movement feel', () => {
   it('a blast never knocks you out through a doorway, but you can still walk out', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1,2): stand in the south doorway with a bomb just inside the room
-    const s = newState(world, 'ember-crypt', 1, 2, 5.5, 12.4);
+    const s = newState(world, 'ice-cave', 1, 2, 5.5, 12.4);
     s.enemies = [];
     s.bombs.push({
       id: 999,
-      kind: 'powder',
+      kind: 'bomb',
       x: 5.5,
       y: 11.5,
       vx: 0,

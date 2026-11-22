@@ -1,8 +1,8 @@
 /**
  * Generates two magnified pixel-art inspection PNGs (`ASSETS.md` §4):
  * 1. Contact sheet of all 6-colour OBJ sprites (up to 32x32) and 4-colour BG tiles.
- * 2. Stitched 6-room proof sheet (`Millbrook Square`, `Spire Courtyard`, `Ember Crypt Arch`,
- *    `Crypt Foyer`, `Crystal Crossroads`, `Sanctum of Ash`) rendered via `buildRoomLayout`.
+ * 2. Stitched 6-room proof sheet (`Millbrook Square`, `Tower Courtyard`, `Ice Cave Arch`,
+ *    `Entry Hall`, `Crystal Crossroads`, `Sanctum of Ash`) rendered via `buildRoomLayout`.
  *
  *   npm run make-sprites [contact.png] [rooms.png]
  */
@@ -90,7 +90,7 @@ function makeScaledCanvas(logicalW: number, logicalH: number, scale: number) {
 const SCALE = 4;
 const CELL = 34; // fits 32x32 Cinderhull boss frames + 2px gutter
 const COLS = 10;
-const ZONES: ZoneId[] = ['overworld', 'ember-crypt'];
+const ZONES: ZoneId[] = ['overworld', 'ice-cave'];
 
 const objNames = Object.keys(OBJ) as ObjSpriteName[];
 const bgNames = Object.keys(BG) as (keyof typeof BG)[];
@@ -204,11 +204,11 @@ const SAMPLE_ROOMS: Array<{
   cinder?: boolean;
 }> = [
   { zone: 'overworld', rx: 3, ry: 2, px: 5.5, py: 6.5 }, // Millbrook Square
-  { zone: 'overworld', rx: 2, ry: 0, px: 5.5, py: 8.5, cinder: true }, // Spire Courtyard
-  { zone: 'overworld', rx: 3, ry: 5, px: 5.5, py: 8.0 }, // Ember Crypt Arch
-  { zone: 'ember-crypt', rx: 1, ry: 3, px: 5.5, py: 8.5 }, // Crypt Foyer
-  { zone: 'ember-crypt', rx: 1, ry: 2, px: 5.5, py: 9.0 }, // Crystal Crossroads
-  { zone: 'ember-crypt', rx: 0, ry: 0, px: 5.5, py: 8.5 }, // Sanctum of Ash (Cinderhull!)
+  { zone: 'overworld', rx: 2, ry: 0, px: 5.5, py: 8.5, cinder: true }, // Tower Courtyard
+  { zone: 'overworld', rx: 3, ry: 5, px: 5.5, py: 8.0 }, // Ice Cave Arch
+  { zone: 'ice-cave', rx: 1, ry: 3, px: 5.5, py: 8.5 }, // Entry Hall
+  { zone: 'ice-cave', rx: 1, ry: 2, px: 5.5, py: 9.0 }, // Crystal Crossroads
+  { zone: 'ice-cave', rx: 0, ry: 0, px: 5.5, py: 8.5 }, // Sanctum of Ash (Cinderhull!)
 ];
 
 SAMPLE_ROOMS.forEach((spec, idx) => {

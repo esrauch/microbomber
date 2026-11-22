@@ -1458,6 +1458,27 @@ export const BG_TILES = {
     '0000000000000000',
   ]),
 
+  // --- Ice Block (`B` in the Ice Cave: melted by Fire, as brambles burn outdoors) ---
+  // Zone 'foliage' palette (Ice Cave: 1 icicle white, 2 glacier blue, 3 ink); 0 transparent
+  iceBlock: bg(allQuads('foliage'), [
+    '0000000000000000',
+    '0333333333333330',
+    '3111111111111113',
+    '3111111111111113',
+    '3111111111111123',
+    '3211111111111223',
+    '3122222222222213',
+    '3212222222221223',
+    '3221222222212223',
+    '3222122222122223',
+    '3122212221222213',
+    '3212221212222123',
+    '3221222122221223',
+    '3222222222222223',
+    '0333333333333330',
+    '0000000000000000',
+  ]),
+
   // --- Connected Dry Bramble Web (`B`) ---
   brambleSingle: bg(allQuads('foliage'), [
     '0000300000300000',
@@ -2250,7 +2271,7 @@ export const BG_TILES = {
   ]),
 
   // =========================================================================
-  // 4. Multi-Tile Landmark Stamp Tiles (Workshop, Smithy, Crypt Arch, Spire)
+  // 4. Multi-Tile Landmark Stamp Tiles (Workshop, Smithy, Crypt Arch, Tower)
   // =========================================================================
 
   // --- Bram's Alchemist Workshop (3x2 = 48x32 px: blue-slate roof + brass flue + timber door) ---
@@ -2598,7 +2619,7 @@ export const BG_TILES = {
     '0000000000000000',
   ]),
 
-  // --- Ember Crypt Mausoleum Gatehouse (3x2 = 48x32 px at (4,4): horned flame pediment) ---
+  // --- Ice Cave Mausoleum Gatehouse (3x2 = 48x32 px at (4,4): horned flame pediment) ---
   cryptGate_0_0: bg(allQuads('wall'), [
     '1111333333333333',
     '1133000000000000',
@@ -2657,7 +2678,7 @@ export const BG_TILES = {
     '2222222221032103',
   ]),
 
-  // --- Ironblight Spire Gate (3 center tiles at y=0..1) & Fourfold Floor Seal (3x3) ---
+  // --- Iron Tower Gate (3 center tiles at y=0..1) & Fourfold Floor Seal (3x3) ---
   spireFacadeL: bg(allQuads('red'), [
     '3322112233222233',
     '3322112233211233',
@@ -2697,7 +2718,7 @@ export const BG_TILES = {
       '3333333333333333',
     ],
   ),
-  /** Fourfold Spire Seal socket tiles (unlit steel vs blazing red/gold Cinder socket!). */
+  /** Fourfold Tower Seal socket tiles (unlit steel vs blazing red/gold Cinder socket!). */
   sealSocketOff: bg(allQuads('steel'), [
     '0000333333330000',
     '0033111111113300',

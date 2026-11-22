@@ -42,9 +42,9 @@ export type {
 
 export const FIXED_DT = 1 / 60; // 60 Hz deterministic simulation step
 export const SPEED = 4.2; // tiles / second
-export const POWDER_FUSE = 1.5; // seconds
-export const EMBER_FUSE = 1.3; // seconds
-export const FIRE_DURATION = 2.5; // seconds an Ember hearth patch burns
+export const BOMB_FUSE = 1.5; // seconds
+export const FIRE_FUSE = 1.3; // seconds
+export const FIRE_DURATION = 2.5; // seconds a Fire hearth patch burns
 export const BOMB_COOLDOWN = 0.7; // seconds between placing new bombs
 export const ROLL_DURATION = 0.25; // seconds in dodge roll
 export const ROLL_DISTANCE = 2.0; // tiles covered per dodge roll
@@ -416,13 +416,13 @@ export function enterRoom(
     s.pickups.push({ id: ps.id, kind: ps.kind, x: ps.x, y: ps.y });
   }
 
-  // Auto-slot Cinder Core when visiting Spire Courtyard with it
+  // Auto-slot Cinder Core when visiting Tower Courtyard with it
   if (room.spireSeal && s.cores.includes('cinder') && !s.spireCinderSlotted) {
     s.spireCinderSlotted = true;
     for (const t of s.torches) t.lit = true;
     showBanner(
       s,
-      'The Cinder Core blazes on the Spire Seal! (1 of 4 Elemental Cores restored — Vertical Slice Complete!)',
+      'The Cinder Core blazes on the Tower Seal! (1 of 4 Elemental Cores restored — Vertical Slice Complete!)',
       6,
     );
     s.events.push('core-slotted');
@@ -470,8 +470,8 @@ export function newState(
     hp: 6,
     maxHp: 6,
     heartShards: 0,
-    unlockedBombs: ['powder'],
-    equipped: 'powder',
+    unlockedBombs: ['bomb'],
+    equipped: 'bomb',
     maxBombs: 2,
     blastRadius: 1,
     smallKeys: 0,
@@ -930,9 +930,9 @@ function checkSolveCondition(world: World, s: State): void {
 
   if (room.condition === 'miniboss') {
     s.cryptWarpUnlocked = true;
-    showBanner(s, 'Wickgeist banished! The Midpoint Warp Pad (>) is now active.', 4.2);
+    showBanner(s, 'Ice Wraith banished! The Midpoint Warp Pad (>) is now active.', 4.2);
   } else if (room.condition === 'boss') {
-    showBanner(s, 'Cinderhull shattered! Claim your Heart Container and the Cinder Core!', 5.0);
+    showBanner(s, 'Ice Golem shattered! Claim your Heart Container and the Cinder Core!', 5.0);
   }
 
   for (const ps of room.pickups ?? []) {
@@ -1109,10 +1109,10 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   const cx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(bomb.x)));
   const cy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(bomb.y)));
   getFloatingBombs(s).delete(bomb.id);
-  s.events.push(bomb.kind === 'ember' ? 'boom-ember' : 'boom-powder');
+  s.events.push(bomb.kind === 'fire' ? 'boom-fire' : 'boom-bomb');
 
   const hitTiles: Array<[number, number, BlastShape]> = [[cx, cy, 'hub']];
-  const reach = bomb.kind === 'powder' ? s.blastRadius : 1;
+  const reach = bomb.kind === 'bomb' ? s.blastRadius : 1;
   const shoveRadius = reach + 0.85;
 
   for (const [dx, dy, armShape, capShape] of [
@@ -1179,12 +1179,12 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
     const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
 
-    if (bomb.kind === 'powder') {
+    if (bomb.kind === 'bomb') {
       if (t === '%' || t === 'W') {
         s.brokenTiles.add(ck);
         s.events.push('tile-break');
       }
-    } else if (bomb.kind === 'ember') {
+    } else if (bomb.kind === 'fire') {
       if (t === ',' || t === 'B' || t === 'W') {
         const spawned = igniteTile(world, s, tx, ty, 0);
         if (spawned) blastPatches.push(spawned);
@@ -1202,8 +1202,8 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     }
   }
 
-  // Ember leaves a 2.5 s burning hearth patch on its centre tile if walkable
-  if (bomb.kind === 'ember') {
+  // Fire leaves a 2.5 s burning hearth patch on its centre tile if walkable
+  if (bomb.kind === 'fire') {
     const centreTile = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
     if (
       !isTileSolidForWalk(centreTile, s.crystalColor) &&
@@ -1387,11 +1387,11 @@ function applyBombHitToEnemy(
   if (enemy.kind === 'wickgeist') {
     if (!roomLit) {
       s.events.push('armor-clank');
-      showBanner(s, 'Wickgeist fades through the dark—light a brazier with Ember first!', 2.6);
+      showBanner(s, 'The Ice Wraith fades into the dark—light a brazier with Fire first!', 2.6);
       return;
     }
     enemy.armored = false;
-    enemy.hp -= kind === 'powder' ? 2 : 1;
+    enemy.hp -= kind === 'bomb' ? 2 : 1;
     enemy.invulnTimer = 0.25;
     s.events.push('enemy-hit');
     if (enemy.hp > 0) {
@@ -1412,7 +1412,7 @@ function applyBombHitToEnemy(
 
   if (enemy.kind === 'shielder') {
     if (enemy.armored) {
-      if (kind === 'ember') {
+      if (kind === 'fire') {
         enemy.armored = false;
         enemy.exposedTimer = 99;
         s.events.push('armor-burn');
@@ -1420,13 +1420,13 @@ function applyBombHitToEnemy(
         showBanner(s, 'Burned away its wooden shield!', 1.8);
         return;
       }
-      // Blackpowder from behind still hurts; frontal shield blocks
+      // Bomb from behind still hurts; frontal shield blocks
       const toBombX = originX - enemy.x;
       const toBombY = originY - enemy.y;
       const dot = toBombX * enemy.fx + toBombY * enemy.fy;
       if (dot > -0.1) {
         s.events.push('armor-clank');
-        showBanner(s, 'Blocked by its wooden shield—burn it with an Ember Bomb!', 2.4);
+        showBanner(s, 'Blocked by its wooden shield—burn it with a Fire Bomb!', 2.4);
         return;
       }
     }
@@ -1434,19 +1434,19 @@ function applyBombHitToEnemy(
 
   if (enemy.kind === 'cinderhull') {
     if (enemy.armored) {
-      if (kind === 'ember') {
+      if (kind === 'fire') {
         enemy.armored = false;
         enemy.exposedTimer = 5.2; // generous window (`GAME.md` §2)
         s.events.push('armor-burn');
         markEnemyStumble(s, enemy);
-        showBanner(s, 'Cinderhull’s thorn-vines burned away—blast its exposed core!', 2.6);
+        showBanner(s, 'The Ice Golem’s armour melted—blast its exposed core!', 2.6);
       } else {
         s.events.push('armor-clank');
-        showBanner(s, 'Thorn-vine armor deflected the blast—burn it with Ember first!', 2.4);
+        showBanner(s, 'Ice armour deflected the blast—melt it with Fire first!', 2.4);
       }
       return;
     }
-    const dmg = kind === 'powder' ? 2 : 1;
+    const dmg = kind === 'bomb' ? 2 : 1;
     const prevBracket = Math.ceil(enemy.hp / 4);
     enemy.hp = Math.max(0, enemy.hp - dmg);
     enemy.invulnTimer = 0.2;
@@ -1458,15 +1458,15 @@ function applyBombHitToEnemy(
         // Regrow thorn wraps for the next phase!
         enemy.armored = true;
         enemy.exposedTimer = 0;
-        showBanner(s, 'Cinderhull regrew its thorn-vines!', 2.0);
+        showBanner(s, 'The Ice Golem froze over again!', 2.0);
       }
       markEnemyStumble(s, enemy);
     }
     return;
   }
 
-  // Full-size slimes split into two mini-slimes when hit by Ember fire!
-  if (enemy.kind === 'slime' && !enemy.splitGen && enemy.hp > 0 && kind === 'ember') {
+  // Full-size slimes split into two mini-slimes when hit by Fire fire!
+  if (enemy.kind === 'slime' && !enemy.splitGen && enemy.hp > 0 && kind === 'fire') {
     enemy.hp = 0;
     let awayX = enemy.x - originX;
     let awayY = enemy.y - originY;
@@ -1520,7 +1520,7 @@ function applyBombHitToEnemy(
   }
 
   // Standard enemies (`slime`, `bat`, unshielded `shielder`)
-  enemy.hp -= kind === 'powder' ? 2 : 1;
+  enemy.hp -= kind === 'bomb' ? 2 : 1;
   enemy.invulnTimer = 0.18;
   if (applyFireShove) {
     let kx = enemy.x - originX;
@@ -1551,12 +1551,12 @@ function collectPickup(s: State, pickup: ActivePickup): void {
       s.hasBossKey = true;
       showBanner(s, 'Found the Sanctum Boss Key!', 3.2);
       break;
-    case 'ember-bomb':
-      if (!s.unlockedBombs.includes('ember')) s.unlockedBombs.push('ember');
-      s.equipped = 'ember';
+    case 'fire-bomb':
+      if (!s.unlockedBombs.includes('fire')) s.unlockedBombs.push('fire');
+      s.equipped = 'fire';
       showBanner(
         s,
-        'Learned the EMBER BOMB! Lights braziers, burns brambles & wooden shields, and lights the dark.',
+        'Learned the FIRE BOMB! Lights braziers, melts ice, burns brambles & wooden shields, and lights the dark.',
         5.0,
       );
       break;
@@ -1582,7 +1582,7 @@ function collectPickup(s: State, pickup: ActivePickup): void {
         showBanner(s, 'Spark Satchel Upgraded! You can now have 3 live bombs at once.', 4.2);
       } else if (s.blastRadius < 2) {
         s.blastRadius = 2;
-        showBanner(s, 'Alchemist’s Powder! Blackpowder blast reach increased to 2 tiles!', 4.2);
+        showBanner(s, 'Alchemist’s Powder! Bomb blast reach increased to 2 tiles!', 4.2);
       } else {
         s.maxBombs = Math.min(4, s.maxBombs + 1);
         showBanner(s, 'Master Bandolier! You can now have 4 live bombs at once.', 4.2);
@@ -1593,7 +1593,7 @@ function collectPickup(s: State, pickup: ActivePickup): void {
       s.hp = s.maxHp;
       showBanner(
         s,
-        'Reclaimed the CINDER CORE (1st Primeval Core)! Return to Spire Courtyard or explore with Ember!',
+        'Reclaimed the CINDER CORE (1st Primeval Core)! Return to Tower Courtyard or explore with Fire!',
         6.0,
       );
       break;
@@ -1618,7 +1618,7 @@ function newBomb(s: State, kind: BombKind, x: number, y: number): Bomb {
     vy: 0,
     z: 0,
     vz: 0,
-    fuse: kind === 'ember' ? EMBER_FUSE : POWDER_FUSE,
+    fuse: kind === 'fire' ? FIRE_FUSE : BOMB_FUSE,
     graceOverlap: false,
     shoveCount: 0,
   };
@@ -2244,7 +2244,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
-  // 4. Update burning Ember patches (`2.5 s`), bounded tile-by-tile fire spread & brazier ignition
+  // 4. Update burning Fire patches (`2.5 s`), bounded tile-by-tile fire spread & brazier ignition
   for (const f of [...s.fires]) {
     const fcx = Math.round(f.x);
     const fcy = Math.round(f.y);
@@ -2320,7 +2320,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       for (const e of [...s.enemies]) {
         if (e.kind === 'bat' && (e.stumbleTimer ?? 0) <= 0) continue;
         if (Math.hypot(e.x - (f.x + 0.5), e.y - (f.y + 0.5)) < 0.72) {
-          applyBombHitToEnemy(world, s, e, 'ember', f.x + 0.5, f.y + 0.5, litNow);
+          applyBombHitToEnemy(world, s, e, 'fire', f.x + 0.5, f.y + 0.5, litNow);
           f.tickCooldown = 0.55;
         }
       }
@@ -2889,7 +2889,18 @@ export function importSave(world: World, raw: unknown): State | null {
   if (!raw || typeof raw !== 'object') return null;
   const d = raw as Partial<SaveData> & LegacySaveFields;
   if (d.version !== 3 && d.version !== 2) return null;
-  if (d.zone !== 'overworld' && d.zone !== 'ember-crypt') return null;
+  // The first shrine was once 'ember-crypt', then briefly 'fire-mountain'; both load as Ice Cave,
+  // in room keys too
+  const zoneOf = (v: unknown): unknown =>
+    v === 'ember-crypt' || v === 'fire-mountain' ? 'ice-cave' : v;
+  const keys = (v: unknown): string[] | null =>
+    Array.isArray(v)
+      ? v
+          .filter((k): k is string => typeof k === 'string')
+          .map((k) => k.replace(/^(ember-crypt|fire-mountain):/, 'ice-cave:'))
+      : null;
+  d.zone = zoneOf(d.zone) as SaveData['zone'];
+  if (d.zone !== 'overworld' && d.zone !== 'ice-cave') return null;
   if (typeof d.rx !== 'number' || typeof d.ry !== 'number') return null;
   if (!world.rooms.has(roomKey(d.zone, d.rx, d.ry))) return null;
 
@@ -2904,19 +2915,30 @@ export function importSave(world: World, raw: unknown): State | null {
   if (typeof d.maxHp === 'number' && d.maxHp >= 6) s.maxHp = Math.min(20, d.maxHp);
   if (typeof d.hp === 'number' && d.hp > 0) s.hp = Math.min(s.maxHp, d.hp);
   if (typeof d.heartShards === 'number') s.heartShards = d.heartShards;
+  // Saves from before the rename store Blackpowder as 'powder' and Ember as 'ember'
+  const bombKind = (v: unknown): BombKind | null => {
+    const k = v === 'powder' ? 'bomb' : v === 'ember' ? 'fire' : v;
+    return k === 'bomb' || k === 'fire' ? k : null;
+  };
   if (Array.isArray(d.unlockedBombs) && d.unlockedBombs.length > 0) {
-    s.unlockedBombs = d.unlockedBombs.filter((b): b is BombKind => b === 'powder' || b === 'ember');
-    if (!s.unlockedBombs.includes('powder')) s.unlockedBombs.unshift('powder');
+    s.unlockedBombs = [];
+    for (const b of d.unlockedBombs) {
+      const k = bombKind(b);
+      if (k && !s.unlockedBombs.includes(k)) s.unlockedBombs.push(k);
+    }
+    if (!s.unlockedBombs.includes('bomb')) s.unlockedBombs.unshift('bomb');
   }
-  const okSlot = (v: unknown): BombKind | null =>
-    (v === 'powder' || v === 'ember') && s.unlockedBombs.includes(v) ? v : null;
+  const okSlot = (v: unknown): BombKind | null => {
+    const k = bombKind(v);
+    return k && s.unlockedBombs.includes(k) ? k : null;
+  };
   if (d.version === 3 && 'equipped' in d && d.equipped !== undefined) {
-    s.equipped = d.equipped === null ? null : (okSlot(d.equipped) ?? 'powder');
+    s.equipped = d.equipped === null ? null : (okSlot(d.equipped) ?? 'bomb');
   } else if (Array.isArray(d.slots) && d.slots.length > 0) {
     const first = d.slots[0];
-    s.equipped = first === null ? null : (okSlot(first) ?? 'powder');
+    s.equipped = first === null ? null : (okSlot(first) ?? 'bomb');
   } else {
-    s.equipped = okSlot(d.selectedBomb) ?? 'powder';
+    s.equipped = okSlot(d.selectedBomb) ?? 'bomb';
   }
   if (typeof d.maxBombs === 'number') s.maxBombs = Math.max(2, Math.min(4, d.maxBombs));
   if (typeof d.blastRadius === 'number') s.blastRadius = Math.max(1, Math.min(2, d.blastRadius));
@@ -2924,11 +2946,16 @@ export function importSave(world: World, raw: unknown): State | null {
   s.hasBossKey = Boolean(d.hasBossKey);
   s.cryptWarpUnlocked = Boolean(d.cryptWarpUnlocked);
   if (Array.isArray(d.cores)) s.cores = d.cores.filter((c): c is string => typeof c === 'string');
-  if (Array.isArray(d.visitedRooms)) s.visitedRooms = new Set(d.visitedRooms);
-  if (Array.isArray(d.brokenTiles)) s.brokenTiles = new Set(d.brokenTiles);
-  if (Array.isArray(d.burnedTiles)) s.burnedTiles = new Set(d.burnedTiles);
-  if (Array.isArray(d.openedDoors)) s.openedDoors = new Set(d.openedDoors);
-  if (Array.isArray(d.solvedRooms)) s.solvedRooms = new Set(d.solvedRooms);
+  const visitedRooms = keys(d.visitedRooms);
+  if (visitedRooms) s.visitedRooms = new Set(visitedRooms);
+  const brokenTiles = keys(d.brokenTiles);
+  if (brokenTiles) s.brokenTiles = new Set(brokenTiles);
+  const burnedTiles = keys(d.burnedTiles);
+  if (burnedTiles) s.burnedTiles = new Set(burnedTiles);
+  const openedDoors = keys(d.openedDoors);
+  if (openedDoors) s.openedDoors = new Set(openedDoors);
+  const solvedRooms = keys(d.solvedRooms);
+  if (solvedRooms) s.solvedRooms = new Set(solvedRooms);
   if (Array.isArray(d.collectedPickups)) s.collectedPickups = new Set(d.collectedPickups);
   if (d.crystalColor === 'red' || d.crystalColor === 'blue') s.crystalColor = d.crystalColor;
   s.spireCinderSlotted = Boolean(d.spireCinderSlotted);

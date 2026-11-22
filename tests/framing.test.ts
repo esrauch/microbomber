@@ -238,13 +238,13 @@ describe('Phase 6.2 in-repo TrueType pixel font (`buildPixelFontTtf`)', () => {
 describe('Phase 6.1 & 6.2 pixel-art bezel, GBC box frames, action caps & joystick', () => {
   it('bakes zone-themed 16x16 @ 2x bezel tiles and 24x24 double-lined GBC frames', () => {
     const owBezel = bezelTileDataUrl('overworld', 2);
-    const cryptBezel = bezelTileDataUrl('ember-crypt', 2);
+    const cryptBezel = bezelTileDataUrl('ice-cave', 2);
     expect(owBezel).not.toBe(cryptBezel);
     expect(pngDimensions(owBezel)).toEqual({ width: 32, height: 32 });
     expect(pngDimensions(cryptBezel)).toEqual({ width: 32, height: 32 });
 
     const owFrame = gbcFrameDataUrl('overworld');
-    const cryptFrame = gbcFrameDataUrl('ember-crypt');
+    const cryptFrame = gbcFrameDataUrl('ice-cave');
     expect(owFrame).not.toBe(cryptFrame);
     expect(pngDimensions(owFrame)).toEqual({ width: 24, height: 24 });
     expect(gbcBoxBorderCss('overworld').borderImageSlice).toBe('8 fill');

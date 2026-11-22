@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { idle, tapA } from './input';
 import {
-  EMBER_FUSE,
+  FIRE_FUSE,
   ROOM_H,
   ROOM_W,
   type State,
@@ -95,7 +95,7 @@ describe('doorways and hazards', () => {
   it('a closed shutter slams behind you: you land inside the room and cannot walk back out', () => {
     const world = campaignWorld();
     // Sanctum Ante-Room (0,1) north through the boss door into the Sanctum of Ash (0,0)
-    const s = newState(world, 'ember-crypt', 0, 1, 5.5, 2.5);
+    const s = newState(world, 'ice-cave', 0, 1, 5.5, 2.5);
     s.hasBossKey = true;
     expect(walk(world, s, 0, -1, 3)).toBe(true);
     expect([s.rx, s.ry]).toEqual([0, 0]);
@@ -112,7 +112,7 @@ describe('doorways and hazards', () => {
     s.invulnTimer = 1;
     s.bombs.push({
       id: 999,
-      kind: 'powder',
+      kind: 'bomb',
       x: 5.5,
       y: 1.9,
       vx: 0,
@@ -131,7 +131,7 @@ describe('doorways and hazards', () => {
   it('a crystal barrier rising under you does not trap you', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1,2): a blue barrier at (5,8), raised while the crystal is blue
-    const s = newState(world, 'ember-crypt', 1, 2, 5.5, 8.5);
+    const s = newState(world, 'ice-cave', 1, 2, 5.5, 8.5);
     s.crystalColor = 'blue';
     s.enemies = [];
     const x0 = s.x;
@@ -149,7 +149,7 @@ describe('doorways and hazards', () => {
 
   it('a projectile knockout respawns you with no projectiles following you', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 1, 3, 5.5, 6.5);
+    const s = newState(world, 'ice-cave', 1, 3, 5.5, 6.5);
     s.enemies = [];
     s.hp = 1;
     s.projectiles = [
@@ -161,14 +161,14 @@ describe('doorways and hazards', () => {
     expect(s.projectiles).toHaveLength(0);
   });
 
-  it('walking East from Bramble Crypt enters Crypt Foyer doorway, blocked by inset shrubbery until burned', () => {
+  it('walking East from Bramble Hall enters Entry Hall doorway, blocked by inset shrubbery until burned', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ember-crypt', 0, 3, 9.2, 6.5);
+    const s = newState(world, 'ice-cave', 0, 3, 9.2, 6.5);
     s.enemies = [];
-    s.unlockedBombs.push('ember');
-    s.equipped = 'ember';
+    s.unlockedBombs.push('fire');
+    s.equipped = 'fire';
 
-    // Cross East into Crypt Foyer (1, 3)
+    // Cross East into Entry Hall (1, 3)
     expect(walk(world, s, 1, 0, 1.5)).toBe(true);
     expect([s.rx, s.ry]).toEqual([1, 3]);
 
@@ -176,10 +176,10 @@ describe('doorways and hazards', () => {
     walk(world, s, 1, 0, 1.0);
     expect(s.x).toBeLessThan(2.0);
 
-    // Drop an Ember Bomb in the doorway to burn through (2, 6), then walk into the foyer!
+    // Drop a Fire Bomb in the doorway to burn through (2, 6), then walk into the foyer!
     s.bombCooldown = 0;
     tapA(world, s);
-    for (let t = 0; t < EMBER_FUSE + 0.15; t += DT) tick(world, s, idle, DT);
+    for (let t = 0; t < FIRE_FUSE + 0.15; t += DT) tick(world, s, idle, DT);
     walk(world, s, 1, 0, 1.0);
     expect(s.x).toBeGreaterThan(3.0);
   });

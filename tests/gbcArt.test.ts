@@ -101,7 +101,7 @@ describe('GBC colour and multi-tile rules', () => {
   it('Y-sorts 3/4 overhead tiles behind southern braziers while keeping north doorway lintels on ceiling', () => {
     const world = campaignWorld();
 
-    // Ember Crypt Arch: crypt-mausoleum at y=4 sorts behind lit braziers at y=5
+    // Ice Cave Arch: crypt-mausoleum at y=4 sorts behind lit braziers at y=5
     const archState = newState(world, 'overworld', 3, 5, 5.5, 8.0);
     const archPlan = buildRoomLayout(world, archState);
     expect(archPlan.ceiling).toHaveLength(0);
@@ -115,7 +115,7 @@ describe('GBC colour and multi-tile rules', () => {
     }
 
     // Crystal Crossroads: open north tunnel (5,0) puts archLintelN on the walk-under ceiling layer
-    const cryptState = newState(world, 'ember-crypt', 1, 2, 5.5, 6.5);
+    const cryptState = newState(world, 'ice-cave', 1, 2, 5.5, 6.5);
     const cryptPlan = buildRoomLayout(world, cryptState);
     expect(cryptPlan.ceiling).toEqual([
       { x: 5, y: 0, tile: BG.archLintelN, transparentZero: true },
@@ -137,8 +137,8 @@ describe('GBC colour and multi-tile rules', () => {
     }
 
     const world = campaignWorld();
-    world.rooms.set('ember-crypt:9,9', {
-      zone: 'ember-crypt',
+    world.rooms.set('ice-cave:9,9', {
+      zone: 'ice-cave',
       rx: 9,
       ry: 9,
       name: 'Decal vs Prop Test Chamber',
@@ -160,7 +160,7 @@ describe('GBC colour and multi-tile rules', () => {
       ],
       pickups: [{ id: 'test-key', kind: 'small-key', x: 5.5, y: 6.5, spawnOnSolve: true }],
     });
-    const st = newState(world, 'ember-crypt', 9, 9, 5.5, 9.5);
+    const st = newState(world, 'ice-cave', 9, 9, 5.5, 9.5);
     // Default crystalColor is 'red', so 'R' is raised (props) and 'U' is lowered (decals)
     const plan = buildRoomLayout(world, st);
 
@@ -186,7 +186,7 @@ describe('GBC colour and multi-tile rules', () => {
         expect.objectContaining({ x: 7, y: 6 }), // crystal switchOrb
         expect.objectContaining({ x: 3, y: 7 }), // raised 'R' barrierUp
         expect.objectContaining({ x: 7, y: 7, tile: BG.brazier0 }),
-        expect.objectContaining({ x: 5, y: 8, tile: BG.brambleSingle }),
+        expect.objectContaining({ x: 5, y: 8, tile: BG.iceBlock }), // 'B' is ice in the Ice Cave
       ]),
     );
     expect(plan.props.some((p) => p.tile === BG.slopeN || p.tile === BG.sealRingCenter)).toBe(
@@ -220,7 +220,7 @@ describe('GBC colour and multi-tile rules', () => {
       expect(c.py + CROWN_H / 2).toBeLessThan(13 * 16);
     }
     // Crypt rooms have no thicket
-    expect(buildRoomLayout(world, newState(world, 'ember-crypt', 1, 3)).crowns).toHaveLength(0);
+    expect(buildRoomLayout(world, newState(world, 'ice-cave', 1, 3)).crowns).toHaveLength(0);
   });
 
   it('frames side borders as a seamless thicket and varies the round trees along the top', () => {
@@ -261,8 +261,8 @@ describe('GBC colour and multi-tile rules', () => {
     ]);
 
     for (const room of world.rooms.values()) {
-      if (room.zone !== 'ember-crypt') continue;
-      const st = newState(world, 'ember-crypt', room.rx, room.ry, 5.5, 6.5);
+      if (room.zone !== 'ice-cave') continue;
+      const st = newState(world, 'ice-cave', room.rx, room.ry, 5.5, 6.5);
       const plan = buildRoomLayout(world, st);
 
       for (const g of plan.ground) {

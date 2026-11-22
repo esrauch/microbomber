@@ -2,7 +2,7 @@
  * Handcrafted Vertical Slice campaign (`GAME.md` §3–§6 & §9.1, `ASSETS.md` §1–§2):
  * - 11×13 tile screens (`7×9` interior inside 2-tile-deep trees, cliffs, or dungeon walls)
  * - Prologue & Chapter 1 Overworld (9 screens on the canonical 6×6 Cinderholm map)
- * - Shrine 1: Ember Crypt (10 rooms in a two-act layout with Wickgeist & Cinderhull)
+ * - Shrine 1: Ice Cave (10 rooms in a two-act layout with Wickgeist & Cinderhull)
  */
 import { type RoomSpec, type World, type ZoneId } from './types';
 
@@ -17,7 +17,7 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 3,
     ry: 2,
     name: 'Millbrook Square',
-    objective: 'Check Spire (N) or Orchard (SW)',
+    objective: 'Check Tower (N) or Orchard (SW)',
     rows: [
       '####:::YYYY',
       '####:::%.YY',
@@ -50,9 +50,9 @@ const ROOM_LIST: RoomSpec[] = [
         y: 3.6,
         color: 0xd9a441,
         dialogue:
-          'Bram: Every iron blade rusted overnight when the Spire rose! Your glass Spark Satchel still works, Pip—head SW to Orchard Gate.',
+          'Bram: Every iron blade rusted overnight when the Tower rose! Your glass Spark Satchel still works, Pip—head SW to Orchard Gate.',
         afterCinderDialogue:
-          'Bram: You reclaimed the Cinder Core! Slot it at Spire Courtyard (NW), and try Ember on the brambles west of town!',
+          'Bram: You reclaimed the Cinder Core! Slot it at Tower Courtyard (NW), and try Fire on the brambles west of town!',
       },
     ],
     pickups: [
@@ -69,7 +69,7 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 3,
     ry: 1,
     name: 'Millbrook North',
-    objective: 'Spire Causeway lies West',
+    objective: 'Tower Causeway lies West',
     wind: { dx: 0.35, dy: 0 },
     rows: [
       '###########',
@@ -100,9 +100,9 @@ const ROOM_LIST: RoomSpec[] = [
         y: 4.5,
         color: 0x7a8b99,
         dialogue:
-          'Hal: My spear turned to red dust in my hands! Hold and release B to throw bombs at slimes along Spire Causeway to the west.',
+          'Hal: My spear turned to red dust in my hands! Hold and release B to throw bombs at slimes along Tower Causeway to the west.',
         afterCinderDialogue:
-          'Hal: That warm glow in your satchel—the Ember Crypt is cleared! Maybe we stand a chance after all.',
+          'Hal: That warm glow in your satchel—the Ice Cave is cleared! Maybe we stand a chance after all.',
       },
     ],
   },
@@ -110,8 +110,8 @@ const ROOM_LIST: RoomSpec[] = [
     zone: 'overworld',
     rx: 2,
     ry: 1,
-    name: 'Spire Causeway',
-    objective: 'Inspect the Spire Courtyard (N)',
+    name: 'Tower Causeway',
+    objective: 'Inspect the Tower Courtyard (N)',
     rows: [
       '####:::####',
       '####:::####',
@@ -142,8 +142,8 @@ const ROOM_LIST: RoomSpec[] = [
     zone: 'overworld',
     rx: 2,
     ry: 0,
-    name: 'Spire Courtyard',
-    objective: 'Reclaim Cinder Core in Ember Crypt (SE)',
+    name: 'Tower Courtyard',
+    objective: 'Reclaim Cinder Core in Ice Cave (SE)',
     spireSeal: true,
     rows: [
       '###########',
@@ -178,7 +178,7 @@ const ROOM_LIST: RoomSpec[] = [
         y: 5.5,
         color: 0xc53030,
         dialogue:
-          'Seal Plaque: "Four Primeval Cores—Cinder, Zephyr, Rime, Stone—bind the Ironblight Spire." Seek Ember Crypt in the SE woods!',
+          'Seal Plaque: "Four Primeval Cores—Cinder, Zephyr, Rime, Stone—bind the Iron Tower." Seek Ice Cave in the SE woods!',
         afterCinderDialogue:
           'Seal Plaque: The Cinder seal blazes gold (1 of 4 Cores restored)! Three Elemental Shrines remain across Cinderholm.',
       },
@@ -289,9 +289,9 @@ const ROOM_LIST: RoomSpec[] = [
         y: 3.5,
         color: 0x68d391,
         dialogue:
-          'Fern: Phew—thank you, Pip! Those monsters crawled up from Ember Crypt to the south. Its old stone seal is cracked!',
+          'Fern: Phew—thank you, Pip! Those monsters crawled up from Ice Cave to the south. Its old stone seal is cracked!',
         afterCinderDialogue:
-          'Fern: The woods feel warmer already! With Ember Bombs, you can burn dry brambles like the thicket behind me.',
+          'Fern: The woods feel warmer already! With Fire Bombs, you can burn dry brambles like the thicket behind me.',
       },
     ],
     pickups: [
@@ -308,7 +308,7 @@ const ROOM_LIST: RoomSpec[] = [
     rx: 3,
     ry: 4,
     name: 'Cinder Trail',
-    objective: 'Follow the canyon South to Ember Crypt',
+    objective: 'Follow the canyon South to Ice Cave',
     rows: [
       '####:::####',
       '####:::####',
@@ -346,7 +346,7 @@ const ROOM_LIST: RoomSpec[] = [
     zone: 'overworld',
     rx: 3,
     ry: 5,
-    name: 'Ember Crypt Arch',
+    name: 'Ice Cave Arch',
     objective: 'Blast the cracked seal & enter (>)',
     rows: [
       '####:::####',
@@ -374,24 +374,24 @@ const ROOM_LIST: RoomSpec[] = [
       {
         x: 5,
         y: 5,
-        targetZone: 'ember-crypt',
+        targetZone: 'ice-cave',
         targetRx: 1,
         targetRy: 3,
         targetX: 5.5,
         targetY: 9.5,
-        label: 'Enter Ember Crypt',
+        label: 'Enter Ice Cave',
       },
     ],
   },
 
   // =========================================================================
-  // SHRINE 1: EMBER CRYPT (10 Rooms — 2-Tile-Deep Oracle Dungeon Architecture)
+  // SHRINE 1: ICE CAVE (10 Rooms — 2-Tile-Deep Oracle Dungeon Architecture)
   // =========================================================================
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 1,
     ry: 3,
-    name: 'Crypt Foyer',
+    name: 'Entry Hall',
     objective: 'Blast the East crate & enter the Antechamber for a Small Key',
     rows: [
       '#####D#####',
@@ -426,7 +426,7 @@ const ROOM_LIST: RoomSpec[] = [
       {
         x: 5,
         y: 4,
-        targetZone: 'ember-crypt',
+        targetZone: 'ice-cave',
         targetRx: 1,
         targetRy: 1,
         targetX: 5.5,
@@ -437,7 +437,7 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 2,
     ry: 3,
     name: 'Switch Antechamber',
@@ -477,7 +477,7 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 1,
     ry: 2,
     name: 'Crystal Crossroads',
@@ -503,7 +503,7 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 2,
     ry: 2,
     name: 'Vault of Sparks',
@@ -538,11 +538,11 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 2,
     ry: 1,
     name: 'Alchemist Reliquary',
-    objective: 'Claim Ember Bomb, then light both North braziers to open the shutters!',
+    objective: 'Claim Fire Bomb, then light both North braziers to open the shutters!',
     condition: 'all-torches',
     rows: [
       '###########',
@@ -567,18 +567,18 @@ const ROOM_LIST: RoomSpec[] = [
     pickups: [
       {
         id: 'crypt-ember-bomb',
-        kind: 'ember-bomb',
+        kind: 'fire-bomb',
         x: 5.5,
         y: 6.5,
       },
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 1,
     ry: 1,
     name: 'Lantern Hall',
-    objective: 'Light a brazier with an Ember Bomb to illuminate the dark & expose Wickgeist!',
+    objective: 'Light a brazier with a Fire Bomb to illuminate the dark & expose the Ice Wraith!',
     dark: true,
     condition: 'miniboss',
     rows: [
@@ -607,21 +607,21 @@ const ROOM_LIST: RoomSpec[] = [
       {
         x: 5,
         y: 8,
-        targetZone: 'ember-crypt',
+        targetZone: 'ice-cave',
         targetRx: 1,
         targetRy: 3,
         targetX: 5.5,
         targetY: 5.5,
         requiresWarpUnlock: true,
-        label: 'Warp to Crypt Foyer',
+        label: 'Warp to Entry Hall',
       },
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 0,
     ry: 3,
-    name: 'Bramble Crypt',
+    name: 'Frozen Hall',
     objective: 'Burn the wooden shields & light both North braziers before the flames fade',
     condition: 'all-torches',
     rows: [
@@ -659,7 +659,7 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 0,
     ry: 2,
     name: 'Hall of Three Flames',
@@ -698,7 +698,7 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 0,
     ry: 1,
     name: 'Sanctum Ante-Room',
@@ -732,12 +732,11 @@ const ROOM_LIST: RoomSpec[] = [
     ],
   },
   {
-    zone: 'ember-crypt',
+    zone: 'ice-cave',
     rx: 0,
     ry: 0,
-    name: 'Sanctum of Ash',
-    objective:
-      'Burn Cinderhull’s thorn wraps with Ember, then blast its bare core with Blackpowder!',
+    name: 'Frozen Sanctum',
+    objective: 'Melt the Ice Golem’s armour with Fire, then blast its bare core with a Bomb!',
     condition: 'boss',
     rows: [
       '###########',

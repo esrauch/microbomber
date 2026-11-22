@@ -71,11 +71,11 @@ Each blob terrain defines **5 `8 × 8` subtiles** (`Interior`, `H-Edge`, `V-Edge
 |---|---|---|---|
 | `bram-workshop` | `3 × 2` (`48 × 32`) | `Millbrook Square (3,2)` | Pitched slate-amber roof (overhead eaves), round attic window, brass alembic flue + animated smoke puff, timber-frame front wall & arched door. |
 | `rusted-smithy` | `3 × 2` (`48 × 32`) | `Millbrook Square (3,2)` | Weathered red-shingle forge roof, stone chimney, quenched trough & rusted iron anvil beside the `%` rubble pocket. |
-| `causeway-bridge` | `5 × 3` / modular `_` | `Spire Causeway (2,1)` | Dressed stone parapet piers & arched causeway deck spanning the moat (`~`) with water ripples visible North & South. |
-| `spire-seal-gate` | `5 × 3` + `3 × 3` dais | `Spire Courtyard (2,0)` | Looming rusted-iron Spire gatehouse (`N` wall) + `3 × 3` octagonal carved floor seal with **4 individual Elemental Core pedestals** (`Cinder` lights up gold/flame once reclaimed!). |
-| `crypt-mausoleum` | `3 × 2` (`48 × 32`) | `Ember Crypt Arch (3,5)` | Carved sandstone-and-obsidian flame arch set into the canyon cliff, flanked by twin braziers (`T`), framing the `%`-sealed `>` descending stair. |
+| `causeway-bridge` | `5 × 3` / modular `_` | `Tower Causeway (2,1)` | Dressed stone parapet piers & arched causeway deck spanning the moat (`~`) with water ripples visible North & South. |
+| `spire-seal-gate` | `5 × 3` + `3 × 3` dais | `Tower Courtyard (2,0)` | Looming rusted-iron Tower gatehouse (`N` wall) + `3 × 3` octagonal carved floor seal with **4 individual Elemental Core pedestals** (`Cinder` lights up gold/flame once reclaimed!). |
+| `crypt-mausoleum` | `3 × 2` (`48 × 32`) | `Ice Cave Arch (3,5)` | Carved stone arch set into the canyon cliff, flanked by twin braziers (`T`), framing the `%`-sealed `>` descending stair. |
 
-### Kit D — `2`-Tile Shrine Architecture & Connected Props (`Ember Crypt`)
+### Kit D — `2`-Tile Shrine Architecture & Connected Props (`Ice Cave`)
 - **Outer Cap Ring & Inner Sloped Wall Ring:** `45°` mitered outer corners, `45°` mitered inner corners, concave `L`-corners, and `A/B` alternating `N / S / E / W` stone faces.
 - **Oriented `2`-Tile Doorway Tunnels (`N / S / E / W`):**
   - Carved outer arch + inner jamb pillars for open passages, Small-Key Doors (`D`), Horned Boss Doors (`K`), and riveted Iron Portcullises (`S`).
@@ -101,11 +101,11 @@ Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in t
 - **Hitbox:** the centred half-size circle (`r = 0.14`); the art (~11 px upright, ~15 px side gallop) overhangs it.
 
 ### 3.2 Bombs & Connected Blast VFX
-- **Blackpowder Bomb (`10 × 10` body in `16 × 16` cell):** Round dark-slate iron body, big specular rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).
-- **Ember Bomb (`10 × 10` body in `16 × 16` cell):** Brass-necked ruby alchemical flask with swirling golden liquid flame (`Swirl 1, Swirl 2, Incandescent Swell, Flash`).
-- **Connected `+` Cross Explosion (`Blackpowder`):**
+- **Bomb (`10 × 10` body in `16 × 16` cell):** Round dark-slate iron body, big specular rim, and live orange-gold rope spark (`Sizzle 1, Sizzle 2, Crimson Swell, White-Gold Flash`).
+- **Fire Bomb (`10 × 10` body in `16 × 16` cell):** Brass-necked ruby alchemical flask with swirling golden liquid flame (`Swirl 1, Swirl 2, Incandescent Swell, Flash`).
+- **Connected `+` Cross Explosion (`Bomb`):**
   - `blastHub`, `blastArmH`, `blastArmV`, `blastCapN / S / E / W` across `4` frames (`White-Gold Core → Billowing Flame → Soot Ring → Dispersing Puffs`) so `1`–`2` tile `+` blasts form one continuous fiery cross instead of disconnected circles; impact/single-tile blasts use a `4`-frame radial starburst.
-- **Ember Hearth Patch (`16 × 16`):** `4`-frame crackling ember bed + dancing flame tongues.
+- **Fire Hearth Patch (`16 × 16`):** `4`-frame crackling ember bed + dancing flame tongues.
 
 ### 3.3 Cast, Enemies & Bosses
 - **Cinderholm Cast (`16 × 18`, `2`-frame lively idle):**
@@ -113,7 +113,7 @@ Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in t
 - **Common Foes (`16 × 18`):**
   - **Moss-Slime (`3` frames):** Glossy emerald jelly with inner leaf/core (`Idle, Squash, Hop`).
   - **Cinder-Bat (`3` frames):** Plum wings + bright ember eyes (`Wings Up, Glide, Tuck`).
-  - **Bramble Shielder (`S / N / E` directional sprites):** Armored imp holding an integrated thorn-and-oak buckler on its facing side (plus unshielded state once burned by Ember).
+  - **Bramble Shielder (`S / N / E` directional sprites):** Armored imp holding an integrated thorn-and-oak buckler on its facing side (plus unshielded state once burned by Fire).
 - **Bosses:**
   - **Wickgeist (`24 × 24`):** Hooded lantern phantom swinging a ghostly censer (`2` spectral cyan-indigo frames in darkness; `2` materialized violet-crimson frames recoiling in brazier light).
   - **Cinderhull (`32 × 32` = `2 × 2` tile Shrine Boss):**
@@ -134,10 +134,10 @@ Pip is a **fuse mouse** whose tail is a fuse with a glowing spark (emissive in t
    - `shrineArt.ts` — `2`-tile mitered dungeon walls, `N/S/E/W` recessed doorway tunnels & doors, floor border + `2 × 2` medallions, stone balustrades, braziers, switches, blocks.
    - `spritesArt.ts` — `6`-colour Pip (`16 × 18`), bombs, connected `+` blasts, NPCs, directional enemies, `24 × 24` `Wickgeist`, `32 × 32` `Cinderhull`, and pixel HUD icons.
 2. **Migrate Campaign to `11 × 13` (`src/game/types.ts`, `src/game/campaign.ts`, `src/game/world.ts`, `tests/*.test.ts`):**
-   - Reshape all `19` Vertical Slice rooms (`9` Overworld + `10` Ember Crypt) to `11 × 13` with `2 × 2` tree borders, `2`-tall cliffs, winding `:` paths, `_` bridges, `stamps[]` landmarks, and `2`-tile-deep Shrine walls while preserving every puzzle, secret, and test invariant (`doorways.test.ts`, `world.test.ts`, `campaign.test.ts`, `movement.test.ts`).
+   - Reshape all `19` Vertical Slice rooms (`9` Overworld + `10` Ice Cave) to `11 × 13` with `2 × 2` tree borders, `2`-tall cliffs, winding `:` paths, `_` bridges, `stamps[]` landmarks, and `2`-tile-deep Shrine walls while preserving every puzzle, secret, and test invariant (`doorways.test.ts`, `world.test.ts`, `campaign.test.ts`, `movement.test.ts`).
 3. **4-Pass Layered Renderer & Pixel HUD (`src/render/gbc.ts`, `src/main.ts`, `index.html`):**
    - `Pass 1` Ground/Blobs → `Pass 2` Walls/Trunks/Stamp Bases → `Pass 3` Y-Sorted Actors → `Pass 4` Overhead Canopies/Eaves/Lintels + Airborne Bombs + Connected Blasts + Bayer Lantern Mask.
    - Swap `#topbar`, dialogue box, Boss bar, and `#controls` icons to pixel art + GBC double-lined borders.
 4. **Automated Magnified Proof Sheets (`tools/make-sprites.ts` & `tests/gbcArt.test.ts`):**
    - `gbcArt.test.ts` verifies `RGB555` compliance, `4`-colour `8 × 8` `BG` quarters, `≤ 6`-colour `OBJ` sprites, and valid stamp dimensions.
-   - `npm run make-sprites` outputs both a **Tile & Sprite Contact Sheet** and a **Stitched Full-Room Proof Sheet** (`Millbrook Square`, `Spire Courtyard`, `Ember Crypt Arch`, `Crypt Foyer`, `Crystal Crossroads`, `Lantern Hall`, `Sanctum of Ash`) for `6 ×` visual seam inspection alongside live mobile Playwright screenshots.
+   - `npm run make-sprites` outputs both a **Tile & Sprite Contact Sheet** and a **Stitched Full-Room Proof Sheet** (`Millbrook Square`, `Tower Courtyard`, `Ice Cave Arch`, `Entry Hall`, `Crystal Crossroads`, `Lantern Hall`, `Sanctum of Ash`) for `6 ×` visual seam inspection alongside live mobile Playwright screenshots.

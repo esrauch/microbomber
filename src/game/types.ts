@@ -8,9 +8,9 @@
 export const ROOM_W = 11;
 export const ROOM_H = 13;
 
-export type ZoneId = 'overworld' | 'ember-crypt';
+export type ZoneId = 'overworld' | 'ice-cave';
 
-export type BombKind = 'powder' | 'ember';
+export type BombKind = 'bomb' | 'fire';
 
 /**
  * Room ASCII tile legend:
@@ -19,17 +19,17 @@ export type BombKind = 'powder' | 'ember';
  * '_' wooden / stone bridge deck (walkable floor spanning water or pits)
  * '#' solid cliff / 2-tile-deep dungeon stone wall
  * 'Y' solid forest tree (Overworld, auto-paired into 2×2 interlocking canopies)
- * '%' cracked wall / cliff seam (always visibly seamed; broken by Blackpowder)
+ * '%' cracked wall / cliff seam (always visibly seamed; broken by Bomb)
  * '~' water (blocks walking; airborne bombs pass over it)
  * ';' shallow water (walkable with wading ripples & reflections; douses fire)
  * '^' bottomless pit (blocks walking; knockback into pit costs 1 half-heart; airborne bombs pass over)
  * '=' low fence / stone balustrade (blocks walking and rolling bombs; airborne bombs pass over)
- * 'B' dry brambles (blocks walking; burned away by Ember)
- * 'W' wooden crate (blocks walking; broken by Blackpowder or burned by Ember)
+ * 'B' dry brambles (blocks walking; burned away by Fire)
+ * 'W' wooden crate (blocks walking; broken by Bomb or burned by Fire)
  * 'R' red crystal barrier (raised when crystal === 'red', flat when 'blue')
  * 'U' blue crystal barrier (raised when crystal === 'blue', flat when 'red')
  * 'C' crystal switch orb (solid pedestal; any bomb blast toggles red <-> blue)
- * 'T' brazier / torch (solid pedestal; lit by an Ember blast)
+ * 'T' brazier / torch (solid pedestal; lit by a Fire blast)
  * 'D' locked key door (solid until unlocked with 1 Small Key)
  * 'K' boss key door (solid until unlocked with the Shrine's Boss Key)
  * 'S' shutter door (solid while the room's puzzle/combat lock is active)
@@ -89,7 +89,7 @@ export type EnemyKind = 'slime' | 'bat' | 'shielder' | 'wickgeist' | 'cinderhull
 export type PickupKind =
   | 'small-key'
   | 'boss-key'
-  | 'ember-bomb'
+  | 'fire-bomb'
   | 'heart-shard'
   | 'heart-container'
   | 'satchel-upgrade'
@@ -135,7 +135,7 @@ export interface NpcSpec {
   y: number;
   color: number;
   dialogue: string;
-  /** Alternate dialogue shown once Ember Crypt's Cinder Core is reclaimed. */
+  /** Alternate dialogue shown once Ice Cave's Cinder Core is reclaimed. */
   afterCinderDialogue?: string;
 }
 
@@ -166,7 +166,7 @@ export interface RoomSpec {
   objective?: string;
   /** ROOM_H strings of ROOM_W characters. `'P'` in rows spawns a pushable stone block on `'.'`. */
   rows: string[];
-  /** Room starts dark until lit by braziers or live Ember fire. */
+  /** Room starts dark until lit by braziers or live Fire fire. */
   dark?: boolean;
   /** Condition that opens `'S'` shutter doors and/or spawns `spawnOnSolve` pickups. */
   condition?: RoomCondition;
@@ -179,7 +179,7 @@ export interface RoomSpec {
   stamps?: StampSpec[];
   /** Optional ambient wind vector `(dx, dy)` in tiles/s carrying smoke, fire & light objects. */
   wind?: { dx: number; dy: number };
-  /** Fourfold Spire barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
+  /** Fourfold Tower barrier room: blocks north passage until all 4 Cores (or Cinder demo note) are checked. */
   spireSeal?: boolean;
 }
 
@@ -206,7 +206,7 @@ export interface Bomb {
   graceOverlap: boolean;
   /** Number of blast shoves absorbed; a shoved bomb (`>= 1`) hit again chain-detonates. */
   shoveCount: number;
-  /** True while rolling from Pip's kick (enables Blackpowder enemy impact detonation). */
+  /** True while rolling from Pip's kick (enables Bomb enemy impact detonation). */
   kicked?: boolean;
 }
 
@@ -272,7 +272,7 @@ export interface Enemy {
   maxHp: number;
   /** True while protected by wooden shield (`shielder`) or thorn-vine wraps (`cinderhull`). */
   armored: boolean;
-  /** Seconds remaining in exposed/vulnerable state (`cinderhull` after Ember burn, or stun). */
+  /** Seconds remaining in exposed/vulnerable state (`cinderhull` after Fire burn, or stun). */
   exposedTimer: number;
   invulnTimer: number;
   aiTimer: number;
