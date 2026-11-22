@@ -1225,11 +1225,14 @@ let shakeSeed = 0;
 
 function triggerShake(amplitudePx: number, durationSec: number): void {
   if (!impactFxEnabled) return;
-  if (amplitudePx >= shakeAmplitude || shakeRemaining <= 0) {
+  const dur = Math.max(0.05, durationSec);
+  const currentMag =
+    shakeRemaining > 0 ? shakeAmplitude * Math.min(1, shakeRemaining / shakeDuration) : 0;
+  if (amplitudePx >= currentMag || dur > shakeRemaining || shakeRemaining <= 0) {
     shakeAmplitude = amplitudePx;
-    shakeDuration = Math.max(0.05, durationSec);
+    shakeDuration = dur;
+    shakeRemaining = dur;
   }
-  shakeRemaining = Math.max(shakeRemaining, durationSec);
 }
 
 function triggerHitStop(seconds: number): void {
@@ -1419,7 +1422,7 @@ const frame = (now: number): void => {
     shakeRemaining = Math.max(0, shakeRemaining - elapsed);
     if (shakeRemaining > 0) {
       shakeSeed = (shakeSeed + 1) % 1024;
-      const decay = shakeRemaining / shakeDuration;
+      const decay = Math.min(1, shakeRemaining / shakeDuration);
       const mag = shakeAmplitude * decay;
       const sx = Math.round(Math.sin(shakeSeed * 2.39996) * mag);
       const sy = Math.round(Math.cos(shakeSeed * 1.75487) * mag);
