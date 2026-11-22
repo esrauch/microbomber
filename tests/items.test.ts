@@ -32,23 +32,23 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
     expect(north.bombs[0]!.y).toBeLessThan(6.6 - 0.3);
   });
 
-  it('walking into a bomb kicks it straight along the dominant axis only', () => {
+  it('throwing an overhead bomb sends it straight along the dominant orthogonal axis and over fences', () => {
     const world = campaignWorld();
     const s = newState(world, 'overworld', 3, 2, 4.5, 6.5);
     s.enemies = [];
-    s.aimX = 1;
-    s.aimY = 0;
-    tapA(world, s);
-    let kicked = false;
-    for (let i = 0; i < 30 && !kicked; i++) {
-      tick(world, s, { dx: 0.8, dy: 0.55 }, FIXED_DT); // a diagonal walk, mostly east
-      kicked = s.events.includes('bomb-kick');
-    }
-    expect(kicked).toBe(true);
+    // Pull bomb overhead with A
+    tick(world, s, { dx: 0, dy: 0, holdA: true }, FIXED_DT);
+    tick(world, s, { dx: 0, dy: 0 }, FIXED_DT);
+    expect(s.heldBomb).toBe('bomb');
+    // Aim diagonally (mostly east) and press A to throw
+    tick(world, s, { dx: 0.8, dy: 0.55, holdA: true }, FIXED_DT);
+    expect(s.heldBomb).toBeNull();
+    expect(s.events).toContain('bomb-throw');
     const b = s.bombs[0]!;
     expect(b.kicked).toBe(true);
     expect(b.vx).toBeGreaterThan(0);
     expect(b.vy).toBe(0);
+    expect(b.z).toBeGreaterThan(0.22); // high enough to clear '=' fences!
   });
 
   it('START menu equipBomb selects an unlocked bomb or None (null), and v3 saves round-trip it', () => {

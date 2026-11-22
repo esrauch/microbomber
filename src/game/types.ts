@@ -356,6 +356,8 @@ export interface State {
   /** Unlocked bombs and the single equipped bomb that A pulls out (`null` = None). */
   unlockedBombs: BombKind[];
   equipped: BombKind | null;
+  /** Bomb currently held over Pip's head (fuse paused, movement speed halved, B = Drop, A = Throw). */
+  heldBomb: BombKind | null;
   maxBombs: number;
   blastRadius: number;
 

@@ -428,6 +428,7 @@ interface VerbBtnHandles {
   button: HTMLButtonElement;
   inner: HTMLSpanElement;
   icon: HTMLSpanElement;
+  label: HTMLSpanElement;
 }
 
 const makeVerbBtn = (slot: 0 | 1, kind: 'B' | 'A', badgeLabel: string): VerbBtnHandles => {
@@ -502,7 +503,7 @@ const makeVerbBtn = (slot: 0 | 1, kind: 'B' | 'A', badgeLabel: string): VerbBtnH
   b.addEventListener('pointerup', release);
   b.addEventListener('pointercancel', release);
   b.addEventListener('lostpointercapture', release);
-  return { button: b, inner, icon: iconSpan };
+  return { button: b, inner, icon: iconSpan, label: labelSpan };
 };
 
 const actionRow = document.createElement('div');
@@ -511,13 +512,15 @@ Object.assign(actionRow.style, {
   alignItems: 'center',
   gap: '10px',
 });
-// Game Boy order: B = Roll on the left, A = Place on the right
+// Game Boy order: B = Roll (or Drop when holding) on the left, A = Pull (or Throw when holding) on the right
 const rollHandles = makeVerbBtn(0, 'B', 'B·ROLL');
-const placeHandles = makeVerbBtn(1, 'A', 'A·PLACE');
+const placeHandles = makeVerbBtn(1, 'A', 'A·PULL');
 const rollBtn = rollHandles.button;
 const rollBtnIcon = rollHandles.icon;
+const rollBtnLabel = rollHandles.label;
 const placeBtn = placeHandles.button;
 const placeBtnIcon = placeHandles.icon;
+const placeBtnLabel = placeHandles.label;
 actionRow.append(rollBtn, placeBtn);
 
 rightCluster.append(topRow, actionRow);
@@ -620,7 +623,7 @@ function renderMenu(): void {
   }
 
   const hint = document.createElement('div');
-  hint.textContent = 'Select bomb for [A] PLACE · [B] ROLL · walk into a bomb to kick it';
+  hint.textContent = 'Select bomb for [A] PULL · while overhead: [B] DROP · [A] THROW';
   Object.assign(hint.style, {
     fontSize: '8px',
     lineHeight: '1.35',
@@ -788,7 +791,7 @@ let prevHudSig = '';
 let prevRollBusy = false;
 
 function syncRollBtnFeedback(): void {
-  const rollBusy = state.rollTimer > 0 || state.rollRecoveryTimer > 0;
+  const rollBusy = state.heldBomb === null && (state.rollTimer > 0 || state.rollRecoveryTimer > 0);
   if (rollBusy !== prevRollBusy) {
     prevRollBusy = rollBusy;
     rollBtn.style.opacity = rollBusy ? '0.68' : '1';
@@ -797,7 +800,7 @@ function syncRollBtnFeedback(): void {
 
 function syncHud(force = false): void {
   const room = currentRoom(world, state);
-  const readyBombs = Math.max(0, state.maxBombs - state.bombs.length);
+  const readyBombs = Math.max(0, state.maxBombs - state.bombs.length - (state.heldBomb ? 1 : 0));
   const boss = state.enemies.find((e) => e.kind === 'wickgeist' || e.kind === 'cinderhull');
   const sig = [
     state.zone,
@@ -809,6 +812,7 @@ function syncHud(force = false): void {
     state.smallKeys,
     state.hasBossKey,
     state.equipped ?? 'none',
+    state.heldBomb ?? 'none',
     state.unlockedBombs.join(','),
     readyBombs,
     state.maxBombs,
@@ -828,7 +832,15 @@ function syncHud(force = false): void {
   for (let i = 0; i < totalHearts; i++) {
     const rem = state.hp - i * 2;
     const hName: ObjSpriteName =
-      rem >= 2 ? 'HUD_HEART_FULL' : rem === 1 ? 'HUD_HEART_HALF' : 'HUD_HEART_EMPTY';
+      rem >= 1.75
+        ? 'HUD_HEART_FULL'
+        : rem >= 1.25
+          ? 'HUD_HEART_THREE_QUARTER'
+          : rem >= 0.75
+            ? 'HUD_HEART_HALF'
+            : rem >= 0.25
+              ? 'HUD_HEART_QUARTER'
+              : 'HUD_HEART_EMPTY';
     heartImgs.push(pxIcon(hName, 14));
   }
   const extras: string[] = [];
@@ -874,14 +886,24 @@ function syncHud(force = false): void {
     }
   }
 
-  // Satchel pips & fixed-verb sprites on B = Roll and A = Place
+  // Satchel pips & two-state verb sprites on B (Roll / Drop) and A (Pull / Throw)
   satchelPips.textContent =
     '●'.repeat(readyBombs) + '○'.repeat(Math.max(0, state.maxBombs - readyBombs));
-  rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 24);
-  placeBtnIcon.innerHTML = state.equipped
-    ? pxIcon(BOMB_META[state.equipped].sprite, 24)
-    : '<span style="font-size:14px;opacity:0.75">—</span>';
-  placeBtn.style.opacity = state.equipped ? '1' : '0.76';
+  if (state.heldBomb) {
+    rollBtnIcon.innerHTML = pxIcon(BOMB_META[state.heldBomb].sprite, 24);
+    rollBtnLabel.textContent = 'B·DROP';
+    placeBtnIcon.innerHTML = pxIcon(BOMB_META[state.heldBomb].sprite, 24);
+    placeBtnLabel.textContent = 'A·THROW';
+    placeBtn.style.opacity = '1';
+  } else {
+    rollBtnIcon.innerHTML = pxIcon(ROLL_ICON, 24);
+    rollBtnLabel.textContent = 'B·ROLL';
+    placeBtnIcon.innerHTML = state.equipped
+      ? pxIcon(BOMB_META[state.equipped].sprite, 24)
+      : '<span style="font-size:14px;opacity:0.75">—</span>';
+    placeBtnLabel.textContent = 'A·PULL';
+    placeBtn.style.opacity = state.equipped ? '1' : '0.76';
+  }
 
   // Boss HP bar
   if (boss) {
@@ -913,7 +935,9 @@ function syncHud(force = false): void {
     const line2 = document.createElement('div');
     line2.style.color = state.zone === 'ice-cave' ? '#7890b0' : '#789078';
     line2.style.marginTop = '2px';
-    line2.textContent = '[B] ROLL · [A] PLACE · [START] SATCHEL';
+    line2.textContent = state.heldBomb
+      ? '[B] DROP · [A] THROW · [START] SATCHEL'
+      : '[B] ROLL · [A] PULL · [START] SATCHEL';
     dialogueContent.append(line1, line2);
   }
 

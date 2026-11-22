@@ -1387,6 +1387,21 @@ export function makeGbcView(): GbcView {
     const stepIdx = Math.floor(elapsedMove * (isPushingBlock ? 4.5 : 11)) % 4;
     const moving = isMoving;
 
+    if (s.heldBomb !== null) {
+      const bob = moving ? (Math.floor(elapsedMove * 6) % 2 === 0 ? -1 : 0) : 0;
+      draw(`MOUSE_${dir}_LIFT`, baseSx, baseSy);
+      const heldFrame: ObjSpriteName =
+        s.heldBomb === 'fire'
+          ? Math.floor(time * 5) % 2 === 0
+            ? 'FIREBOMB_1'
+            : 'FIREBOMB_2'
+          : Math.floor(time * 5) % 2 === 0
+            ? 'BOMB_1'
+            : 'BOMB_2';
+      drawObjSprite(ctx, heldFrame, dx, dy - 7 + bob);
+      return;
+    }
+
     if (time < crouchAnimUntil) {
       draw(`MOUSE_${dir}_LIFT`, 1.08, 0.92);
       return;
@@ -1550,8 +1565,8 @@ export function makeGbcView(): GbcView {
       isMoving = nowMoving;
 
       for (const ev of s.events) {
-        if (ev === 'bomb-kick') {
-          // The kick reuses the arms-forward throw frame
+        if (ev === 'bomb-kick' || ev === 'bomb-throw') {
+          // The throw / kick uses the arms-forward throw frame
           throwAnimUntil = time + 0.16;
         } else if (ev === 'bomb-drop') {
           crouchAnimUntil = time + 0.1;

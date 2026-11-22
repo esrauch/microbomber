@@ -96,15 +96,17 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(run1).toEqual(run2);
   });
 
-  it('kicks bombs straight along the ground; friction brings them to rest ~1.5-2 tiles on', () => {
-    const world = sandboxWorld(OPEN_ROOM);
+  it('throws bombs orthogonally over fences and rolls them along the ground; friction brings them to rest ~1.5-2 tiles on', () => {
+    const fenceRows = OPEN_ROOM.map((r) => r.split(''));
+    fenceRows[9]![5] = '='; // fence directly north of (5.5, 10.5)
+    const world = sandboxWorld(fenceRows.map((r) => r.join('')));
     const s = newState(world, 'overworld', 0, 0, 5.5, 10.5);
 
     kickA(world, s, 0, -1);
     expect(s.bombs).toHaveLength(1);
     const b = s.bombs[0]!;
     expect(b.kicked).toBe(true);
-    expect(b.z).toBe(0);
+    expect(b.z).toBeGreaterThan(0.22); // airborne enough to clear the '=' fence at y=9!
     expect(b.vy).toBeLessThan(0);
     expect(Math.abs(b.vx)).toBeLessThan(1e-6);
     const kickY = b.y;
@@ -114,11 +116,12 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
       tick(world, s, idle, FIXED_DT);
       if (s.bombs.length === 0) break;
       const speed = Math.hypot(b.vx, b.vy);
-      if (speed === 0) break;
-      rollingSpeeds.push(speed);
+      if (speed === 0 && b.z === 0) break;
+      if (b.z === 0) rollingSpeeds.push(speed);
     }
 
     expect(s.bombs).toHaveLength(1); // stopped well before the 1.5 s fuse
+    expect(b.z).toBe(0);
     // Friction monotonically reduces speed while rolling freely on open ground
     for (let i = 1; i < rollingSpeeds.length; i++) {
       expect(rollingSpeeds[i]!).toBeLessThanOrEqual(rollingSpeeds[i - 1]! + 1e-9);
@@ -128,7 +131,7 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(b.x).toBe(5.5);
     const rollDist = kickY - b.y;
     expect(rollDist).toBeGreaterThanOrEqual(1.5);
-    expect(rollDist).toBeLessThanOrEqual(2.0);
+    expect(rollDist).toBeLessThanOrEqual(2.5);
   });
 
   it('rebounds kicked bombs straight back off solid stone walls without penetrating tiles', () => {
@@ -198,17 +201,15 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(pitEvents).not.toContain('boom-bomb');
     expect(ps.bombs).toHaveLength(0);
 
-    // 1b. Grounded bomb kicked into a pit ('^') is also swallowed without blast
+    // 1b. Bomb thrown over a fence into a pit ('^') is also swallowed without blast
     const kickPitRows = OPEN_ROOM.map((r) => r.split(''));
+    kickPitRows[6]![4] = '=';
     kickPitRows[6]![5] = '^';
     kickPitRows[6]![6] = '^';
     const kickPitWorld = sandboxWorld(kickPitRows.map((r) => r.join('')));
     const kps = newState(kickPitWorld, 'overworld', 0, 0, 3.5, 6.5);
-    kps.aimX = 1;
-    kps.aimY = 0;
-    tapA(kickPitWorld, kps); // placed on (4, 6), just short of the pit
+    kickA(kickPitWorld, kps, 1, 0);
     const kickPitEvents = stepSeconds(kickPitWorld, kps, 0.45, { dx: 1, dy: 0 });
-    expect(kickPitEvents).toContain('bomb-kick');
     expect(kickPitEvents).toContain('bomb-swallow');
     expect(kps.bombs).toHaveLength(0);
 
@@ -251,30 +252,16 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(ws.bombs).toHaveLength(0);
   });
 
-  it('kicks a placed bomb along Pip’s walk direction without trapping Pip', () => {
+  it('pulls a bomb overhead (pausing fuse & halving walk speed), then throws or drops without trapping Pip, and stepping on ground fire hurts', () => {
     const world = sandboxWorld(OPEN_ROOM);
     const s = newState(world, 'overworld', 0, 0, 3.5, 6.5);
     s.aimX = 1;
     s.aimY = 0;
 
-    // Placed in open floor, clear of Pip: no walk-through grace, so walking on kicks it
-    tapA(world, s);
+    // Pull overhead with A, then throw with A: rolls east with KICK_SPEED while Pip steps away north
+    kickA(world, s, 1, 0);
     const b = s.bombs[0]!;
-    expect(b.graceOverlap).toBe(false);
-    expect(b.vx).toBe(0);
-
-    let kicked = false;
-    let kickFrameVx = 0;
-    for (let i = 0; i < 30; i++) {
-      tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
-      if (s.events.includes('bomb-kick')) {
-        kicked = true;
-        kickFrameVx = b.vx;
-        break;
-      }
-    }
-    expect(kicked).toBe(true);
-    expect(kickFrameVx).toBeGreaterThan(KICK_SPEED * 0.6);
+    expect(b.vx).toBeGreaterThan(KICK_SPEED * 0.6);
     expect(b.vy).toBe(0);
 
     // Bomb rolls east ahead of Pip while Pip can freely step away north
@@ -282,17 +269,23 @@ describe('Phase 2: Deterministic 60 Hz bomb physics, bounce, kick, radial blast 
     expect(b.x).toBeGreaterThan(4.6);
     expect(s.y).toBeLessThan(5.6);
 
-    // Placed against a wall it overlaps Pip: grace until Pip walks off, and no kick on the way
+    // Dropped against a wall it overlaps Pip: grace until Pip walks off
     const w = newState(world, 'overworld', 0, 0, 1.4, 6.5);
     w.aimX = -1;
     w.aimY = 0;
     tapA(world, w);
     const wb = w.bombs[0]!;
     expect(wb.graceOverlap).toBe(true);
-    const events = stepSeconds(world, w, 0.3, { dx: 1, dy: 0 });
-    expect(events).not.toContain('bomb-kick');
+    stepSeconds(world, w, 0.3, { dx: 1, dy: 0 });
     expect(wb.graceOverlap).toBe(false);
     expect(w.x).toBeGreaterThan(2.2);
+
+    // Stepping on fire on the ground hurts Pip (1 half-heart)
+    const fState = newState(world, 'overworld', 0, 0, 5.5, 6.5);
+    const hpBeforeFire = fState.hp;
+    fState.fires.push({ x: 5, y: 6, remaining: 2.0, tickCooldown: 0, generation: 0 });
+    tick(world, fState, idle, FIXED_DT);
+    expect(fState.hp).toBe(hpBeforeFire - 1);
   });
 
   it('applies unified radial blast shove to Pip (0 damage), enemies, push blocks, and unshoved live bombs', () => {

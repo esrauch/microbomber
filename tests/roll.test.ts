@@ -224,19 +224,23 @@ describe('Phase 1: Roll, Pull out, 360° analog throw, input buffer, magnet pick
     stepSeconds(world, rEarly, 0.45);
     expect(rEarly.x).toBeCloseTo(4.5, 2);
 
-    // 2. Pull-out buffer (tap drop): tapping A ~80ms before bombCooldown ends drops a bomb when ready!
+    // 2. Pull-out buffer: tapping A ~80ms before bombCooldown ends pulls a bomb overhead when ready!
     const d = newState(world, 'overworld', 0, 0, 3.5, 6.5);
-    tapA(world, d); // drops bomb #1 at (3.5, 6.5), bombCooldown = 0.7s
+    tapA(world, d); // pulls & drops bomb #1 at (3.5, 6.5), bombCooldown = 0.7s
     // Walk east off the first bomb so Pip is neither underfoot nor overlapping (3, 6)
     for (let i = 0; i < 60 && d.bombCooldown > INPUT_BUFFER_WINDOW - 0.04; i++) {
       tick(world, d, { dx: 1, dy: 0 }, FIXED_DT);
     }
     expect(d.bombCooldown).toBeGreaterThan(0);
     expect(d.bombs).toHaveLength(1);
-    tapA(world, d); // buffered tap during last ~85ms of cooldown!
-    expect(d.bombs).toHaveLength(1); // still on cooldown right now
+    expect(d.heldBomb).toBeNull();
+    tick(world, d, { ...idle, holdA: true }, FIXED_DT); // buffered Pull tap during last ~85ms of cooldown!
+    tick(world, d, idle, FIXED_DT);
+    expect(d.heldBomb).toBeNull(); // still on cooldown right now
     stepSeconds(world, d, 0.12);
-    expect(d.bombs).toHaveLength(2); // auto-dropped as soon as cooldown hit 0!
+    expect(d.heldBomb).toBe('bomb'); // auto-pulled overhead as soon as cooldown hit 0!
+    tapA(world, d);
+    expect(d.bombs).toHaveLength(2);
   });
 
   it('magnetizes pickups within ~1 tile into a stationary Pip while leaving distant pickups untouched', () => {

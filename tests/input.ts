@@ -40,15 +40,31 @@ export function rollB(world: World, s: State, dx = 0, dy = 0): void {
   }
 }
 
-/** Press A = Place: puts the equipped bomb on the ground just ahead of Pip. */
-export function tapA(world: World, s: State): void {
+/** Press A = Pull: takes out the equipped bomb and holds it over Pip's head. */
+export function pullA(world: World, s: State): void {
   tick(world, s, { ...idle, holdA: true }, FIXED_DT);
   tick(world, s, idle, FIXED_DT);
 }
 
+/** Press B = Drop (while holding overhead): puts the held bomb on the ground just ahead of Pip. */
+export function dropB(world: World, s: State): void {
+  tick(world, s, { ...idle, holdB: true }, FIXED_DT);
+  tick(world, s, idle, FIXED_DT);
+}
+
+/** Pull a bomb overhead (if not already holding one) and drop it ahead of Pip. */
+export function tapA(world: World, s: State): void {
+  if (s.heldBomb === null) {
+    pullA(world, s);
+  }
+  if (s.heldBomb !== null) {
+    dropB(world, s);
+  }
+}
+
 /**
- * Place a bomb facing the cardinal direction of `(dx, dy)`, then walk into it until Pip kicks
- * it (at most 0.5 s), so it rolls off that way.
+ * Pull a bomb overhead (if not already holding one) and throw it facing the cardinal
+ * direction of `(dx, dy)`, so it arcs over fences and rolls off that way.
  */
 export function kickA(world: World, s: State, dx: number, dy: number): void {
   const horizontal = Math.abs(dx) >= Math.abs(dy);
@@ -58,10 +74,12 @@ export function kickA(world: World, s: State, dx: number, dy: number): void {
   s.aimY = ky;
   s.fx = kx;
   s.fy = ky;
-  tapA(world, s);
-  for (let i = 0; i < 30; i++) {
-    tick(world, s, { dx: kx, dy: ky }, FIXED_DT);
-    if (s.events.includes('bomb-kick')) return;
+  if (s.heldBomb === null) {
+    pullA(world, s);
+  }
+  if (s.heldBomb !== null) {
+    tick(world, s, { ...idle, holdA: true }, FIXED_DT);
+    tick(world, s, idle, FIXED_DT);
   }
 }
 

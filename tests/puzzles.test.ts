@@ -552,11 +552,11 @@ describe('Phase 3: Contact-radius triggers, directional slopes, Ice Cave physics
     stepSeconds(world, s, BOMB_FUSE + 0.1);
     expect(tileAt(world, s, 'ice-cave', 0, 1, 3, 8)).toBe('.');
 
-    // Walk into West cache (2.5, 8.5) to claim ante-heart
+    // Walk into West cache (2.5, 8.5) to claim ante-heart (+2 half-hearts after 0.5 splashback -> 5.5)
     s.x = 2.5;
     s.y = 8.5;
     stepSeconds(world, s, 0.2);
-    expect(s.hp).toBe(6);
+    expect(s.hp).toBe(5.5);
 
     // Walk North along col 5 through Boss Door 'K' (5, 0) into Sanctum of Ash (0, 0)
     s.x = 5.5;

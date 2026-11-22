@@ -57,7 +57,8 @@ export const BOMB_RADIUS = 0.12; // planar bomb collision radius in tiles
 export const BOMB_FRICTION = 13.5; // tiles/s² ground deceleration
 export const BOMB_WALL_BOUNCE = 0.65; // wall restitution coefficient
 export const BOMB_GRAVITY = 24.0; // tiles/s² vertical gravity
-export const KICK_SPEED = 6.8; // planar speed imparted when walking into a grounded bomb
+export const KICK_SPEED = 6.8; // planar speed imparted when throwing an overhead bomb
+export const THROW_LOB_VZ = 2.6; // vertical hop velocity imparted when throwing an overhead bomb (clears '=' fences)
 export const SHOVE_BOMB_SPEED = 8.4; // planar impulse speed imparted to a blast-shoved bomb
 export const SLOPE_ACCEL = 22.0; // tiles/s² downhill acceleration on 'n' | 's' | 'e' | 'w' slope tiles
 export const SLOPE_MAX_SPEED = 8.2; // terminal downhill roll speed on slopes
@@ -318,6 +319,7 @@ export function enterRoom(
   s.rollBufferTimer = 0;
   s.placeBufferTimer = 0;
   s.pickupFreezeTimer = 0;
+  s.heldBomb = null;
   s.bombs = [];
   s.fires = [];
   s.gusts = [];
@@ -472,6 +474,7 @@ export function newState(
     heartShards: 0,
     unlockedBombs: ['bomb'],
     equipped: 'bomb',
+    heldBomb: null,
     maxBombs: 2,
     blastRadius: 1,
     smallKeys: 0,
@@ -511,10 +514,12 @@ export function newState(
 export function equipBomb(s: State, kind: BombKind | null): void {
   if (kind === null) {
     s.equipped = null;
+    s.heldBomb = null;
     return;
   }
   if (s.unlockedBombs.includes(kind)) {
     s.equipped = kind;
+    if (s.heldBomb !== null) s.heldBomb = kind;
   }
 }
 
@@ -857,7 +862,7 @@ function playerBlockedAt(
 /** Returns true if the hit knocked the player out and respawned them. */
 function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln = false): boolean {
   if (!ignoreInvuln && (s.invulnTimer > 0 || isRollInvulnerable(s))) return false;
-  s.hp = Math.max(0, s.hp - halfHearts);
+  s.hp = Math.max(0, Math.round((s.hp - halfHearts) * 4) / 4);
   s.invulnTimer = 1.05;
   s.events.push('player-hurt');
   if (s.hp <= 0) {
@@ -1240,23 +1245,8 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   }
 
   // Unified radial impulse pass around (bomb.x, bomb.y) with shoveRadius = reach + 0.85:
-  // 1. Pip: radial shove velocity (~7.0 tiles/s scaled by proximity, 0 direct damage)
-  const facing = cardinalFacing(s);
-  const pipDir = radialDir(bomb.x, bomb.y, s.x, s.y, -facing.dx, -facing.dy);
-  const pipOnHitTile = hitTiles.some(
-    ([tx, ty]) => Math.hypot(s.x - (tx + 0.5), s.y - (ty + 0.5)) < 0.85,
-  );
-  if (
-    !isRollInvulnerable(s) &&
-    (pipOnHitTile ||
-      (pipDir.dist <= shoveRadius && hasBlastLineOfSight(world, s, bomb.x, bomb.y, s.x, s.y)))
-  ) {
-    const proximity = Math.max(0.45, 1 - Math.min(1, pipDir.dist / shoveRadius) * 0.55);
-    s.vx = pipDir.dirX * 7.0 * proximity;
-    s.vy = pipDir.dirY * 7.0 * proximity;
-  }
-
-  // 2. Enemies: radial shove velocity scaled by mass + continuous/cross-blast damage & armor strip
+  // 1. Enemies: radial shove velocity scaled by mass + continuous/cross-blast damage & armor strip
+  let hitAnyEnemy = false;
   const litNow = isRoomLit(world, s);
   for (const enemy of [...s.enemies]) {
     const eDir = radialDir(bomb.x, bomb.y, enemy.x, enemy.y, enemy.fx || 0, enemy.fy || 1);
@@ -1277,10 +1267,30 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       enemy.vy = eDir.dirY * 7.2 * proximity * massScale;
     }
     if (hit) {
+      hitAnyEnemy = true;
       applyBombHitToEnemy(world, s, enemy, bomb.kind, bomb.x, bomb.y, litNow, false);
     }
   }
   s.enemies = s.enemies.filter((e) => e.hp > 0);
+
+  // 2. Pip: radial shove velocity; deals 1/4th heart (0.5 half-hearts) splashback unless the bomb hit an enemy
+  const facing = cardinalFacing(s);
+  const pipDir = radialDir(bomb.x, bomb.y, s.x, s.y, -facing.dx, -facing.dy);
+  const pipOnHitTile = hitTiles.some(
+    ([tx, ty]) => Math.hypot(s.x - (tx + 0.5), s.y - (ty + 0.5)) < 0.85,
+  );
+  if (
+    !isRollInvulnerable(s) &&
+    (pipOnHitTile ||
+      (pipDir.dist <= shoveRadius && hasBlastLineOfSight(world, s, bomb.x, bomb.y, s.x, s.y)))
+  ) {
+    const proximity = Math.max(0.45, 1 - Math.min(1, pipDir.dist / shoveRadius) * 0.55);
+    s.vx = pipDir.dirX * 7.0 * proximity;
+    s.vy = pipDir.dirY * 7.0 * proximity;
+    if (!hitAnyEnemy) {
+      damagePlayer(world, s, 0.5);
+    }
+  }
 
   // 3. Push blocks (s.blocks): shove 1 tile along dominant cardinal radial vector
   const blocksByDist = [...s.blocks].sort(
@@ -1676,8 +1686,10 @@ function newBomb(s: State, kind: BombKind, x: number, y: number): Bomb {
 }
 
 /** New bombs are limited by the satchel and share a cooldown. */
-function canPlaceBomb(s: State): boolean {
-  return s.bombs.length < s.maxBombs && s.bombCooldown <= 0;
+function canPullBomb(s: State): boolean {
+  return (
+    s.heldBomb === null && s.equipped !== null && s.bombs.length < s.maxBombs && s.bombCooldown <= 0
+  );
 }
 
 function hasStoppedGroundedBombNear(s: State, x: number, y: number): boolean {
@@ -1686,16 +1698,50 @@ function hasStoppedGroundedBombNear(s: State, x: number, y: number): boolean {
   );
 }
 
-/** A = Place: put the equipped bomb on the ground just ahead of Pip. */
-function placeBomb(world: World, s: State, kind: BombKind | null): void {
-  if (!kind || !canPlaceBomb(s)) return;
+/** A = Pull (when empty-handed): take out the equipped bomb and hold it over Pip's head (timer paused). */
+function pullBomb(s: State): void {
+  if (!s.equipped || !canPullBomb(s)) return;
+  s.heldBomb = s.equipped;
+  s.events.push('bomb-lift');
+}
+
+/** B = Drop (while holding overhead): put the held bomb on the ground ahead of Pip and start its fuse. */
+function dropHeldBomb(world: World, s: State): void {
+  const kind = s.heldBomb;
+  if (!kind) return;
   const { x, y } = computePlaceTarget(world, s);
   if (hasStoppedGroundedBombNear(s, x, y)) return;
-  // Walk-through grace only when it lands overlapping Pip (against a wall); otherwise
-  // walking forward kicks it straight away
+  s.heldBomb = null;
   const overlapsPip = Math.hypot(x - s.x, y - s.y) < PLAYER_RADIUS + BOMB_RADIUS + 0.06;
   s.bombs.push({ ...newBomb(s, kind, x, y), graceOverlap: overlapsPip });
   s.events.push('bomb-drop');
+}
+
+/**
+ * A = Throw (while holding overhead): throw the held bomb in the nearest orthogonal direction.
+ * The lob clears `'='` fences and rolls with `KICK_SPEED` physics on touchdown.
+ */
+function throwHeldBomb(world: World, s: State): void {
+  const kind = s.heldBomb;
+  if (!kind) return;
+  s.heldBomb = null;
+  const { dx, dy } = cardinalAim(s);
+  const ahead = PLAYER_RADIUS + BOMB_RADIUS + 0.1;
+  const candX = s.x + dx * ahead;
+  const candY = s.y + dy * ahead;
+  const [px, py] = isBombSpotFree(world, s, candX, candY, 0.24)
+    ? clampBombSpawn(world, s, candX, candY)
+    : clampBombSpawn(world, s, s.x, s.y);
+  const bomb = newBomb(s, kind, px, py);
+  bomb.vx = dx * KICK_SPEED;
+  bomb.vy = dy * KICK_SPEED;
+  bomb.z = 0.24;
+  bomb.vz = THROW_LOB_VZ;
+  bomb.graceOverlap = true;
+  bomb.kicked = true;
+  s.bombs.push(bomb);
+  s.events.push('bomb-throw');
+  s.events.push('bomb-kick');
 }
 
 function startRoll(world: World, s: State, input: Input, inLen: number): void {
@@ -1845,7 +1891,9 @@ function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt
     return;
   }
 
-  const scale = SPEED / Math.max(1, inLen);
+  // Movement speed is halved while holding a bomb overhead
+  const walkSpeed = s.heldBomb !== null ? SPEED * 0.5 : SPEED;
+  const scale = walkSpeed / Math.max(1, inLen);
   const moveVx = input.dx * scale;
   const moveVy = input.dy * scale;
   s.fx = input.dx / inLen;
@@ -1858,14 +1906,14 @@ function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt
     !sweepAxis(world, s, 'x', totalDx) &&
     Math.abs(input.dy) < 0.5 * inLen
   ) {
-    cornerSlide(world, s, 'x', totalDx, walkDt);
+    cornerSlide(world, s, 'x', totalDx, walkDt, walkSpeed);
   }
   if (
     Math.abs(totalDy) > 1e-5 &&
     !sweepAxis(world, s, 'y', totalDy) &&
     Math.abs(input.dx) < 0.5 * inLen
   ) {
-    cornerSlide(world, s, 'y', totalDy, walkDt);
+    cornerSlide(world, s, 'y', totalDy, walkDt, walkSpeed);
   }
 }
 
@@ -1915,10 +1963,15 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   const pressedB = heldB && !s.prevHoldB;
   const heldA = Boolean(input.holdA);
   const pressedA = heldA && !s.prevHoldA;
+  const wasHoldingBombAtTickStart = s.heldBomb !== null;
 
   const wasRollingAtTickStart = s.rollTimer > 0;
 
-  if (wasRollingAtTickStart) {
+  if (wasHoldingBombAtTickStart) {
+    // While holding a bomb overhead, B is Drop (not Roll) and movement speed is halved
+    s.rollBufferTimer = 0;
+    advanceWalk(world, s, input, inLen, dt);
+  } else if (wasRollingAtTickStart) {
     if (pressedB) {
       s.rollBufferTimer = INPUT_BUFFER_WINDOW;
     } else if (s.rollBufferTimer > 0) {
@@ -1958,29 +2011,6 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       s.rollBufferTimer = Math.max(0, s.rollBufferTimer - dt);
     }
     advanceWalk(world, s, input, inLen, dt);
-  }
-
-  // Kick (`GAME.md` §2): walking into a grounded bomb sends it rolling straight along the
-  // dominant axis of the walk; kicks are orthogonal only
-  if (s.rollTimer <= 0 && inLen > 0.15) {
-    const horizontal = Math.abs(input.dx) >= Math.abs(input.dy);
-    const kx = horizontal ? Math.sign(input.dx) : 0;
-    const ky = horizontal ? 0 : Math.sign(input.dy);
-    const kickReach = PLAYER_RADIUS + BOMB_RADIUS + 0.06;
-    for (const b of s.bombs) {
-      if (b.z > 0.12 || b.graceOverlap) continue;
-      const relX = b.x - s.x;
-      const relY = b.y - s.y;
-      const along = relX * kx + relY * ky;
-      const across = Math.abs(horizontal ? relY : relX);
-      if (Math.hypot(relX, relY) > kickReach || along <= 0.05 || across > 0.4) continue;
-      if (b.vx * kx + b.vy * ky < KICK_SPEED * 0.7) {
-        b.vx = kx * KICK_SPEED;
-        b.vy = ky * KICK_SPEED;
-        b.kicked = true;
-        s.events.push('bomb-kick');
-      }
-    }
   }
 
   const knockDx = s.vx * dt;
@@ -2029,18 +2059,28 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     }
   }
 
-  // 2. A = Place (`GAME.md` §2): a press puts the equipped bomb just ahead of Pip; walk into
-  // it to kick it. Presses during a roll, the bomb cooldown or a full satchel are buffered.
-  const readyToPlace = s.rollTimer <= 0 && canPlaceBomb(s);
-  if (pressedA) {
-    if (readyToPlace) placeBomb(world, s, s.equipped);
-    else s.placeBufferTimer = INPUT_BUFFER_WINDOW;
-  } else if (s.placeBufferTimer > 0) {
-    if (readyToPlace) {
-      s.placeBufferTimer = 0;
-      placeBomb(world, s, s.equipped);
-    } else {
-      s.placeBufferTimer = Math.max(0, s.placeBufferTimer - dt);
+  // 2. Two-state verb buttons (`GAME.md` §2):
+  // - Empty-handed: B = Roll, A = Pull (takes out a bomb and holds it overhead with timer paused)
+  // - While holding overhead: B = Drop (places bomb ahead), A = Throw (orthogonal throw that clears fences & rolls)
+  if (wasHoldingBombAtTickStart) {
+    s.placeBufferTimer = 0;
+    if (pressedB) {
+      dropHeldBomb(world, s);
+    } else if (pressedA) {
+      throwHeldBomb(world, s);
+    }
+  } else {
+    const readyToPull = s.rollTimer <= 0 && canPullBomb(s);
+    if (pressedA) {
+      if (readyToPull) pullBomb(s);
+      else s.placeBufferTimer = INPUT_BUFFER_WINDOW;
+    } else if (s.placeBufferTimer > 0) {
+      if (readyToPull) {
+        s.placeBufferTimer = 0;
+        pullBomb(s);
+      } else {
+        s.placeBufferTimer = Math.max(0, s.placeBufferTimer - dt);
+      }
     }
   }
 
@@ -2209,6 +2249,21 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
                 b.vy *= ratio;
               }
             }
+          }
+        }
+      } else if (b.kicked) {
+        // Thrown bombs decelerate during their hop so total travel matches the ~1.7-tile kick distance
+        const speed = Math.hypot(b.vx, b.vy);
+        if (speed > 0) {
+          const nextSpeed = speed - BOMB_FRICTION * 0.45 * bombSubDt;
+          if (nextSpeed <= 0.08) {
+            b.vx = 0;
+            b.vy = 0;
+            b.kicked = false;
+          } else {
+            const ratio = nextSpeed / speed;
+            b.vx *= ratio;
+            b.vy *= ratio;
           }
         }
       }
@@ -2382,6 +2437,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         }
       }
       s.enemies = s.enemies.filter((e) => e.hp > 0);
+    }
+    if (f.remaining > 0 && Math.hypot(s.x - (f.x + 0.5), s.y - (f.y + 0.5)) < 0.62) {
+      if (damagePlayer(world, s, 1)) return false;
     }
   }
   s.fires = s.fires.filter((f) => f.remaining > 0);

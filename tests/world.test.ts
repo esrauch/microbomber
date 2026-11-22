@@ -42,7 +42,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.x).toBeGreaterThan(ROOM_W - 1);
   });
 
-  it('placed Bomb breaks cracked walls and applies harmless self-knockback (0 damage)', () => {
+  it('placed Bomb breaks cracked walls and deals 1/4th heart (0.5 half-hearts) splashback with knockback when no enemy is hit', () => {
     const world = campaignWorld();
     // Mouse House has a cracked smithy wall at (7, 1)
     const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
@@ -59,8 +59,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     stepSeconds(world, s, BOMB_FUSE + 0.15);
     expect(s.bombs).toHaveLength(0);
     expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('.');
-    // Self-blast dealt 0 heart damage, and knocked Pip back west, away from the bomb
-    expect(s.hp).toBe(startHp);
+    // Self-blast dealt 1/4th heart (0.5 half-hearts) splashback and knocked Pip back west
+    expect(s.hp).toBe(startHp - 0.5);
     expect(s.x).toBeLessThan(6.0);
   });
 
