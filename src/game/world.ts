@@ -1137,8 +1137,8 @@ function tryStartHop(world: World, s: State, input: Input, inLen: number): void 
   s.hop = {
     x0: s.x,
     y0: s.y,
-    x1: dx !== 0 ? land.x + 0.5 : clampAcross(s.x, land.x),
-    y1: dy !== 0 ? land.y + 0.5 : clampAcross(s.y, land.y),
+    x1: dx !== 0 || land.x !== Math.floor(s.x) ? land.x + 0.5 : clampAcross(s.x, land.x),
+    y1: dy !== 0 || land.y !== Math.floor(s.y) ? land.y + 0.5 : clampAcross(s.y, land.y),
     t: 0,
     dur: HOP_DURATION,
   };
@@ -1347,10 +1347,20 @@ function nudgeOutOfTile(
  * A pillar starts moving. Its riders are settled once, now: anything whose centre is on the
  * tile rides it to the end; anything only overlapping its edge is nudged off to its side.
  */
-function startPillar(s: State, st: PillarState, x: number, y: number, dir: -1 | 1): void {
+function startPillar(
+  world: World,
+  s: State,
+  st: PillarState,
+  x: number,
+  y: number,
+  dir: -1 | 1,
+): void {
   st.dir = dir;
   s.events.push(dir > 0 ? 'pillar-rise' : 'pillar-sink');
-  const onTile = (px: number, py: number): boolean => Math.floor(px) === x && Math.floor(py) === y;
+  const room = currentRoom(world, s);
+  const northLipCloses = dir < 0 && Boolean(room && ledgeDrops(room, s, x, y - 1));
+  const onTile = (px: number, py: number): boolean =>
+    Math.floor(px) === x && (Math.floor(py) === y || (northLipCloses && Math.floor(py) === y - 1));
   if (!s.hop && onTile(s.x, s.y)) {
     s.ridingPillar = true;
     s.vx = 0;
@@ -1362,15 +1372,25 @@ function startPillar(s: State, st: PillarState, x: number, y: number, dir: -1 | 
   } else if (!s.hop) {
     const out = nudgeOutOfTile(s.x, s.y, PLAYER_RADIUS, x, y);
     if (out) [s.x, s.y] = out;
+    if (northLipCloses) {
+      const outN = nudgeOutOfTile(s.x, s.y, PLAYER_RADIUS, x, y - 1);
+      if (outN) [s.x, s.y] = outN;
+    }
   }
   for (const b of s.bombs) {
     if (b.z <= 0.05 && onTile(b.x, b.y)) {
       b.ridingPillar = true;
       b.vx = 0;
       b.vy = 0;
+      const m = BOMB_RADIUS + 0.01;
+      b.y = Math.max(y + m, Math.min(y + 1 - m, b.y));
     } else if (b.z <= 0.05) {
       const out = nudgeOutOfTile(b.x, b.y, BOMB_RADIUS, x, y);
       if (out) [b.x, b.y] = out;
+      if (northLipCloses) {
+        const outN = nudgeOutOfTile(b.x, b.y, BOMB_RADIUS, x, y - 1);
+        if (outN) [b.x, b.y] = outN;
+      }
     }
   }
   for (const e of s.enemies) {
@@ -1417,7 +1437,7 @@ function updatePillars(world: World, s: State, dt: number): void {
       const wantsUp = pillarWantsUp(s, pillarTrigger(room, x, y));
       const st = (pillars[key] ??= { pos: wantsUp ? 1 : 0, dir: 0 });
       if (st.dir === 0) {
-        if (wantsUp !== st.pos >= 1) startPillar(s, st, x, y, wantsUp ? 1 : -1);
+        if (wantsUp !== st.pos >= 1) startPillar(world, s, st, x, y, wantsUp ? 1 : -1);
       } else {
         st.pos = Math.max(0, Math.min(1, st.pos + (st.dir * dt) / PILLAR_TRAVEL));
         if ((st.dir > 0 && st.pos >= 1) || (st.dir < 0 && st.pos <= 0)) {

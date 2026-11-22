@@ -675,7 +675,7 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
       } else if (room?.rows[y]?.[x] === 'L') {
         // A pillar's socket; the pillar itself is drawn live as it rises and sinks
         decals.push({ x, y, tile: BG.liftDown });
-      } else if (t === 'H') {
+      } else if (t === 'H' && room?.rows[y + 1]?.[x] !== 'L') {
         decals.push({ x, y, tile: ledgeTile(ledgeDrops(room, s, x, y)) });
       } else if ((t === 'n' || t === 's' || t === 'e' || t === 'w') && hasLevels(room)) {
         // In a room with floor levels a slope is a ramp; the letter is the way it runs down

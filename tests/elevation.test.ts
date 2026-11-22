@@ -207,4 +207,40 @@ describe('Floor levels, ledges, ramps and pillars (ELEVATION.md)', () => {
     for (let t = 0; t < 3; t += 1 / 60) tick(timed, s, { dx: 0, dy: 0 });
     expect(pillarPos(s, 5, 3)).toBe(0);
   });
+
+  it('lets Pip run across the top of a raised pillar, and hops him down onto it when lowered', () => {
+    const s = enter();
+    walkPath(world, s, [
+      [5, 4],
+      [5, 3],
+    ]);
+    const weight = { x: 5, y: 7, pushCharge: 0, pushDirX: 0, pushDirY: 0 };
+    s.blocks.push(weight);
+    stepTicks(world, s, Math.ceil(PILLAR_TRAVEL * 60) + 4);
+    // Raised: Pip steps off to the right and can run freely left and right across (5, 2)
+    expect(
+      walkPath(
+        world,
+        s,
+        [
+          [5, 2],
+          [6, 2],
+          [4, 2],
+          [6, 2],
+        ],
+        4,
+      ),
+    ).toBe(true);
+    // Let the pillar descend while Pip waits on (6, 2)
+    s.blocks = s.blocks.filter((b) => b !== weight);
+    stepTicks(world, s, Math.ceil(PILLAR_TRAVEL * 60) + 4);
+    expect(pillarPos(s, 5, 3)).toBe(0);
+    expect(at(s, 5, 2)).toBe('H');
+    // Pushing left from (6, 2) toward the lowered pillar now hops Pip down onto (5, 3)
+    const events = stepTicks(world, s, 70, { dx: -1, dy: 0 });
+    expect(events).toContain('player-hop');
+    expect(events).toContain('player-land');
+    expect([Math.floor(s.x), Math.floor(s.y)]).toEqual([5, 3]);
+    expect(levelOf(s)).toBe(1);
+  });
 });

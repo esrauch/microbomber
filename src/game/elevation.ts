@@ -62,7 +62,9 @@ export function levelAt(
   if (!hasLevels(room) || x < 0 || y < 0 || x >= ROOM_W || y >= ROOM_H) return null;
   if (room.rows[y]?.[x] === '#') return null;
   const base = Number(room.levels?.[y]?.[x] ?? '0') || 0;
-  return isPillarTile(room, x, y) && pillarPos(s, x, y) >= 1 ? base + 1 : base;
+  return isPillarTile(room, x, y) && pillarPos(s, x, y) >= 1 && !isPillarMoving(s, x, y)
+    ? base + 1
+    : base;
 }
 
 /** How a tile's sides drop away, or `null` if it is not a ledge edge. */
@@ -75,10 +77,11 @@ export function ledgeDrops(
   if (!hasLevels(room) || isRampTile(room, x, y) || isPillarTile(room, x, y)) return null;
   const h = levelAt(room, s, x, y);
   if (h === null) return null;
-  // A pillar never reshapes the ground around it: like Oracle's raisable floors, only the
-  // pillar tile itself changes. Level checks keep Pip and bombs from walking between them.
+  // A pillar never reshapes the cliff walls to its east or west, while the tile directly
+  // north of a lowered pillar (`dx === 0 && dy === 1`) is a south-dropping ledge edge until
+  // the pillar rises flush with it.
   const lowerThan = (dx: number, dy: number): boolean => {
-    if (isPillarTile(room, x + dx, y + dy)) return false;
+    if (isPillarTile(room, x + dx, y + dy) && !(dx === 0 && dy === 1)) return false;
     const l = levelAt(room, s, x + dx, y + dy);
     return l !== null && l < h;
   };
@@ -132,6 +135,15 @@ export function hopLanding(
     if (l === null) return null;
     const drops = ledgeDrops(room, s, tx, ty);
     if (drops) {
+      // Pushing into the ledge tile directly north of a lowered pillar hops down onto the pillar
+      if (
+        drops.s &&
+        isPillarTile(room, tx, ty + 1) &&
+        (levelAt(room, s, tx, ty + 1) ?? fromLevel) < fromLevel &&
+        isOpen(tx, ty + 1)
+      ) {
+        return { x: tx, y: ty + 1 };
+      }
       // Only over an edge that drops this way (or the second face under a tall one)
       const thisWay = (dx > 0 && drops.e) || (dx < 0 && drops.w) || (dy > 0 && drops.s);
       if (thisWay || drops.lower) continue;
