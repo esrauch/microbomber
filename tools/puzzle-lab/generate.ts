@@ -165,10 +165,10 @@ function buildScarceFrostLaserRoom(rng: SeededRng, idx: number): LabRoomSpec {
   c.carveRect(6, fenceY, 14, fenceY, '=');
   c.carveRect(6, goalY, 14, goalY + 1, '.');
 
-  // Shallow frost lane down `midX` from crate staging across Laser & fence onto lower switch
+  // Shallow frost lane down `midX` from crate staging across Laser & fence grate `'g'` onto lower switch
   c.carveRect(midX - 1, laserY - 1, midX + 1, laserY - 1, ';');
   c.set(midX, laserY, ';');
-  c.set(midX, fenceY, ';');
+  c.set(midX, fenceY, 'g');
   c.set(midX, goalY, ';');
 
   // Mousehole on either west or east flank (forces empty-handed split routing)
@@ -298,6 +298,7 @@ function buildDouseEmberHeistRoom(rng: SeededRng, idx: number): LabRoomSpec {
   // Pin `crate` at `(9, rowY)` on N/S so it MUST be pushed East across `'!'` `(10, rowY)` under Laser `L1`
   // (igniting it!), shoved into `(11, rowY)` where it lights Brazier `b1` `(11, rowY - 1)`, and Wind-gusted
   // onto `;` `Q` `(12, rowY)` to douse the fire and hold Gate `G` `(10, rowY + 1)` open for `S1`!
+  c.set(9, rowY, 'Q');
   c.set(9, rowY - 1, '#');
   c.set(9, rowY + 1, '#');
   c.set(10, rowY, '!');
@@ -719,11 +720,13 @@ function buildDontBurnTheBoxSeed(): {
     kit: ['rock'],
     entry: [8, 10],
     condition: 'hold-buttons',
-    // Tighter north yard than Acts II/III (east bay walled off) keeps the teaching room focused.
+    // Tighter north yard than Acts II/III (east bay walled off) and dry floor (no `;` water until
+    // Act II introduces `Ice`!) keeps the teaching room focused and prevents dousing on `(10,12)`.
     rows: rowsWithBackstop.map((row, y) => {
-      if (y !== 9 && y !== 10) return row;
-      const chars = [...row];
-      for (let x = 12; x <= 14; x++) chars[x] = '#';
+      const chars = [...row].map((ch) => (ch === ';' ? '.' : ch));
+      if (y === 9 || y === 10) {
+        for (let x = 12; x <= 14; x++) chars[x] = '#';
+      }
       return chars.join('');
     }),
     switches: [{ x: 10, y: 13, kind: 'O' }],
@@ -743,7 +746,12 @@ function buildDontBurnTheBoxSeed(): {
           name: "Don't Burn the Box II: One Box Too Few",
           kit: ['ice'],
           condition: 'buttons-and-sensors',
-          rows: rowsWithBackstop,
+          rows: rowsWithBackstop.map((row, y) => {
+            if (y !== 12) return row;
+            const chars = [...row];
+            chars[10] = 'g';
+            return chars.join('');
+          }),
           switches: [{ x: 10, y: 13, kind: 'O' }],
           props: [{ id: 'crate', kind: 'crate', x: 10, y: 10 }],
           sensors: [{ id: 'S1', x: 14, y: 11, level: 0 }],

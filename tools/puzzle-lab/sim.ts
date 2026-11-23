@@ -397,11 +397,14 @@ function canPropEnterCell(
   prop: PropState,
   nx: number,
   ny: number,
+  allowGrateSlide = false,
 ): boolean {
   if (nx < 0 || ny < 0 || nx >= room.width || ny >= room.height) return false;
   if (isOpaqueSolidTile(room, s, nx, ny)) return false;
   const t = effectiveTileAt(room, s, nx, ny);
-  if (t === '=' || t === 'g' || t === 'm' || t === 't' || t === '^') return false;
+  if (t === '=' || (t === 'g' && !allowGrateSlide) || t === 'm' || t === 't' || t === '^') {
+    return false;
+  }
   if (labLedgeDrops(room, s, nx, ny) !== null) return false;
 
   if (room.levels) {
@@ -531,23 +534,15 @@ function settleBuoyancy(room: LabRoomSpec, s: LabState): void {
     }
   }
 
-  // If Pip ends up over unfrozen deep water without a floating deck, pop back to safe tile (or entry if safe tile also flooded)
+  // If Pip ends up in unfrozen deep water without a floating deck (e.g. flooding while in the trench!),
+  // Pip drowns and the entire puzzle resets!
   if (
     liquidKindAt(room, s, s.pip.x, s.pip.y) === 'deep' &&
     !hasFloatingDeckAt(room, s, s.pip.x, s.pip.y)
   ) {
-    const safeFlooded =
-      liquidKindAt(room, s, s.pip.safeX, s.pip.safeY) === 'deep' &&
-      !hasFloatingDeckAt(room, s, s.pip.safeX, s.pip.safeY);
-    if (safeFlooded) {
-      s.pip.safeX = room.entry[0];
-      s.pip.safeY = room.entry[1];
-    }
-    s.pip.x = s.pip.safeX;
-    s.pip.y = s.pip.safeY;
-    s.pip.vx = 0;
-    s.pip.vy = 0;
-    s.events.push('pip-water-reset');
+    const fresh = createLabState(room);
+    Object.assign(s, fresh);
+    s.events.push('pip-drown-reset');
   }
 }
 
@@ -883,13 +878,15 @@ function slidePropIfOnFrost(room: LabRoomSpec, s: LabState, prop: PropState, dir
   const maxSteps = Math.max(room.width, room.height);
   for (let step = 0; step < maxSteps; step++) {
     const key = cellKey(prop.x, prop.y);
+    const tHere = effectiveTileAt(room, s, prop.x, prop.y);
     const slickHere =
       s.frostCells.has(key) ||
+      tHere === 'g' ||
       (prop.frosted && liquidKindAt(room, s, prop.x, prop.y) === 'shallow');
     if (!slickHere) break;
     const nx = prop.x + dx;
     const ny = prop.y + dy;
-    if (!canPropEnterCell(room, s, prop, nx, ny)) break;
+    if (!canPropEnterCell(room, s, prop, nx, ny, true)) break;
     prop.x = nx;
     prop.y = ny;
     settleBuoyancy(room, s);
@@ -1003,8 +1000,10 @@ function triggerSpringForPip(room: LabRoomSpec, s: LabState, dir: Dir): void {
     if (!canPipStandAt(room, s, tx, ty, undefined, undefined, false)) continue;
     s.pip.x = tx;
     s.pip.y = ty;
-    s.pip.safeX = tx;
-    s.pip.safeY = ty;
+    if (!s.lastLaserRays.some((r) => r.x === tx && r.y === ty && r.level === dstL)) {
+      s.pip.safeX = tx;
+      s.pip.safeY = ty;
+    }
     s.events.push('spring-vault');
     return;
   }
@@ -1026,6 +1025,7 @@ function triggerSpringForProp(room: LabRoomSpec, s: LabState, prop: PropState, d
     prop.x = tx;
     prop.y = ty;
     settleBuoyancy(room, s);
+    slidePropIfOnFrost(room, s, prop, dir);
     s.events.push('prop-spring-vault');
     return;
   }
@@ -1229,19 +1229,11 @@ function detonateBomb(room: LabRoomSpec, s: LabState, bomb: BombState): void {
   }
 
   if (kind === 'rock') {
-    const [dx, dy] = DIR_DELTA[s.pip.dir];
-    const checkCells: Array<[number, number]> = [
-      [cx, cy],
-      [cx + dx, cy + dy],
-    ];
-    for (const [tx, ty] of checkCells) {
-      if (tx < 0 || ty < 0 || tx >= room.width || ty >= room.height) continue;
-      const t = effectiveTileAt(room, s, tx, ty);
-      if (t === '^' || t === '!' || liquidKindAt(room, s, tx, ty) === 'shallow') {
-        s.filledCells.add(cellKey(tx, ty));
-        s.events.push('rock-fill');
-        return;
-      }
+    const t = effectiveTileAt(room, s, cx, cy);
+    if (t === '^' || t === '!') {
+      s.filledCells.add(cellKey(cx, cy));
+      s.events.push('rock-fill');
+      return;
     }
     s.rockCell = [cx, cy];
     s.events.push('rock-spawn');
@@ -1635,9 +1627,14 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
           s.events.push('bomb-doused');
           break;
         }
-        // Solid walls, Bomb Grates ('g' blocks high throws!), and frozen veils stop throws in front
+        // Solid walls, Bomb Grates ('g' blocks high throws!), higher-elevation cliffs, and frozen veils stop throws in front
         const nt = effectiveTileAt(room, s, nx, ny);
-        if (isOpaqueSolidTile(room, s, nx, ny) || nt === 'g') {
+        const dstLevel = labLevelAt(room, s, nx, ny);
+        if (
+          isOpaqueSolidTile(room, s, nx, ny) ||
+          nt === 'g' ||
+          (dstLevel !== null && dstLevel > bLevel)
+        ) {
           b.airborneSteps = 0;
           b.vx = 0;
           b.vy = 0;
@@ -1738,7 +1735,7 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
             b.vx = spx;
             b.vy = spy;
             b.airborneSteps = 2;
-            b.launchLevel = entityLevelAt(room, s, b.x, b.y);
+            b.launchLevel = Math.min(2, entityLevelAt(room, s, b.x, b.y) + 1) as 0 | 1 | 2;
             s.events.push('bomb-spring-vault');
             break;
           }
@@ -1850,6 +1847,14 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
       s.pip.y = s.pip.safeY;
       s.events.push('pip-spike-reset');
     }
+  }
+  const endPipL = entityLevelAt(room, s, s.pip.x, s.pip.y);
+  if (
+    effectiveTileAt(room, s, s.pip.x, s.pip.y) !== '!' &&
+    !s.lastLaserRays.some((r) => r.x === s.pip.x && r.y === s.pip.y && r.level === endPipL)
+  ) {
+    s.pip.safeX = s.pip.x;
+    s.pip.safeY = s.pip.y;
   }
   recomputeSwitchesAndGates(room, s);
   checkSolveCondition(room, s);
@@ -2165,8 +2170,6 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
         if (canPipStandAt(room, s, nx, ny, s.pip.x, s.pip.y, false)) {
           s.pip.x = nx;
           s.pip.y = ny;
-          s.pip.safeX = nx;
-          s.pip.safeY = ny;
           stepMimics(room, s, action.dir);
         }
         collectedEvents.push('prop-push', ...stepLabTick(room, s));
@@ -2182,8 +2185,6 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
       if (hop) {
         s.pip.x = hop.x;
         s.pip.y = hop.y;
-        s.pip.safeX = hop.x;
-        s.pip.safeY = hop.y;
         stepMimics(room, s, action.dir);
         collectedEvents.push('pip-hop', ...stepLabTick(room, s));
         return { ok: true, ticksElapsed: 1, events: collectedEvents };
@@ -2193,8 +2194,6 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
 
     s.pip.x = nx;
     s.pip.y = ny;
-    s.pip.safeX = nx;
-    s.pip.safeY = ny;
     if (isVeilActiveAt(room, s, nx, ny) && s.pip.heldBomb !== null) {
       s.pip.heldBomb = null;
       collectedEvents.push('held-bomb-doused');
@@ -2232,8 +2231,14 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
       s.pip.dir = stepDir;
       s.pip.x += dx;
       s.pip.y += dy;
-      s.pip.safeX = s.pip.x;
-      s.pip.safeY = s.pip.y;
+      const stepL = entityLevelAt(room, s, s.pip.x, s.pip.y);
+      if (
+        effectiveTileAt(room, s, s.pip.x, s.pip.y) !== '!' &&
+        !s.lastLaserRays.some((r) => r.x === s.pip.x && r.y === s.pip.y && r.level === stepL)
+      ) {
+        s.pip.safeX = s.pip.x;
+        s.pip.safeY = s.pip.y;
+      }
       if (isVeilActiveAt(room, s, s.pip.x, s.pip.y) && s.pip.heldBomb !== null) {
         s.pip.heldBomb = null;
         collectedEvents.push('held-bomb-doused');
@@ -2246,7 +2251,13 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
         collectedEvents.push(...stepLabTick(room, s));
         break;
       }
-      if ((i + 1) % 3 === 0 || i === path.length - 1) {
+      const timerActive =
+        s.bombs.length > 0 ||
+        s.burningCells.size > 0 ||
+        s.props.some((p) => p.burnTicks > 0) ||
+        s.pip.icedTicks > 0 ||
+        s.vortices.length > 0;
+      if (timerActive || (i + 1) % 3 === 0 || i === path.length - 1) {
         ticks++;
         collectedEvents.push(...stepLabTick(room, s));
         if (s.roomSolved) break;
@@ -2279,8 +2290,6 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
     ) {
       s.pip.x = landX;
       s.pip.y = landY;
-      s.pip.safeX = landX;
-      s.pip.safeY = landY;
       collectedEvents.push('pip-roll', ...stepLabTick(room, s));
       return { ok: true, ticksElapsed: 1, events: collectedEvents };
     }

@@ -328,6 +328,7 @@ function buildP19SnatchFromRay(): CuratedPuzzleEntry {
   const c = new BigRoomCanvas();
   const rowY = 12;
   c.carveRect(7, rowY - 2, 13, rowY + 2, '.');
+  c.set(9, rowY, 'Q');
   c.set(9, rowY - 1, '#');
   c.set(9, rowY + 1, '#');
   c.set(10, rowY, '!');

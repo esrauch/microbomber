@@ -129,6 +129,9 @@ function isLiveTimingCandidate(
   targetX: number,
   targetY: number,
 ): boolean {
+  if (bomb === 'rock') {
+    return false;
+  }
   if (bomb === 'squeak') {
     return (
       (room.maxActiveBombs ?? 2) > 1 ||
@@ -451,7 +454,8 @@ function generateMacroSuccessors(
     const raw = rawTileAt(room, s, rx, ry);
     const isGoal =
       raw === 'O' ||
-      Boolean(room.switches?.some((sw) => sw.x === rx && sw.y === ry && sw.kind === 'O'));
+      raw === 'Q' ||
+      Boolean(room.switches?.some((sw) => sw.x === rx && sw.y === ry));
     if (isGoal && (rx !== s.pip.x || ry !== s.pip.y)) {
       trySeq(`walk to O (${rx},${ry})`, [{ kind: 'moveTo', x: rx, y: ry }]);
     }
@@ -647,13 +651,8 @@ function generateMacroSuccessors(
             ) {
               if (bomb === 'rock') {
                 const t0 = effectiveTileAt(room, s, targetX, targetY);
-                const l0 = liquidKindAt(room, s, targetX, targetY);
-                const t1 = effectiveTileAt(room, s, targetX + dx, targetY + dy);
-                const l1 = liquidKindAt(room, s, targetX + dx, targetY + dy);
-                if (t0 === '^' || t0 === '!' || l0 === 'shallow') {
+                if (t0 === '^' || t0 === '!') {
                   dedupeKey = `rock-fill@${targetX},${targetY}`;
-                } else if (t1 === '^' || t1 === '!' || l1 === 'shallow') {
-                  dedupeKey = `rock-fill@${targetX + dx},${targetY + dy}`;
                 } else {
                   dedupeKey = `rock-spawn@${targetX},${targetY}`;
                 }
@@ -696,14 +695,16 @@ function heuristicPriority(room: LabRoomSpec, s: LabState, depth: number): numbe
   }
   const { oPlates, qSwitches } = getRoomSwitchCells(room, s);
   const unheldPlates: Array<readonly [number, number]> = [];
+  const isHeldByNonPip = (bx: number, by: number): boolean =>
+    isSwitchHeldAt(room, s, bx, by, false) && !(s.pip.x === bx && s.pip.y === by);
   for (const [ox, oy] of oPlates) {
-    if (!isSwitchHeldAt(room, s, ox, oy, false)) {
+    if (!isHeldByNonPip(ox, oy)) {
       h += 18;
       unheldPlates.push([ox, oy]);
     }
   }
   for (const [qx, qy] of qSwitches) {
-    if (!isSwitchHeldAt(room, s, qx, qy, false)) {
+    if (!isHeldByNonPip(qx, qy)) {
       h += 18;
       unheldPlates.push([qx, qy]);
     }

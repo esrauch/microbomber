@@ -64,7 +64,6 @@ export default defineConfig({
         '**/.git/**',
         '**/inspiration/**',
         '**/tests/**',
-        '**/tools/**',
         '**/dist/**',
         '**/.claude/**',
         '**/.github/**',

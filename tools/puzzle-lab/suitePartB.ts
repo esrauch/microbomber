@@ -239,12 +239,18 @@ function buildP28DouseTheBranch(): CuratedPuzzleEntry {
 function buildP29ElevatorOnTide(): CuratedPuzzleEntry {
   const c = new BigRoomCanvas();
   c.enableLevels('1');
-  // North basin `(9..10, 11..12)` has `#` wall South of `(10, 12)` so ONLY Magnet thrown onto Raft `(10, 11)`
-  // can pull Metal `(10, 12)` North onto the Raft! South crate canal `(9..10, 14)` bridges West -> East when High.
-  c.carveRect(6, 11, 12, 14, '.');
-  c.setLevelRect(9, 11, 10, 14, '0');
-  c.carveRect(9, 11, 10, 12, ';');
-  c.carveRect(9, 13, 10, 13, '#');
+  // North `level 1` balcony `(7..10, 9)` with `'='` fence at `(10, 10)` lets Pip throw Magnet South down
+  // onto Raft `(10, 11)` (`level 0`), pulling Metal `(10, 12)` aboard before bombing Sluice `W` `(6, 12)`.
+  // `#` walls at `(9, 10..13)` seal the west side of the elevator shaft so Metal can ONLY be pulled East
+  // onto `O1` `(11, 11)` by crossing the south crate bridge `c1, c2` `(9..10, 14)` to the East bank!
+  c.carveRect(6, 9, 10, 14, '.');
+  c.carveRect(11, 11, 12, 14, '.');
+  c.carveRect(9, 10, 9, 13, '#');
+  c.set(10, 10, '=');
+  c.setLevelRect(10, 11, 10, 12, '0');
+  c.carveRect(10, 11, 10, 12, ';');
+  c.set(10, 13, '#');
+  c.setLevelRect(9, 14, 10, 14, '0');
   c.carveRect(9, 14, 10, 14, ';');
   c.set(6, 12, 'W');
   c.set(11, 11, 'O');
@@ -431,36 +437,34 @@ function buildP33MirrorMerryGoRound(): CuratedPuzzleEntry {
 
 function buildP34VaultTheBeam(): CuratedPuzzleEntry {
   const c = new BigRoomCanvas();
-  // Push the bare Wooden Crate onto Spring 1 `(10, 11)` so it vaults over Laser `L1` `(y=12)` onto `(10, 13)`,
-  // vault after it on Spring 2 `(11, 11)`, blast `%` `(12, 13)` to unlock `O2` `(12, 14)`, and push Crate onto `O1` `(10, 14)`!
+  // ONE single Spring Pad `'J'` at `(10, 11)` must vault BOTH the crate and Pip over Laser `L1` (`y=12`)!
+  // If you vault the bare crate, it stops on the landing pad `(10, 13)` `;`—blocking Pip from vaulting after it!
+  // Frost-coat the crate with `Ice` BEFORE pushing it onto `'J'` `(10, 11)`: when it lands on `(10, 13)` `;`,
+  // it immediately hydroplanes South onto `O1` `(10, 14)`, clearing `(10, 13)` so Pip can vault after it onto `O2` `(11, 13)`!
   c.carveRect(9, 9, 11, 10, '.');
   c.set(10, 11, 'J');
-  c.set(11, 11, 'J');
   c.carveRect(7, 12, 14, 12, '.');
-  c.set(10, 13, '.');
-  c.set(10, 14, 'O');
-  c.set(11, 13, '.');
-  c.set(12, 13, '%');
-  c.set(12, 14, 'O');
+  c.set(10, 12, '^');
+  c.set(10, 13, ';');
+  c.set(10, 14, ';');
+  c.set(11, 13, 'O');
 
   return {
     code: 'P34',
     designNote:
-      'No Ice or Rock! Push the bare Wooden Crate onto Spring 1 so it arcs over Laser L1 unburned, vault after it on Spring 2, blast % to unseal O2, and weight both O plates.',
+      'Only ONE Spring Pad crosses Laser L1—if you vault a bare crate, it stops on the landing tile (10,13) and blocks you from jumping after it! Frost-coat the crate with Ice first so it lands on (10,13) ; and immediately hydroplanes onto O1 (10,14), clearing the landing pad for Pip!',
     room: {
       id: 'p34',
       name: 'P34 Vault the Beam',
       width: LAB_BIG_W,
       height: LAB_BIG_H,
-      kit: ['bomb'],
+      kit: ['ice'],
       entry: [10, 9],
       condition: 'buttons-and-sensors',
       rows: c.rows(),
+      switches: [{ x: 10, y: 14, kind: 'O' }],
       props: [{ id: 'crate', kind: 'crate', x: 10, y: 10 }],
-      springs: [
-        { x: 10, y: 11, dir: 'S' },
-        { x: 11, y: 11, dir: 'S' },
-      ],
+      springs: [{ x: 10, y: 11, dir: 'S' }],
       lasers: [{ id: 'L1', x: 7, y: 12, dir: 'E', level: 0 }],
       sensors: [{ id: 'S1', x: 14, y: 12, level: 0 }],
     },
@@ -592,14 +596,16 @@ function buildP37ThreeJobsForPine(): CuratedPuzzleEntry {
   //        - Step 2: Walk to `(10, 11)`? Even better: `,` is at `(11, 11)` -> `b1` at `(12, 11)`, and Pip stands at `(11, 11)` AFTER `,` burns to `.` (`1` tick!), pushing `W` South onto `;` `(11, 13)` (`O1`)!
   const c2 = new BigRoomCanvas();
   c2.carveRect(7, 10, 13, 14, '.');
-  c2.set(11, 11, ',');
-  c2.set(11, 13, ';');
-  c2.set(8, 14, 'O');
+  c2.set(10, 11, ',');
+  c2.set(10, 13, ';');
+  c2.set(10, 14, '#');
+  c2.set(12, 10, 'G');
+  c2.set(8, 11, 'Q');
 
   return {
     code: 'P37',
     designNote:
-      'Fire Bomb withheld! One Wooden Crate: (1) eclipses Inverter S1, (2) ignites in the ray to light the grass fuse to the brazier, and (3) is pushed South into shallow water O1 before turning to ash!',
+      'Fire Bomb withheld! One Wooden Crate does 3 jobs: (1) push it right into (10,12) under the grass fuse (10,11) so it ignites the fuse to Brazier b1 (11,11), (2) walk up and right as the grass burns clear, then push the burning crate down into shallow water Q1 (10,13) to douse-save it and unblock S1, and (3) walk left to Q2 (8,11) so both Q plates open Gate G for L2 -> S2!',
     room: {
       id: 'p37',
       name: 'P37 Three Jobs for Pine',
@@ -609,16 +615,17 @@ function buildP37ThreeJobsForPine(): CuratedPuzzleEntry {
       entry: [8, 12],
       condition: 'torches-and-sensors',
       rows: c2.rows(),
-      // Require crate to hold `Q` `(11, 13)` so `G` `(12, 10)` opens a second Laser `L2` -> `S2`, proving crate survived!
-      switches: [{ x: 11, y: 13, kind: 'Q' }],
+      // Both `Q1` `(10, 13)` (held by the douse-saved crate!) and `Q2` `(8, 11)` (held by Pip!)
+      // must be held simultaneously to open Gate `G` `(12, 10)` for `L2 -> S2`, while `S1` is a normal sensor!
+      switches: [{ x: 10, y: 13, kind: 'Q' }],
       props: [{ id: 'crate', kind: 'crate', x: 9, y: 12 }],
-      braziers: [{ id: 'b1', x: 12, y: 11 }],
+      braziers: [{ id: 'b1', x: 11, y: 11 }],
       lasers: [
-        { id: 'L1', x: 7, y: 12, dir: 'E', level: 0 },
+        { id: 'L1', x: 13, y: 12, dir: 'W', level: 0 },
         { id: 'L2', x: 7, y: 10, dir: 'E', level: 0 },
       ],
       sensors: [
-        { id: 'S1', x: 13, y: 12, level: 0, inverted: true, latch: true },
+        { id: 'S1', x: 7, y: 12, level: 0 },
         { id: 'S2', x: 13, y: 10, level: 0 },
       ],
     },
@@ -799,8 +806,12 @@ function buildP42GrandClockwork(): CuratedPuzzleEntry {
 
   c.carveRect(10, 10, 12, 10, ';');
   c.set(11, 11, ';');
-  c.set(11, 12, ';');
+  // Grate `'g'` in the `'='` fence row `y=12` blocks Pip and non-sliding walk-pushes, while
+  // allowing a frost-sliding crate (`Ice Bomb`) to skim across onto `;` `O1` `(11, 13)`!
+  c.set(11, 12, 'g');
   c.set(11, 13, ';');
+  c.set(10, 14, '#');
+  c.set(12, 14, '#');
   c.set(9, 13, 'O');
 
   return {
