@@ -266,6 +266,12 @@ export type SolveCondition =
 
 export type PillarTrigger = 'switches' | 'red' | 'blue';
 
+export interface PillarSpec {
+  x: number;
+  y: number;
+  trigger: PillarTrigger;
+}
+
 export interface LabRoomSpec {
   id: string;
   name: string;
@@ -280,6 +286,7 @@ export interface LabRoomSpec {
   initialCrystal?: 'red' | 'blue';
   initialPolarity?: 'north' | 'south';
   pillars?: PillarTrigger;
+  pillarSpecs?: readonly PillarSpec[];
   sluice?: SluiceSpec;
   props?: readonly PropSpec[];
   braziers?: readonly BrazierSpec[];

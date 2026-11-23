@@ -6,7 +6,13 @@
  * Critic-certified in milliseconds before any 60 Hz backport.
  */
 import { type RoomEvaluationReport } from './critic';
-import { labLedgeDrops, labLevelAt, liquidKindAt } from './elevation';
+import {
+  isLabPillarTile,
+  isLabPillarUpAt,
+  labLedgeDrops,
+  labLevelAt,
+  liquidKindAt,
+} from './elevation';
 import { composeEntangledRooms } from './generate';
 import { applyLabAction, cloneLabState, createLabState, effectiveTileAt } from './sim';
 import { type CuratedPuzzleEntry, certifySuiteEntry, getCuratedPuzzleSuite } from './suite';
@@ -95,8 +101,51 @@ function renderBoardSvg(room: LabRoomSpec, s: LabState): string {
 
       const drops = labLedgeDrops(room, s, x, y);
       if (drops) {
+        if (drops.s || drops.lower) {
+          parts.push(
+            `<rect x="${px + 1}" y="${py + CELL - 3}" width="${CELL - 2}" height="2.5" fill="#0d1117" opacity="0.92"/>`,
+          );
+        }
+        if (drops.n) {
+          parts.push(
+            `<rect x="${px + 1}" y="${py + 0.5}" width="${CELL - 2}" height="2.5" fill="#0d1117" opacity="0.92"/>`,
+          );
+        }
+        if (drops.e) {
+          parts.push(
+            `<rect x="${px + CELL - 3}" y="${py + 1}" width="2.5" height="${CELL - 2}" fill="#0d1117" opacity="0.92"/>`,
+          );
+        }
+        if (drops.w) {
+          parts.push(
+            `<rect x="${px + 0.5}" y="${py + 1}" width="2.5" height="${CELL - 2}" fill="#0d1117" opacity="0.92"/>`,
+          );
+        }
+      }
+
+      if (t !== '#') {
+        const cellLvl = labLevelAt(room, s, x, y) ?? 0;
+        if (cellLvl > 0) {
+          parts.push(
+            `<text x="${px + 3.5}" y="${py + 6.5}" font-size="6.5" font-weight="700" fill="#8b949e">${cellLvl}</text>`,
+          );
+        }
+      }
+
+      if (t === 't') {
         parts.push(
-          `<rect x="${px + 1}" y="${py + CELL - 4}" width="${CELL - 2}" height="3" fill="#11161d" opacity="0.85"/>`,
+          `<line x1="${px + 3}" y1="${py + 6}" x2="${px + CELL - 3}" y2="${py + 6}" stroke="#6e7681" stroke-width="1.2" stroke-dasharray="2 2"/>`,
+          `<line x1="${px + 3}" y1="${py + CELL - 6}" x2="${px + CELL - 3}" y2="${py + CELL - 6}" stroke="#6e7681" stroke-width="1.2" stroke-dasharray="2 2"/>`,
+        );
+      }
+
+      if (isLabPillarTile(room, x, y)) {
+        const up = isLabPillarUpAt(room, s, x, y);
+        const pSpec = room.pillarSpecs?.find((p) => p.x === x && p.y === y);
+        const trig = pSpec?.trigger ?? room.pillars ?? 'switches';
+        const pStroke = trig === 'red' ? '#ff7b72' : trig === 'blue' ? '#58a6ff' : '#ffa657';
+        parts.push(
+          `<rect x="${px + 1.5}" y="${py + 1.5}" width="${CELL - 3}" height="${CELL - 3}" rx="2" fill="none" stroke="${pStroke}" stroke-width="${up ? 1.8 : 1}" stroke-dasharray="${up ? '' : '2 2'}"/>`,
         );
       }
 
@@ -114,13 +163,17 @@ function renderBoardSvg(room: LabRoomSpec, s: LabState): string {
                   ? 'N'
                   : t === 'G' || t === 'R' || t === 'U' || t === 'X'
                     ? t
-                    : t === 'g' || t === 'm' || t === 't' || t === '|' || t === 'J' || t === 'L'
-                      ? t
-                      : t === 'n' || t === 's' || t === 'e' || t === 'w'
+                    : t === 'L'
+                      ? isLabPillarUpAt(room, s, x, y)
+                        ? 'L↑'
+                        : 'L↓'
+                      : t === 'g' || t === 'm' || t === 't' || t === '|' || t === 'J'
                         ? t
-                        : t === '!'
-                          ? '▲'
-                          : '';
+                        : t === 'n' || t === 's' || t === 'e' || t === 'w'
+                          ? t
+                          : t === '!'
+                            ? '▲'
+                            : '';
       if (glyph) {
         const gColor =
           glyph === 'O'

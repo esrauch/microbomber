@@ -329,6 +329,9 @@ function isRelevantBombTarget(
   if (bomb === 'squeak' || bomb === 'ice' || bomb === 'magnet' || bomb === 'bomb') {
     if (s.creatures.some((c) => Math.abs(c.x - tx) + Math.abs(c.y - ty) <= 4)) return true;
   }
+  if (bomb !== 'squeak') {
+    if (s.creatures.some((c) => c.kind === 'cart' && c.x === tx && c.y === ty)) return true;
+  }
   if (bomb === 'rock') {
     if (s.lastLaserRays.some((r) => r.x === tx && r.y === ty)) return true;
     if (s.creatures.some((c) => Math.abs(c.x - tx) + Math.abs(c.y - ty) <= 2)) return true;
@@ -695,16 +698,14 @@ function heuristicPriority(room: LabRoomSpec, s: LabState, depth: number): numbe
   }
   const { oPlates, qSwitches } = getRoomSwitchCells(room, s);
   const unheldPlates: Array<readonly [number, number]> = [];
-  const isHeldByNonPip = (bx: number, by: number): boolean =>
-    isSwitchHeldAt(room, s, bx, by, false) && !(s.pip.x === bx && s.pip.y === by);
   for (const [ox, oy] of oPlates) {
-    if (!isHeldByNonPip(ox, oy)) {
+    if (!isSwitchHeldAt(room, s, ox, oy, false)) {
       h += 18;
       unheldPlates.push([ox, oy]);
     }
   }
   for (const [qx, qy] of qSwitches) {
-    if (!isHeldByNonPip(qx, qy)) {
+    if (!isSwitchHeldAt(room, s, qx, qy, false)) {
       h += 18;
       unheldPlates.push([qx, qy]);
     }

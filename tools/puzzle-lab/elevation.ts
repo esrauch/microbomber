@@ -93,6 +93,17 @@ export function isLabPillarTile(room: LabRoomSpec, x: number, y: number): boolea
   return room.rows[y]?.[x] === 'L';
 }
 
+export function isLabPillarUpAt(room: LabRoomSpec, s: LabState, x: number, y: number): boolean {
+  if (!isLabPillarTile(room, x, y)) return false;
+  const spec = room.pillarSpecs?.find((p) => p.x === x && p.y === y);
+  const mode = spec?.trigger ?? room.pillars ?? 'switches';
+  return mode === 'switches'
+    ? s.gatesOpen
+    : mode === 'red'
+      ? s.crystalColor === 'red'
+      : s.crystalColor === 'blue';
+}
+
 export function hasFloatingDeckAt(room: LabRoomSpec, s: LabState, x: number, y: number): boolean {
   if (liquidKindAt(room, s, x, y) !== 'deep') return false;
   if (s.frozenWater.has(`${x},${y}`)) return true;
@@ -109,7 +120,7 @@ export function labLevelAt(room: LabRoomSpec, s: LabState, x: number, y: number)
   if (x < 0 || y < 0 || x >= room.width || y >= room.height) return null;
   if (rawTileAt(room, s, x, y) === '#') return null;
   const base = Math.max(0, Math.min(2, Number(room.levels?.[y]?.[x] ?? '0') || 0));
-  if (isLabPillarTile(room, x, y) && s.pillarsUp) {
+  if (isLabPillarTile(room, x, y) && isLabPillarUpAt(room, s, x, y)) {
     return Math.min(2, base + 1) as 0 | 1 | 2;
   }
   if (s.waterLevel === 1 && inSluiceBasin(room, x, y) && liquidKindAt(room, s, x, y) === 'deep') {
@@ -132,6 +143,7 @@ export function labLedgeDrops(
   const lowerThan = (dx: number, dy: number): boolean => {
     const nx = x + dx;
     const ny = y + dy;
+    if (isLabRampTile(room, s, nx, ny)) return false;
     if (isLabPillarTile(room, nx, ny) && !(dx === 0 && dy === 1)) return false;
     const l = labLevelAt(room, s, nx, ny);
     return l !== null && l < h;
@@ -141,15 +153,24 @@ export function labLedgeDrops(
   const e = lowerThan(1, 0);
   const so = lowerThan(0, 1);
   const w = lowerThan(-1, 0);
+  const diagLowerThan = (dx: number, dy: number): boolean => {
+    if (rawTileAt(room, s, x + dx, y) === '#' || rawTileAt(room, s, x, y + dy) === '#') {
+      return false;
+    }
+    if (isLabPillarTile(room, x + dx, y) || isLabPillarTile(room, x, y + dy)) {
+      return false;
+    }
+    return lowerThan(dx, dy);
+  };
   const drops: LabLedgeDrops = {
     n,
     e,
     s: so,
     w,
-    ne: !n && !e && lowerThan(1, -1),
-    nw: !n && !w && lowerThan(-1, -1),
-    se: !so && !e && lowerThan(1, 1),
-    sw: !so && !w && lowerThan(-1, 1),
+    ne: !n && !e && diagLowerThan(1, -1),
+    nw: !n && !w && diagLowerThan(-1, -1),
+    se: !so && !e && diagLowerThan(1, 1),
+    sw: !so && !w && diagLowerThan(-1, 1),
     lower: false,
   };
   if (n || e || so || w || drops.ne || drops.nw || drops.se || drops.sw) return drops;

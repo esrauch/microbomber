@@ -9,15 +9,16 @@ import { type EvaluateOptions, type RoomEvaluationReport, evaluateRoomQuality } 
 import type { SolveBudget } from './solver';
 import { type CuratedPuzzleEntry, buildSuitePartA } from './suitePartA';
 import { buildSuitePartB } from './suitePartB';
+import { buildSuitePartC } from './suitePartC';
 
 export type { CuratedPuzzleEntry } from './suitePartA';
 
 let cachedSuite: readonly CuratedPuzzleEntry[] | null = null;
 
-/** Returns all 42 curated `22 x 26` puzzle rooms (`P01` through `P42`). */
+/** Returns all 50 curated `22 x 26` puzzle rooms (`P01` through `P50`). */
 export function getCuratedPuzzleSuite(): readonly CuratedPuzzleEntry[] {
   if (!cachedSuite) {
-    cachedSuite = [...buildSuitePartA(), ...buildSuitePartB()];
+    cachedSuite = [...buildSuitePartA(), ...buildSuitePartB(), ...buildSuitePartC()];
   }
   return cachedSuite;
 }

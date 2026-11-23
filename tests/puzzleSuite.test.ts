@@ -9,11 +9,11 @@ import {
   validateBackportInvariants,
 } from '../tools/puzzle-lab';
 
-describe('Phase 4: Curated 42-Room 22x26 Abstracted Puzzle Suite (P01-P42)', () => {
+describe('Phase 4: Curated 50-Room 22x26 Abstracted Puzzle Suite (P01-P50)', () => {
   const suite = getCuratedPuzzleSuite();
 
-  it('contains all 42 distinct 22x26 rooms (P01-P42) obeying 60 Hz backport invariants', () => {
-    expect(suite.length).toBe(42);
+  it('contains all 50 distinct 22x26 rooms (P01-P50) obeying 60 Hz backport invariants', () => {
+    expect(suite.length).toBe(50);
     const seenCodes = new Set<string>();
     const seenIds = new Set<string>();
 
@@ -36,7 +36,7 @@ describe('Phase 4: Curated 42-Room 22x26 Abstracted Puzzle Suite (P01-P42)', () 
     });
   });
 
-  it('autonomously solves and replay-verifies all 42 rooms (P01-P42)', () => {
+  it('autonomously solves and replay-verifies all 50 rooms (P01-P50)', () => {
     for (const entry of suite) {
       // State budget is the real limit; the wall-clock cap is generous so CPU contention from
       // parallel test files can't flake the densest rooms (P04/P09/P42).
@@ -73,6 +73,14 @@ describe('Phase 4: Curated 42-Room 22x26 Abstracted Puzzle Suite (P01-P42)', () 
       'P39', // Calm-Lee Flame (Rock windbreak in Fan lane)
       'P40', // Polarized Prism (Magnet Polarity Switch + 1x1 Mirror + Repel)
       'P41', // Cryo Relay (Parallel Mimic + Self-Cryo Fan slide)
+      'P43', // Counter-Phase Escalator (0->1->2 counter-phase pillars + Crate transfer)
+      'P44', // Periscope Prism (Pillar-lifted Mirror into level-1 Laser + timed Q pillar bridge)
+      'P45', // Three-Tier Cascade (2->1->0 ledge hops + counter-phase pillar return)
+      'P46', // Twin-Column Eclipse (Two pillars controlling two crossing Lasers)
+      'P47', // Roundhouse Switch (Mine Cart + 3x3 Turntable track rotation)
+      'P48', // Shut the Sluice, Dry the Rail (Waterfall across Cart Track + Sluice drain)
+      'P49', // Cryo Freight (Mine Cart carrying Ice Bomb to clear Laser & freeze canal)
+      'P50', // Magnetic Flatbed (Gate-controlled Cart Track + Mine Cart carrying Magnet Bomb)
     ];
 
     for (const code of spotlights) {

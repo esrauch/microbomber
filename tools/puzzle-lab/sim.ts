@@ -7,6 +7,7 @@
 import {
   hasFloatingDeckAt,
   isLabPillarTile,
+  isLabPillarUpAt,
   isLabRampTile,
   labHopLanding,
   labLedgeDrops,
@@ -565,7 +566,13 @@ export function isSwitchHeldAt(
   if (s.pip.x === bx && s.pip.y === by && !pipFloating) return true;
 
   for (const p of s.props) {
-    if (p.x === bx && p.y === by && p.kind !== 'raft' && !isFloatingOffFloor(room, s, p)) {
+    if (
+      p.x === bx &&
+      p.y === by &&
+      p.kind !== 'raft' &&
+      !isFloatingOffFloor(room, s, p) &&
+      (allowBombs || p.burnTicks === 0)
+    ) {
       return true;
     }
   }
@@ -1100,9 +1107,22 @@ function updateLasers(room: LabRoomSpec, s: LabState): void {
       const floorL = labLevelAt(room, s, cx, cy);
       if (floorL === null) break;
 
-      // Higher terrain or a risen pillar reaching laser.level blocks the beam
+      // Higher terrain or a risen pillar reaching laser.level blocks the beam (unless a Mirror/Crate sits on top of the risen pillar at laser.level!)
       if (floorL > laser.level) break;
-      if (isLabPillarTile(room, cx, cy) && s.pillarsUp && floorL >= laser.level) break;
+      if (
+        isLabPillarTile(room, cx, cy) &&
+        isLabPillarUpAt(room, s, cx, cy) &&
+        floorL >= laser.level
+      ) {
+        const topCargo = cargoPropAt(s, cx, cy);
+        if (
+          floorL > laser.level ||
+          !topCargo ||
+          (topCargo.kind !== 'mirror' && topCargo.kind !== 'crate')
+        ) {
+          break;
+        }
+      }
 
       if (floorL === laser.level) {
         // Indoor Ice Block 'B' melts and stops the beam this tick
@@ -1145,7 +1165,7 @@ function updateLasers(room: LabRoomSpec, s: LabState): void {
             s.events.push('creature-thaw');
             break;
           }
-          if (creat.kind === 'tortoise') break;
+          if (creat.kind === 'tortoise' || creat.kind === 'cart') break;
         }
 
         // Pip at laser.level: Ice-Pip eclipses the beam for 1 tick while thawing unharmed!
@@ -1972,7 +1992,19 @@ function canCreatureStep(
   if (isOpaqueSolidTile(room, s, nx, ny)) return false;
   const t = effectiveTileAt(room, s, nx, ny);
   if (c.kind === 'cart') {
-    if (t !== 't' && t !== '|' && t !== 'g' && !(t === 'G' && s.gatesOpen)) return false;
+    const raw = rawTileAt(room, s, nx, ny);
+    const onTrackTile =
+      t === 't' ||
+      t === '|' ||
+      raw === '|' ||
+      t === 'g' ||
+      (raw === 'G' && s.gatesOpen) ||
+      (raw === 'R' && s.crystalColor !== 'red') ||
+      (raw === 'U' && s.crystalColor !== 'blue');
+    if (!onTrackTile) return false;
+    if (room.levels && labLevelAt(room, s, nx, ny) !== labLevelAt(room, s, c.x, c.y)) {
+      return false;
+    }
     if (s.pip.x === nx && s.pip.y === ny) return false;
     if (cargoPropAt(s, nx, ny)) return false;
     if (s.creatures.some((other) => other.id !== c.id && other.x === nx && other.y === ny)) {
@@ -2231,6 +2263,7 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
       s.pip.dir = stepDir;
       s.pip.x += dx;
       s.pip.y += dy;
+      recomputeSwitchesAndGates(room, s);
       const stepL = entityLevelAt(room, s, s.pip.x, s.pip.y);
       if (
         effectiveTileAt(room, s, s.pip.x, s.pip.y) !== '!' &&

@@ -407,14 +407,14 @@ function buildP21PrismBackhand(): CuratedPuzzleEntry {
   // `(11, 11)` `~` directly under Laser `L1` `(6, 11) -> S1(14, 11)` is the ONLY gap through the `x=11` wall!
   // Any ice frozen at `(11, 11)` while `L1` is active melts immediately on the same tick.
   // 1. Push Mirror `m1` (`NE`) North into `(8, 11)` so its fireproof rear face blocks `L1`.
-  // 2. Freeze `(11, 11)` `~` with `Ice`, push Mirror `m2` East across `(11, 11)` to `(12, 11)` and South onto `O1` `(12, 12)`.
-  // 3. Walk back across `(11, 11)` and push `m1` South out of the beam onto `O2` `(8, 13)` (letting `L1` melt `(11, 11)` and power `S1`) while Pip steps onto `O3` `(7, 13)`!
+  // 2. Freeze `(11, 11)` `~` with `Ice`, push Mirror `m2` East across `(11, 11)` to `(12, 11)` and North onto `O1` `(12, 10)`.
+  // 3. Walk back across `(11, 11)` to `(8, 12)` and push `m1` North out of the beam onto `O2` `(8, 10)` (letting `L1` melt `(11, 11)` and power `S1`) while Pip steps onto `O3` `(7, 13)`!
   c.carveRect(7, 10, 10, 13, '.');
   c.set(6, 11, '.');
   c.set(11, 11, '~');
   c.carveRect(12, 10, 14, 12, '.');
-  c.set(13, 12, 'O');
-  c.set(8, 13, 'O');
+  c.set(12, 10, 'O');
+  c.set(8, 10, 'O');
   c.set(7, 13, 'O');
 
   return {
