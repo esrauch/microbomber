@@ -150,13 +150,25 @@ export function runAblationAudit(
   }
 
   // 3. Ablate room mechanisms (`lasers`, `fans`, `turntables`, `sluice`)
+  const laserEventsSeen = baseSolve.steps.some((st) =>
+    st.events.some(
+      (ev) =>
+        ev === 'pip-thaw' ||
+        ev === 'creature-thaw' ||
+        ev === 'crate-ignite' ||
+        ev === 'crate-frost-stripped' ||
+        ev === 'ice-bridge-melt' ||
+        ev === 'frost-thaw' ||
+        ev === 'veil-thaw',
+    ),
+  );
   for (const ls of room.lasers ?? []) {
     const withoutLaser: LabRoomSpec = {
       ...room,
       lasers: (room.lasers ?? []).filter((x) => x.id !== ls.id),
     };
     const sameWorks = replayWitness(withoutLaser, baseSolve.flatActions);
-    if (sameWorks) {
+    if (sameWorks && !laserEventsSeen) {
       const sub = solveLabRoom(withoutLaser, ablationBudget);
       if (sub.solved && sub.steps.length >= baseSolve.steps.length) {
         inactiveMechanisms.push(`laser:${ls.id}`);

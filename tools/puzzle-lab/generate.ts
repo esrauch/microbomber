@@ -292,23 +292,25 @@ function buildCryoRockInverterRoom(rng: SeededRng, idx: number): LabRoomSpec {
 function buildDouseEmberHeistRoom(rng: SeededRng, idx: number): LabRoomSpec {
   const c = new BigRoomCanvas();
   const rowY = rng.int(11, 13);
-  const pipGoalX = rng.int(7, 8);
-  c.carveRect(7, rowY - 2, 13, rowY + 2, '.');
+  const extraWest = rng.int(6, 7);
+  c.carveRect(extraWest, rowY - 2, 13, rowY + 2, '.');
 
-  // `!` spikes at `(10, rowY)` under Laser `L1` ignite the crate and block Pip from following it into
-  // the `(11..12, rowY)` tunnel—requiring a `Wind` bomb on `(10, rowY)` to gust the burning crate
-  // onto `;` `(12, rowY)` (`O`) before it burns to ash!
+  // Pin `crate` at `(9, rowY)` on N/S so it MUST be pushed East across `'!'` `(10, rowY)` under Laser `L1`
+  // (igniting it!), shoved into `(11, rowY)` where it lights Brazier `b1` `(11, rowY - 1)`, and Wind-gusted
+  // onto `;` `Q` `(12, rowY)` to douse the fire and hold Gate `G` `(10, rowY + 1)` open for `S1`!
+  c.set(9, rowY - 1, '#');
+  c.set(9, rowY + 1, '#');
   c.set(10, rowY, '!');
-  c.set(11, rowY - 1, '#');
+  c.set(10, rowY + 1, 'G');
   c.set(11, rowY + 1, '#');
   c.set(12, rowY - 1, '#');
   c.set(12, rowY + 1, '#');
   c.set(13, rowY, '#');
   c.set(12, rowY, ';');
-  c.set(pipGoalX, rowY - 2, 'O');
 
-  const switches: SwitchSpec[] = [{ x: 12, y: rowY, kind: 'O' }];
+  const switches: SwitchSpec[] = [{ x: 12, y: rowY, kind: 'Q' }];
   const props: PropSpec[] = [{ id: 'crate', kind: 'crate', x: 9, y: rowY }];
+  const braziers = [{ id: 'b1', x: 11, y: rowY - 1 }];
   const lasers: LaserSpec[] = [{ id: 'L1', x: 10, y: rowY - 2, dir: 'S', level: 0 }];
   const sensors: BeamSensorSpec[] = [{ id: 'S1', x: 10, y: rowY + 2, level: 0 }];
 
@@ -319,10 +321,11 @@ function buildDouseEmberHeistRoom(rng: SeededRng, idx: number): LabRoomSpec {
     height: LAB_BIG_H,
     kit: ['wind'],
     entry: [8, rowY],
-    condition: 'buttons-and-sensors',
+    condition: 'torches-and-sensors',
     rows: c.rows(),
     switches,
     props,
+    braziers,
     lasers,
     sensors,
   };
@@ -382,7 +385,7 @@ export function composeEntangledRooms(
   const solveBudget: SolveBudget = options.solveBudget ?? {
     maxStates: 2500,
     maxDepth: 9,
-    maxMs: 1400,
+    maxMs: 2200,
   };
   const evalOpts: EvaluateOptions = {
     solveBudget,
@@ -696,44 +699,56 @@ function buildDontBurnTheBoxSeed(): {
   c.set(10, 13, ';');
   c.set(6, 12, 'm');
   c.set(8, 13, 'O');
+  // `#` backstop under the south `O` so a pushed / frost-sliding crate stops on it.
+  const rowsWithBackstop = c.rows().map((row, y) => {
+    if (y !== 14) return row;
+    const chars = [...row];
+    chars[10] = '#';
+    return chars.join('');
+  });
 
-  // Act I: crate blocks Laser at `(10, 11)`, only 1 `O` at `(8, 13)`, kit has `['fire']` -> burn crate out of ray!
+  // Act I (teaching): the only route for the crate to its `O` crosses Laser L1, which would
+  // ignite it and also blocks Pip from following. A Rock dropped into the beam lane shields the
+  // crossing so Pip can escort the crate down the column; the crate then plugs the column, so
+  // the Mousehole is Pip's only way round to the second `O`.
   const act1: LabRoomSpec = {
     id: 'triad-box-1',
-    name: "Don't Burn the Box I: Clear the Sightline",
+    name: "Don't Burn the Box I: Rock the Beam",
     width: LAB_BIG_W,
     height: LAB_BIG_H,
-    kit: ['fire'],
+    kit: ['rock'],
     entry: [8, 10],
-    condition: 'buttons-and-sensors',
-    rows: c.rows(),
-    props: [{ id: 'crate', kind: 'crate', x: 10, y: 11 }],
+    condition: 'hold-buttons',
+    // Tighter north yard than Acts II/III (east bay walled off) keeps the teaching room focused.
+    rows: rowsWithBackstop.map((row, y) => {
+      if (y !== 9 && y !== 10) return row;
+      const chars = [...row];
+      for (let x = 12; x <= 14; x++) chars[x] = '#';
+      return chars.join('');
+    }),
+    switches: [{ x: 10, y: 13, kind: 'O' }],
+    props: [{ id: 'crate', kind: 'crate', x: 10, y: 10 }],
     lasers: [{ id: 'L1', x: 7, y: 11, dir: 'E', level: 0 }],
-    sensors: [{ id: 'S1', x: 14, y: 11, level: 0 }],
   };
 
-  // Act II: Strip `Fire`, grant `Ice`, move crate to `(10, 10)`, add 2nd `O` at `(10, 13)` with `#` wall backstop at `(10, 14)`!
+  // Act II: Strip `Rock`, grant `Ice`, and require the beam to reach Sensor S1 (so it can't stay
+  // blocked) -> frost-armor the crate so it hydroplanes unburned through the beam onto `O`!
   const act2Mutations: CandidateMutation[] = [
     {
-      description: 'strip-fire-add-second-O-require-frost-armor',
-      mutate: (r1) => {
-        const rows2 = r1.rows.map((row, y) => {
-          const chars = [...row];
-          if (y === 14) chars[10] = '#';
-          return chars.join('');
-        });
-        return [
-          {
-            ...r1,
-            id: 'triad-box-2',
-            name: "Don't Burn the Box II: One Box Too Few",
-            kit: ['ice'],
-            rows: rows2,
-            switches: [{ x: 10, y: 13, kind: 'O' }],
-            props: [{ id: 'crate', kind: 'crate', x: 10, y: 10 }],
-          },
-        ];
-      },
+      description: 'strip-rock-add-sensor-require-frost-armor',
+      mutate: (r1) => [
+        {
+          ...r1,
+          id: 'triad-box-2',
+          name: "Don't Burn the Box II: One Box Too Few",
+          kit: ['ice'],
+          condition: 'buttons-and-sensors',
+          rows: rowsWithBackstop,
+          switches: [{ x: 10, y: 13, kind: 'O' }],
+          props: [{ id: 'crate', kind: 'crate', x: 10, y: 10 }],
+          sensors: [{ id: 'S1', x: 14, y: 11, level: 0 }],
+        },
+      ],
     },
   ];
 
@@ -744,7 +759,12 @@ function buildDontBurnTheBoxSeed(): {
       mutate: (r2) => {
         const rows3 = r2.rows.map((row, y) => {
           const chars = [...row];
-          if (y === 14) chars[10] = '.';
+          if (y === 14) {
+            // Overshoot cell `(10,14)` is a dead-end pocket: an overshot crate is unrecoverable.
+            chars[9] = '#';
+            chars[10] = '.';
+            chars[11] = '#';
+          }
           if (y === 15) chars[10] = '#';
           return chars.join('');
         });
@@ -814,15 +834,24 @@ function buildColdFeetSeed(): {
     },
   ];
 
-  // Act III: Block Fan gale with `U` crystal barrier (`Bomb` + `C`) AND guard landing pad with Inverter Laser!
+  // Act III: Block the Fan gale with a `U` crystal barrier (`Bomb` + `C`) AND drop a Laser down a
+  // shaft that crosses the spike strip at `x=11`: it would thaw Ice-Pip mid-strip (2 spikes still
+  // ahead = too wide to Roll) and pop him back. A Rock dropped into the shaft from `(10,10)` shuts
+  // the beam off, so the slide can go through.
   const act3Mutations: CandidateMutation[] = [
     {
-      description: 'add-crystal-windblock-and-inverter-laser',
+      description: 'add-crystal-windblock-and-mid-strip-laser',
       mutate: (r2) => {
         const rows3 = r2.rows.map((row, y) => {
           const chars = [...row];
-          if (y === 10) chars[7] = 'C';
+          if (y === 10) {
+            chars[7] = 'C';
+            chars[10] = '.';
+            chars[11] = '.';
+          }
+          if (y === 11) chars[11] = '.';
           if (y === 12) chars[8] = 'U';
+          if (y === 13) for (let x = 6; x <= 9; x++) chars[x] = '#';
           return chars.join('');
         });
         return [
@@ -830,12 +859,12 @@ function buildColdFeetSeed(): {
             ...r2,
             id: 'triad-cryo-3',
             name: 'Cold Feet III: Thaw at the Gate',
-            kit: ['bomb', 'ice'],
+            kit: ['bomb', 'ice', 'rock'],
+            maxActiveBombs: 1,
             initialCrystal: 'blue',
-            condition: 'buttons-and-sensors',
+            condition: 'hold-buttons',
             rows: rows3,
-            lasers: [{ id: 'L1', x: 14, y: 10, dir: 'S', level: 0 }],
-            sensors: [{ id: 'S1', x: 14, y: 14, level: 0, inverted: true, latch: true }],
+            lasers: [{ id: 'L1', x: 11, y: 9, dir: 'S', level: 0 }],
           },
         ];
       },
@@ -944,8 +973,65 @@ function buildHighTideSeed(): {
  *  - `stage_k` passes all 5 Critic Gates (`0` unused kit bombs, `0` dead props), and
  *  - `causalTraceSignature` or causal depth escalates across Acts I -> II -> III.
  */
+/**
+ * Fast, zero-search materializer for the 4 proven `1 -> 2 -> 3` Escalation Triads (`P01-P12`)
+ * so UI viewers (`puzzle-lab.html`) and suite loaders (`getCuratedPuzzleSuite`) start in `< 2 ms`,
+ * while `generateEscalationTriadSuite()` runs full CEGAR + 5-Gate Critic synthesis in tests.
+ */
+export function buildProvenEscalationTriadRooms(): Array<{
+  triadId: string;
+  title: string;
+  rooms: readonly [LabRoomSpec, LabRoomSpec, LabRoomSpec];
+}> {
+  const emptySolve: SolveResult = {
+    solved: false,
+    steps: [],
+    flatActions: [],
+    statesExplored: 0,
+    budgetExhausted: false,
+    elapsedMs: 0,
+    summary: {
+      usedBombKinds: new Set(),
+      propRoles: new Map(),
+      stateInversions: new Set(),
+      usedMouseOnlyPath: false,
+      usedBombOnlyPath: false,
+      usedSelfCryo: false,
+      stoleFireWithoutFireBomb: false,
+    },
+  };
+
+  const sf = buildStolenFlameSeed();
+  const sf2: LabRoomSpec = {
+    ...sf.act1,
+    id: 'triad-flame-2',
+    name: `${sf.act1.name} (Act 2)`,
+    kit: sf.act1.kit.filter((k) => k !== 'fire'),
+  };
+  const sf3 = sf.act3Mutations[0]?.mutate(sf2, emptySolve)[0] ?? sf2;
+
+  const db = buildDontBurnTheBoxSeed();
+  const db2 = db.act2Mutations[0]?.mutate(db.act1, emptySolve)[0] ?? db.act1;
+  const db3 = db.act3Mutations[0]?.mutate(db2, emptySolve)[0] ?? db2;
+
+  const cf = buildColdFeetSeed();
+  const cf2 = cf.act2Mutations[0]?.mutate(cf.act1, emptySolve)[0] ?? cf.act1;
+  const cf3 = cf.act3Mutations[0]?.mutate(cf2, emptySolve)[0] ?? cf2;
+
+  const ht = buildHighTideSeed();
+  const ht2 = ht.act2Mutations[0]?.mutate(ht.act1, emptySolve)[0] ?? ht.act1;
+  const ht3 = ht.act3Mutations[0]?.mutate(ht2, emptySolve)[0] ?? ht2;
+
+  return [
+    { triadId: 'triad-stolen-flame', title: 'Stolen Flame', rooms: [sf.act1, sf2, sf3] },
+    { triadId: 'triad-dont-burn-box', title: "Don't Burn the Box", rooms: [db.act1, db2, db3] },
+    { triadId: 'triad-cold-feet', title: 'Cold Feet (Self-Cryo)', rooms: [cf.act1, cf2, cf3] },
+    { triadId: 'triad-high-tide', title: 'High Tide, Heavy Feet', rooms: [ht.act1, ht2, ht3] },
+  ];
+}
+
 export function generateEscalationTriadSuite(
-  solveBudget: SolveBudget = { maxStates: 2000, maxDepth: 8, maxMs: 1000 },
+  solveBudget: SolveBudget = { maxStates: 4000, maxDepth: 10, maxMs: 3000 },
 ): EscalationTriad[] {
   const seeds = [
     { id: 'triad-stolen-flame', title: 'Stolen Flame', build: buildStolenFlameSeed },

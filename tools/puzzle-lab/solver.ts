@@ -13,6 +13,7 @@ import {
   cloneLabState,
   createLabState,
   effectiveTileAt,
+  getRoomSwitchCells,
   hashLabState,
   isSwitchHeldAt,
   isVeilActiveAt,
@@ -83,8 +84,18 @@ function isWorldDynamic(room: LabRoomSpec, s: LabState): boolean {
   if (s.braziers.some((b) => b.lit && b.timedTicks !== undefined && b.remainingTicks > 0)) {
     return true;
   }
-  if ((room.creatures ?? []).length > 0) return true;
-  return false;
+  if (
+    s.creatures.some(
+      (c) =>
+        c.kind === 'mimic' ||
+        c.kind === 'tortoise' ||
+        (c.frozenTicks > 0 && (Boolean(room.fans?.length) || c.frozenTicks <= 2)) ||
+        (c.dazedTicks > 0 && s.bombs.some((b) => b.kind === 'squeak')),
+    )
+  ) {
+    return true;
+  }
+  return Boolean(room.lasers?.length && s.creatures.length > 0 && s.bombs.length > 0);
 }
 
 /**
@@ -118,19 +129,27 @@ function isLiveTimingCandidate(
   targetX: number,
   targetY: number,
 ): boolean {
-  if (bomb === 'squeak' || bomb === 'magnet') return true;
+  if (bomb === 'squeak') {
+    return (
+      (room.maxActiveBombs ?? 2) > 1 ||
+      s.creatures.some((c) => c.kind === 'otter' || c.kind === 'mimic')
+    );
+  }
+  if (bomb === 'magnet') {
+    return s.creatures.some((c) => c.kind === 'tortoise') || s.bombs.length > 0;
+  }
   if (bomb === 'ice') {
-    if (s.creatures.length > 0) return true;
+    if (s.creatures.some((c) => c.kind === 'mimic')) return true;
     if (room.fans && room.fans.length > 0) {
       for (const f of room.fans) {
-        if (
-          f.x === targetX ||
-          f.y === targetY ||
-          Math.abs(f.x - targetX) <= 1 ||
-          Math.abs(f.y - targetY) <= 1
-        ) {
-          return true;
-        }
+        // Only an Ice blast whose 3x3 overlaps the fan's own lane can set up a fan-driven slide
+        const horizontal = f.dir === 'E' || f.dir === 'W';
+        const inLane = horizontal
+          ? Math.abs(f.y - targetY) <= 1 &&
+            (f.dir === 'E' ? targetX >= f.x - 1 : targetX <= f.x + 1)
+          : Math.abs(f.x - targetX) <= 1 &&
+            (f.dir === 'S' ? targetY >= f.y - 1 : targetY <= f.y + 1);
+        if (inLane) return true;
       }
     }
     for (let dy = -1; dy <= 1; dy++) {
@@ -151,6 +170,9 @@ function isLiveTimingCandidate(
       }
     }
     return false;
+  }
+  if (bomb === 'wind') {
+    return room.kit.length > 1 || s.props.some((p) => p.burnTicks > 0);
   }
   if (s.props.some((p) => p.burnTicks > 0)) return true;
   for (let dy = -1; dy <= 1; dy++) {
@@ -252,14 +274,20 @@ function isRelevantBombTarget(
       } else if (bomb === 'rock') {
         if (Math.abs(dx) + Math.abs(dy) <= 1) {
           const liq = liquidKindAt(room, s, cx, cy);
-          if (raw === '^' || raw === '!' || liq === 'shallow' || s.frostCells.has(key)) {
+          if (
+            raw === '^' ||
+            raw === '!' ||
+            liq === 'shallow' ||
+            s.frostCells.has(key) ||
+            (liq === 'deep' && s.props.some((p) => p.kind === 'raft'))
+          ) {
             return true;
           }
         }
       } else if (bomb === 'magnet') {
         if (raw === 'N') return true;
       } else if (bomb === 'wind') {
-        if (raw === '^' || raw === '!' || raw === 'O' || raw === 'Q' || room.levels !== undefined) {
+        if (raw === '^' || raw === '!' || room.levels !== undefined || Boolean(room.fans?.length)) {
           return true;
         }
       }
@@ -367,13 +395,15 @@ function collectTimingTargets(
 
 function canFastTeleportWalk(room: LabRoomSpec, s: LabState): boolean {
   if (isWorldDynamic(room, s)) return false;
-  if (room.sensors?.some((sn) => sn.latch || sn.togglesSluice || sn.pulsesTurntableId)) {
-    return false;
-  }
-  if (room.springs && room.springs.length > 0) return false;
-  for (let y = 0; y < room.height; y++) {
-    const r = room.rows[y] ?? '';
-    if (r.includes('J')) return false;
+  if (s.gatesOpen) {
+    const px = s.pip.x;
+    const py = s.pip.y;
+    if (
+      rawTileAt(room, s, px, py) === 'Q' ||
+      room.switches?.some((sw) => sw.kind === 'Q' && sw.x === px && sw.y === py)
+    ) {
+      return false;
+    }
   }
   return true;
 }
@@ -655,6 +685,9 @@ function generateMacroSuccessors(
   return results;
 }
 
+/** Per-tile pull of the nearest crate toward an empty goal plate in the best-first priority. */
+const CRATE_PLATE_WEIGHT = 4;
+
 function heuristicPriority(room: LabRoomSpec, s: LabState, depth: number): number {
   let h = depth * 6;
   for (const b of s.braziers) {
@@ -663,18 +696,30 @@ function heuristicPriority(room: LabRoomSpec, s: LabState, depth: number): numbe
   for (const sn of room.sensors ?? []) {
     if (!s.activeSensors.has(sn.id)) h += 18;
   }
-  for (let y = 0; y < room.height; y++) {
-    const row = room.rows[y] ?? '';
-    for (let x = 0; x < room.width; x++) {
-      if ((row[x] === 'O' || row[x] === 'Q') && !isSwitchHeldAt(room, s, x, y, false)) {
-        h += 18;
-      }
+  const { oPlates, qSwitches } = getRoomSwitchCells(room, s);
+  const unheldPlates: Array<readonly [number, number]> = [];
+  for (const [ox, oy] of oPlates) {
+    if (!isSwitchHeldAt(room, s, ox, oy, false)) {
+      h += 18;
+      unheldPlates.push([ox, oy]);
     }
   }
-  for (const sw of room.switches ?? []) {
-    if (!isSwitchHeldAt(room, s, sw.x, sw.y, false)) {
+  for (const [qx, qy] of qSwitches) {
+    if (!isSwitchHeldAt(room, s, qx, qy, false)) {
       h += 18;
+      unheldPlates.push([qx, qy]);
     }
+  }
+  // Mild pull of pushable crates toward the nearest empty plate (Pip covers one plate himself).
+  if (unheldPlates.length > 1) {
+    let best = Infinity;
+    for (const p of s.props) {
+      if (p.kind !== 'crate' || p.submerged) continue;
+      for (const [px, py] of unheldPlates) {
+        best = Math.min(best, Math.abs(p.x - px) + Math.abs(p.y - py));
+      }
+    }
+    if (Number.isFinite(best)) h += Math.min(best, 8) * CRATE_PLATE_WEIGHT;
   }
   if (s.rockCell) h -= 3;
   if (s.props.some((p) => p.frosted)) h -= 4;
@@ -742,6 +787,9 @@ export function summarizeTrace(
       if (ev === 'sluice-high') sawWater1 = true;
       if (ev === 'sluice-low') sawWater0 = true;
       if (ev.startsWith('turntable-')) stateInversions.add(ev);
+      if (ev === 'pillar-rise' || ev === 'rock-spawn' || ev === 'vortex-catapult') {
+        stateInversions.add(ev);
+      }
       if (ev === 'ice-bridge-melt' || ev === 'frost-thaw' || ev === 'veil-thaw') {
         stateInversions.add('freeze-then-melt');
       }

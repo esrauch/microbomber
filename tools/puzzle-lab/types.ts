@@ -416,6 +416,8 @@ export interface LabState {
 
 export type LabAction =
   | { kind: 'step'; dir: Dir }
+  /** Turn in place without moving (0 ticks), mirroring the 60 Hz game's stand-and-aim. */
+  | { kind: 'face'; dir: Dir }
   | { kind: 'moveTo'; x: number; y: number }
   | { kind: 'roll'; dir: Dir }
   | { kind: 'pull'; bomb: LabBombKind }

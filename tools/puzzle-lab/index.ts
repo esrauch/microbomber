@@ -5,3 +5,4 @@ export * from './solver';
 export * from './critic';
 export * from './tricks';
 export * from './generate';
+export * from './suite';

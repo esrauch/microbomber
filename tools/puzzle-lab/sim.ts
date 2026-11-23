@@ -154,6 +154,10 @@ export function createLabState(room: LabRoomSpec): LabState {
   settleBuoyancy(room, s);
   recomputeSwitchesAndGates(room, s);
   updateLasers(room, s);
+  if (s.events.includes('ice-bridge-melt')) {
+    settleBuoyancy(room, s);
+    updateLasers(room, s);
+  }
   recomputeSwitchesAndGates(room, s);
   checkSolveCondition(room, s);
   s.events = [];
@@ -566,17 +570,64 @@ export function isSwitchHeldAt(
   return false;
 }
 
-function recomputeSwitchesAndGates(room: LabRoomSpec, s: LabState): void {
-  const qSwitches: [number, number][] = [];
-  for (let y = 0; y < room.height; y++) {
-    const row = room.rows[y] ?? '';
-    for (let x = 0; x < room.width; x++) {
-      if (row[x] === 'Q') qSwitches.push([x, y]);
+interface CachedRoomSwitches {
+  oPlates: ReadonlyArray<readonly [number, number]>;
+  qSwitches: ReadonlyArray<readonly [number, number]>;
+  hasRotatableSwitch: boolean;
+}
+
+const roomSwitchCache = new WeakMap<LabRoomSpec, CachedRoomSwitches>();
+
+export function getRoomSwitchCells(room: LabRoomSpec, s: LabState): CachedRoomSwitches {
+  let cached = roomSwitchCache.get(room);
+  if (!cached) {
+    const oPlates: Array<[number, number]> = [];
+    const qSwitches: Array<[number, number]> = [];
+    for (let y = 0; y < room.height; y++) {
+      const row = room.rows[y] ?? '';
+      for (let x = 0; x < room.width; x++) {
+        const ch = row[x];
+        if (ch === 'O') oPlates.push([x, y]);
+        else if (ch === 'Q') qSwitches.push([x, y]);
+      }
     }
+    const dials = (room.turntables ?? []).filter((tt) => tt.size === 3);
+    const inDial = (x: number, y: number): boolean =>
+      dials.some((tt) => Math.abs(x - tt.cx) <= 1 && Math.abs(y - tt.cy) <= 1);
+    const hasRotatableSwitch =
+      dials.length > 0 &&
+      (oPlates.some(([x, y]) => inDial(x, y)) || qSwitches.some(([x, y]) => inDial(x, y)));
+
+    for (const sw of room.switches ?? []) {
+      if (sw.kind === 'O') oPlates.push([sw.x, sw.y]);
+      else qSwitches.push([sw.x, sw.y]);
+    }
+    cached = { oPlates, qSwitches, hasRotatableSwitch };
+    roomSwitchCache.set(room, cached);
   }
-  for (const sw of room.switches ?? []) {
-    if (sw.kind === 'Q') qSwitches.push([sw.x, sw.y]);
+
+  if (cached.hasRotatableSwitch && s.rotatedTiles.size > 0) {
+    const oPlates: Array<[number, number]> = [];
+    const qSwitches: Array<[number, number]> = [];
+    for (let y = 0; y < room.height; y++) {
+      for (let x = 0; x < room.width; x++) {
+        const raw = rawTileAt(room, s, x, y);
+        if (raw === 'O') oPlates.push([x, y]);
+        else if (raw === 'Q') qSwitches.push([x, y]);
+      }
+    }
+    for (const sw of room.switches ?? []) {
+      if (sw.kind === 'O') oPlates.push([sw.x, sw.y]);
+      else qSwitches.push([sw.x, sw.y]);
+    }
+    return { oPlates, qSwitches, hasRotatableSwitch: true };
   }
+
+  return cached;
+}
+
+function recomputeSwitchesAndGates(room: LabRoomSpec, s: LabState): void {
+  const { qSwitches } = getRoomSwitchCells(room, s);
   const nextGates =
     qSwitches.length > 0 && qSwitches.every(([qx, qy]) => isSwitchHeldAt(room, s, qx, qy, true));
   if (nextGates !== s.gatesOpen) {
@@ -986,9 +1037,12 @@ function activeFanCells(
       const floorL = labLevelAt(room, s, cx, cy);
       if (floorL === null || floorL > fan.level) break;
       if (isLabPillarTile(room, cx, cy) && s.pillarsUp && floorL >= fan.level) break;
-      if (floorL === fan.level && isOpaqueSolidTile(room, s, cx, cy)) break;
+      if (floorL === fan.level && isOpaqueSolidTile(room, s, cx, cy) && !hasBrazierAt(s, cx, cy)) {
+        break;
+      }
 
       cells.push({ x: cx, y: cy, dir, level: fan.level });
+      if (floorL === fan.level && hasBrazierAt(s, cx, cy)) break;
 
       // An anchored dry-floor prop at fan.level casts a calm lee behind it
       if (floorL === fan.level) {
@@ -1577,6 +1631,10 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
         b.x = nx;
         b.y = ny;
         b.airborneSteps--;
+        if (b.airborneSteps === 0 && !s.frostCells.has(cellKey(b.x, b.y))) {
+          b.vx = 0;
+          b.vy = 0;
+        }
       }
       if (doused) continue;
     } else {
@@ -1766,6 +1824,10 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
   settleBuoyancy(room, s);
   recomputeSwitchesAndGates(room, s);
   updateLasers(room, s);
+  if (s.events.includes('ice-bridge-melt')) {
+    settleBuoyancy(room, s);
+    updateLasers(room, s);
+  }
   if (s.pip.icedTicks > 0) {
     s.pip.icedTicks--;
     if (s.pip.icedTicks === 0 && effectiveTileAt(room, s, s.pip.x, s.pip.y) === '!') {
@@ -1903,7 +1965,7 @@ function slideFrozenCreature(room: LabRoomSpec, s: LabState, c: CreatureState, d
     if (cargoPropAt(s, nx, ny)) break;
     c.x = nx;
     c.y = ny;
-    if (!s.frostCells.has(cellKey(nx, ny))) break;
+    if (!s.frostCells.has(cellKey(nx, ny)) && nt !== 'g') break;
   }
 }
 
@@ -1911,17 +1973,10 @@ function checkSolveCondition(room: LabRoomSpec, s: LabState): void {
   if (s.roomSolved) return;
 
   const buttonsSatisfied = (): boolean => {
-    const plates: Array<[number, number]> = [];
-    for (let y = 0; y < room.height; y++) {
-      const row = room.rows[y] ?? '';
-      for (let x = 0; x < room.width; x++) {
-        if (row[x] === 'O') plates.push([x, y]);
-      }
-    }
-    for (const sw of room.switches ?? []) {
-      if (sw.kind === 'O') plates.push([sw.x, sw.y]);
-    }
-    return plates.length > 0 && plates.every(([ox, oy]) => isSwitchHeldAt(room, s, ox, oy, false));
+    const { oPlates } = getRoomSwitchCells(room, s);
+    return (
+      oPlates.length > 0 && oPlates.every(([ox, oy]) => isSwitchHeldAt(room, s, ox, oy, false))
+    );
   };
 
   const torchesSatisfied = (): boolean => s.braziers.length > 0 && s.braziers.every((b) => b.lit);
@@ -1980,6 +2035,7 @@ export function reachableWalkCells(room: LabRoomSpec, s: LabState): Array<[numbe
       const key = cellKey(nx, ny);
       if (seen.has(key)) continue;
       if (!canPipStandAt(room, s, nx, ny, cx, cy, false)) continue;
+      if (effectiveTileAt(room, s, nx, ny) === 'J') continue;
       // Avoid walking directly into an active Laser ray during pure MoveTo navigation
       const dstL = entityLevelAt(room, s, nx, ny);
       if (s.lastLaserRays.some((r) => r.x === nx && r.y === ny && r.level === dstL)) continue;
@@ -2021,6 +2077,11 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
 
   if (s.pip.icedTicks > 0) {
     return { ok: false, reason: 'pip-iced', ticksElapsed: 0, events: [] };
+  }
+
+  if (action.kind === 'face') {
+    s.pip.dir = action.dir;
+    return { ok: true, ticksElapsed: 0, events: [] };
   }
 
   if (action.kind === 'step') {
@@ -2316,6 +2377,7 @@ function findWalkPath(room: LabRoomSpec, s: LabState, goalX: number, goalY: numb
       const key = cellKey(nx, ny);
       if (seen.has(key)) continue;
       if (!canPipStandAt(room, s, nx, ny, cx, cy, false)) continue;
+      if (effectiveTileAt(room, s, nx, ny) === 'J') continue;
       const dstL = entityLevelAt(room, s, nx, ny);
       if (s.lastLaserRays.some((r) => r.x === nx && r.y === ny && r.level === dstL)) continue;
       seen.add(key);
