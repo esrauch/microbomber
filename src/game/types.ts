@@ -5,8 +5,12 @@
  */
 
 /** Portrait one-screen room dimensions (odd width & height so doors/altars centre cleanly). */
+/** A screen in Grandma's House and the basement, in tiles (`GAME.md` §1.1). */
 export const ROOM_W = 11;
 export const ROOM_H = 13;
+/** A screen everywhere else: twice as many tiles each way, shown in the same space. */
+export const BIG_ROOM_W = 22;
+export const BIG_ROOM_H = 26;
 
 export type ZoneId = 'overworld' | 'basement' | 'ice-cave' | 'dungeon-999';
 
@@ -192,7 +196,10 @@ export interface RoomSpec {
   name: string;
   /** Optional short objective hint shown in the corner HUD. */
   objective?: string;
-  /** ROOM_H strings of ROOM_W characters. `'P'` in rows spawns a pushable stone block on `'.'`. */
+  /**
+   * One string per row, all the same length: `11 × 13` in Grandma's House, `22 × 26`
+   * elsewhere (`GAME.md` §1.1). `'P'` in rows spawns a pushable stone block on `'.'`.
+   */
   rows: string[];
   /** Room starts dark until lit by braziers or live Fire fire. */
   dark?: boolean;
@@ -208,7 +215,7 @@ export interface RoomSpec {
   /** Optional ambient wind vector `(dx, dy)` in tiles/s carrying smoke, fire & light objects. */
   wind?: { dx: number; dy: number };
   /**
-   * Optional floor levels (`ELEVATION.md`): ROOM_H strings of `'0'..'2'`, one per tile.
+   * Optional floor levels (`ELEVATION.md`): one string of `'0'..'2'` per row, like `rows`.
    * Tiles beside lower ground become solid ledge edges; slopes on an edge are ramps.
    */
   levels?: string[];
@@ -352,6 +359,9 @@ export interface Enemy {
   fleeOnDefeat?: boolean;
   fleeBanner?: string;
   frozenTimer?: number;
+  /** Ice Wraith: how long it has pushed without getting anywhere, and how long it then heads for the middle. */
+  stuckTimer?: number;
+  unstickTimer?: number;
 }
 
 export interface ActivePickup {
@@ -384,7 +394,10 @@ export interface State {
   zone: ZoneId;
   rx: number;
   ry: number;
-  /** Player position in room tiles (`0..ROOM_W`, `0..ROOM_H`). */
+  /** The current room's size in tiles, from its rows (set on entering it). */
+  roomW: number;
+  roomH: number;
+  /** Player position in room tiles (`0..roomW`, `0..roomH`). */
   x: number;
   y: number;
   /** Unit facing vector (defaults to `(0, -1)` north). */

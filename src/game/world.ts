@@ -20,8 +20,11 @@ import {
   type BombKind,
   type Enemy,
   type EnemyAiState,
+  type EnemyKind,
   type FirePatch,
   type Input,
+  BIG_ROOM_H,
+  BIG_ROOM_W,
   ROOM_H,
   ROOM_W,
   type RoomSpec,
@@ -33,9 +36,10 @@ import {
   type ZoneId,
   type PillarTrigger,
   type PillarState,
+  type TorchState,
 } from './types';
 
-export { ROOM_H, ROOM_W, campaignWorld, roomKey };
+export { BIG_ROOM_H, BIG_ROOM_W, ROOM_H, ROOM_W, campaignWorld, roomKey };
 export type {
   BombKind,
   Enemy,
@@ -374,6 +378,71 @@ function isTallWall(t: Tile, crystalColor: 'red' | 'blue'): boolean {
   return false;
 }
 
+/**
+ * On doubled screens creatures are drawn at 2x, so every reach measured to a creature's centre
+ * (contact, blasts, plates) grows by this much: half a tile, the extra half-width of its body.
+ */
+export function enemyGrow(s: Pick<State, 'roomW'>): number {
+  return s.roomW > ROOM_W ? 0.5 : 0;
+}
+
+/** Half the side of a 2x creature's body box against walls: just under a tile. */
+const BIG_BODY_HALF = 0.85;
+
+/**
+ * Whether a creature centred at `(x, y)` would overlap a wall. Small screens (and the Mimic,
+ * which steps tile to tile) test the centre only; a 2x body tests its whole box. Flyers pass
+ * over everything but tall walls, though the Ice Wraith can't hover over a brazier.
+ */
+function enemyBodyBlocked(
+  world: World,
+  s: State,
+  kind: EnemyKind,
+  x: number,
+  y: number,
+  half = enemyGrow(s) > 0 && kind !== 'mimic' ? BIG_BODY_HALF : 0,
+): boolean {
+  if (x < 0.7 || y < 0.7 || x > s.roomW - 0.7 || y > s.roomH - 0.7) return true;
+  const canFly = kind === 'bat' || kind === 'wickgeist';
+  const offsets = half > 0 ? [-half, 0, half] : [0];
+  for (const oy of offsets) {
+    for (const ox of offsets) {
+      const tx = Math.floor(x + ox);
+      const ty = Math.floor(y + oy);
+      const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
+      const solid = canFly
+        ? isTallWall(t, s.crystalColor) || (kind === 'wickgeist' && t === 'T')
+        : isTileSolidForWalk(t, s.crystalColor) || hasBlockAt(s, tx, ty);
+      if (solid) return true;
+    }
+  }
+  return false;
+}
+
+/** Shift a 2x creature's spawn point by up to half a tile until its body fits. */
+function fitEnemyBody(
+  world: World,
+  s: State,
+  kind: EnemyKind,
+  x: number,
+  y: number,
+): [number, number] {
+  if (enemyGrow(s) <= 0 || !enemyBodyBlocked(world, s, kind, x, y)) return [x, y];
+  for (const [dx, dy] of [
+    [0.5, 0.5],
+    [-0.5, 0.5],
+    [0.5, -0.5],
+    [-0.5, -0.5],
+    [0.5, 0],
+    [-0.5, 0],
+    [0, 0.5],
+    [0, -0.5],
+  ] as const) {
+    if (!enemyBodyBlocked(world, s, kind, x + dx, y + dy)) return [x + dx, y + dy];
+  }
+  return [x, y];
+}
+
 /** Whether a room is currently illuminated (true for normal rooms, or dark rooms with a lit torch). */
 export function isRoomLit(world: World, s: State): boolean {
   const room = currentRoom(world, s);
@@ -386,7 +455,7 @@ export function isRoomLit(world: World, s: State): boolean {
 function overlapsTile(world: World, s: State, x: number, y: number, tile: Tile): boolean {
   for (let cy = Math.floor(y - PLAYER_RADIUS); cy <= Math.floor(y + PLAYER_RADIUS); cy++) {
     for (let cx = Math.floor(x - PLAYER_RADIUS); cx <= Math.floor(x + PLAYER_RADIUS); cx++) {
-      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
       if (tileAt(world, s, s.zone, s.rx, s.ry, cx, cy) === tile) return true;
     }
   }
@@ -401,16 +470,21 @@ function overlapsTile(world: World, s: State, x: number, y: number, tile: Tile):
 function settleAtDoorway(world: World, s: State): void {
   for (let cy = Math.floor(s.y - PLAYER_RADIUS); cy <= Math.floor(s.y + PLAYER_RADIUS); cy++) {
     for (let cx = Math.floor(s.x - PLAYER_RADIUS); cx <= Math.floor(s.x + PLAYER_RADIUS); cx++) {
-      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
       const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
-      if (t === 'D' || t === 'K') s.openedDoors.add(cellKey(s.zone, s.rx, s.ry, cx, cy));
+      // Arriving through a locked door opens the whole door (2 x 2 on doubled screens)
+      if (t === 'D' || t === 'K') {
+        for (const [x, y] of connectedTiles(world, s, cx, cy)) {
+          s.openedDoors.add(cellKey(s.zone, s.rx, s.ry, x, y));
+        }
+      }
     }
   }
   if (!overlapsTile(world, s, s.x, s.y, 'S')) return;
   const toLeft = s.x;
-  const toRight = ROOM_W - s.x;
+  const toRight = s.roomW - s.x;
   const toTop = s.y;
-  const toBottom = ROOM_H - s.y;
+  const toBottom = s.roomH - s.y;
   const nearest = Math.min(toLeft, toRight, toTop, toBottom);
   const dx = nearest === toLeft ? 1 : nearest === toRight ? -1 : 0;
   const dy = dx !== 0 ? 0 : nearest === toTop ? 1 : -1;
@@ -468,6 +542,10 @@ export function enterRoom(
   s.zone = zone;
   s.rx = rx;
   s.ry = ry;
+  // Each room is its own size: 11 x 13 at Grandma's, 22 x 26 elsewhere (`GAME.md` §1.1)
+  const sized = world.rooms.get(roomKey(zone, rx, ry));
+  s.roomW = sized?.rows[0]?.length ?? ROOM_W;
+  s.roomH = sized?.rows.length ?? ROOM_H;
   s.x = x;
   s.y = y;
   s.vx = 0;
@@ -503,9 +581,9 @@ export function enterRoom(
   if (!room) return;
 
   // Spawn push blocks from 'P' and metal blocks from 'M' markers in rows
-  for (let ty = 0; ty < ROOM_H; ty++) {
+  for (let ty = 0; ty < s.roomH; ty++) {
     const row = room.rows[ty] ?? '';
-    for (let tx = 0; tx < ROOM_W; tx++) {
+    for (let tx = 0; tx < s.roomW; tx++) {
       if (row[tx] === 'P') {
         s.blocks.push({ x: tx, y: ty, pushCharge: 0, pushDirX: 0, pushDirY: 0 });
       } else if (row[tx] === 'M') {
@@ -552,11 +630,12 @@ export function enterRoom(
                 es.kind === 'otter'
               ? 2
               : 1;
+      const [ex, ey] = fitEnemyBody(world, s, es.kind, es.x, es.y);
       s.enemies.push({
         id: s.nextEntityId++,
         kind: es.kind,
-        x: es.x,
-        y: es.y,
+        x: ex,
+        y: ey,
         vx: 0,
         vy: 0,
         fx: es.facing?.dx ?? 0,
@@ -573,8 +652,8 @@ export function enterRoom(
         aiState: 'patrol',
         stateTimer: 0,
         stumbleTimer: 0,
-        homeX: es.x,
-        homeY: es.y,
+        homeX: ex,
+        homeY: ey,
         frozenTimer: 0,
         ...(es.fleeOnDefeat ? { fleeOnDefeat: true } : {}),
         ...(es.fleeBanner ? { fleeBanner: es.fleeBanner } : {}),
@@ -608,7 +687,7 @@ export function enterDungeon999(world: World, s: State): void {
   s.equipped = s.equipped ?? 'bomb';
   s.maxBombs = 4;
   s.blastRadius = 2;
-  enterRoom(world, s, 'dungeon-999', 0, 0, 5.5, 6.5);
+  enterRoom(world, s, 'dungeon-999', 0, 0, 10.5, 12.5);
 }
 
 export function showBanner(s: State, text: string, duration = 4.2): void {
@@ -621,8 +700,9 @@ export function newState(
   zone: ZoneId = 'basement',
   rx = zone === 'dungeon-999' ? 0 : zone === 'basement' ? 1 : 3,
   ry = zone === 'dungeon-999' ? 0 : zone === 'basement' ? 3 : 2,
-  x = 5.5,
-  y = 6.5,
+  // The middle of the screen: Grandma's rooms are 11 x 13, the rest 22 x 26
+  x = zone === 'basement' ? 5.5 : 10.5,
+  y = zone === 'basement' ? 6.5 : 12.5,
 ): State {
   const startBombs: BombKind[] =
     zone === 'dungeon-999' ? [...ALL_BOMBS] : zone === 'basement' ? [] : ['bomb'];
@@ -630,6 +710,8 @@ export function newState(
     zone,
     rx,
     ry,
+    roomW: world.rooms.get(roomKey(zone, rx, ry))?.rows[0]?.length ?? ROOM_W,
+    roomH: world.rooms.get(roomKey(zone, rx, ry))?.rows.length ?? ROOM_H,
     x,
     y,
     fx: 0,
@@ -887,14 +969,14 @@ function settleBombLevel(world: World, s: State, b: Bomb, fromX: number, fromY: 
 
 /** Clamp a newly spawned bomb inside room bounds and outside adjacent solid walls. */
 function clampBombSpawn(world: World, s: State, x: number, y: number): [number, number] {
-  let px = Math.max(BOMB_RADIUS, Math.min(ROOM_W - BOMB_RADIUS, x));
-  let py = Math.max(BOMB_RADIUS, Math.min(ROOM_H - BOMB_RADIUS, y));
+  let px = Math.max(BOMB_RADIUS, Math.min(s.roomW - BOMB_RADIUS, x));
+  let py = Math.max(BOMB_RADIUS, Math.min(s.roomH - BOMB_RADIUS, y));
   const homeCx = Math.floor(px);
   const homeCy = Math.floor(py);
 
   for (let cy = Math.floor(py - BOMB_RADIUS); cy <= Math.floor(py + BOMB_RADIUS); cy++) {
     for (let cx = Math.floor(px - BOMB_RADIUS); cx <= Math.floor(px + BOMB_RADIUS); cx++) {
-      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
       if (cx === homeCx && cy === homeCy) continue;
       if (classifyBombBlocker(world, s, cx, cy, 0) === 'none') continue;
       if (cx !== homeCx && cy === homeCy) {
@@ -911,8 +993,8 @@ function clampBombSpawn(world: World, s: State, x: number, y: number): [number, 
     }
   }
 
-  px = Math.max(BOMB_RADIUS, Math.min(ROOM_W - BOMB_RADIUS, px));
-  py = Math.max(BOMB_RADIUS, Math.min(ROOM_H - BOMB_RADIUS, py));
+  px = Math.max(BOMB_RADIUS, Math.min(s.roomW - BOMB_RADIUS, px));
+  py = Math.max(BOMB_RADIUS, Math.min(s.roomH - BOMB_RADIUS, py));
   return [px, py];
 }
 
@@ -922,8 +1004,8 @@ function clampBombSpawn(world: World, s: State, x: number, y: number): [number, 
 function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEvents: boolean): void {
   let bouncedThisStep = false;
   const preSpeed = Math.hypot(b.vx, b.vy);
-  const bxCell = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
-  const byCell = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+  const bxCell = Math.max(0, Math.min(s.roomW - 1, Math.floor(b.x)));
+  const byCell = Math.max(0, Math.min(s.roomH - 1, Math.floor(b.y)));
   const onWater = b.z <= 0.02 && isWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, bxCell, byCell));
 
   const dx = b.vx * subDt;
@@ -936,8 +1018,8 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     if (nx < BOMB_RADIUS) {
       clampX = BOMB_RADIUS;
       hitWall = true;
-    } else if (nx > ROOM_W - BOMB_RADIUS) {
-      clampX = ROOM_W - BOMB_RADIUS;
+    } else if (nx > s.roomW - BOMB_RADIUS) {
+      clampX = s.roomW - BOMB_RADIUS;
       hitWall = true;
     }
 
@@ -949,9 +1031,9 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     const maxCx = Math.floor(nx + BOMB_RADIUS);
 
     for (let cy = minCy; cy <= maxCy; cy++) {
-      if (cy < 0 || cy >= ROOM_H) continue;
+      if (cy < 0 || cy >= s.roomH) continue;
       for (let cx = minCx; cx <= maxCx; cx++) {
-        if (cx < 0 || cx >= ROOM_W) continue;
+        if (cx < 0 || cx >= s.roomW) continue;
         const kind = classifyBombBlocker(world, s, cx, cy, b.z, b, Math.sign(dx), 0);
         if (kind === 'none') continue;
         const wasOverlapped = cx >= prevMinCx && cx <= prevMaxCx;
@@ -969,7 +1051,7 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     }
 
     if (hitInteractive || hitWall) {
-      b.x = Math.max(BOMB_RADIUS, Math.min(ROOM_W - BOMB_RADIUS, clampX));
+      b.x = Math.max(BOMB_RADIUS, Math.min(s.roomW - BOMB_RADIUS, clampX));
       if (onWater) {
         b.vx = 0;
       } else if (hitInteractive) {
@@ -997,8 +1079,8 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     if (ny < BOMB_RADIUS) {
       clampY = BOMB_RADIUS;
       hitWall = true;
-    } else if (ny > ROOM_H - BOMB_RADIUS) {
-      clampY = ROOM_H - BOMB_RADIUS;
+    } else if (ny > s.roomH - BOMB_RADIUS) {
+      clampY = s.roomH - BOMB_RADIUS;
       hitWall = true;
     }
 
@@ -1010,9 +1092,9 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     const maxCy = Math.floor(ny + BOMB_RADIUS);
 
     for (let cy = minCy; cy <= maxCy; cy++) {
-      if (cy < 0 || cy >= ROOM_H) continue;
+      if (cy < 0 || cy >= s.roomH) continue;
       for (let cx = minCx; cx <= maxCx; cx++) {
-        if (cx < 0 || cx >= ROOM_W) continue;
+        if (cx < 0 || cx >= s.roomW) continue;
         const kind = classifyBombBlocker(world, s, cx, cy, b.z, b, 0, Math.sign(dy));
         if (kind === 'none') continue;
         const wasOverlapped = cy >= prevMinCy && cy <= prevMaxCy;
@@ -1030,7 +1112,7 @@ function stepBombPlanar(world: World, s: State, b: Bomb, subDt: number, emitEven
     }
 
     if (hitInteractive || hitWall) {
-      b.y = Math.max(BOMB_RADIUS, Math.min(ROOM_H - BOMB_RADIUS, clampY));
+      b.y = Math.max(BOMB_RADIUS, Math.min(s.roomH - BOMB_RADIUS, clampY));
       if (onWater) {
         b.vy = 0;
       } else if (hitInteractive) {
@@ -1072,19 +1154,63 @@ export function computePlaceTarget(world: World, s: State): { x: number; y: numb
   return { x: px, y: py };
 }
 
+/**
+ * The tiles connected to `(tx, ty)` (4-way) that share its raw room character. Doubled
+ * screens draw one cracked wall or one door as a 2 x 2 block, which acts as a single piece.
+ */
+function connectedTiles(world: World, s: State, tx: number, ty: number): [number, number][] {
+  const rows = currentRoom(world, s)?.rows;
+  const ch = rows?.[ty]?.[tx];
+  if (!rows || !ch) return [[tx, ty]];
+  const seen = new Set([`${tx},${ty}`]);
+  const out: [number, number][] = [];
+  const queue: [number, number][] = [[tx, ty]];
+  for (let guard = 0; queue.length > 0 && guard < 64; guard++) {
+    const [x, y] = queue.shift() as [number, number];
+    out.push([x, y]);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const key = `${x + dx},${y + dy}`;
+      if (seen.has(key) || rows[y + dy]?.[x + dx] !== ch) continue;
+      seen.add(key);
+      queue.push([x + dx, y + dy]);
+    }
+  }
+  return out;
+}
+
+/** The brazier at `(tx, ty)`: on doubled screens a brazier covers 2 x 2 tiles from its spec. */
+function torchAt(s: State, tx: number, ty: number): TorchState | undefined {
+  const exact = s.torches.find((t) => t.x === tx && t.y === ty);
+  if (exact || s.roomW <= ROOM_W) return exact;
+  return s.torches.find((t) => tx - t.x >= 0 && tx - t.x <= 1 && ty - t.y >= 0 && ty - t.y <= 1);
+}
+
 /** Try unlocking a `D` or `K` door when the player walks into it. */
 function tryUnlockDoor(world: World, s: State, tx: number, ty: number): boolean {
   const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
   const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
+  // One key opens the whole door, however many tiles it spans
+  const openAll = (): void => {
+    for (const [x, y] of connectedTiles(world, s, tx, ty)) {
+      s.openedDoors.add(cellKey(s.zone, s.rx, s.ry, x, y));
+    }
+  };
   if (t === 'D' && s.smallKeys > 0) {
     s.smallKeys--;
     s.openedDoors.add(ck);
+    openAll();
     s.events.push('door-unlock');
     showBanner(s, 'Unlocked the door with a Small Key!', 2.2);
     return true;
   }
   if (t === 'K' && s.hasBossKey) {
     s.openedDoors.add(ck);
+    openAll();
     s.events.push('door-unlock');
     showBanner(s, 'Unlocked the Sanctum Boss Door!', 2.5);
     return true;
@@ -1179,7 +1305,7 @@ function playerBlockedAt(
   const maxCy = Math.floor(y + PLAYER_RADIUS);
   for (let cy = minCy; cy <= maxCy; cy++) {
     for (let cx = minCx; cx <= maxCx; cx++) {
-      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
       if (unlockDoors) tryUnlockDoor(world, s, cx, cy);
       const t = tileAt(world, s, s.zone, s.rx, s.ry, cx, cy);
       // Knockback can shove the player over pits and water (`GAME.md` §1 hazards)
@@ -1227,13 +1353,13 @@ function damagePlayer(world: World, s: State, halfHearts: number, ignoreInvuln =
     s.invulnTimer = 1.2;
     s.events.push('player-respawn');
     if (s.zone === 'ice-cave') {
-      enterRoom(world, s, 'ice-cave', 1, 3, 5.5, 9.5);
+      enterRoom(world, s, 'ice-cave', 1, 3, 10.5, 18.5);
       showBanner(s, 'Knocked out! Returned to the dungeon foyer.', 2.8);
     } else if (s.zone === 'basement') {
       enterRoom(world, s, 'basement', 1, 3, 5.5, 6.5);
       showBanner(s, 'Knocked out! Returned to Grandma’s house.', 2.8);
     } else {
-      enterRoom(world, s, 'overworld', 3, 2, 5.5, 6.5);
+      enterRoom(world, s, 'overworld', 3, 2, 10.5, 12.5);
       showBanner(s, 'Knocked out! Returned to Mouse House.', 2.8);
     }
     return true;
@@ -1271,7 +1397,7 @@ export function isButtonPressed(world: World, s: State, bx: number, by: number):
           e.kind === 'tortoise' ||
           (e.frozenTimer ?? 0) > 0 ||
           e.stumbleTimer > 0) &&
-        Math.hypot(e.x - cx, e.y - cy) <= BUTTON_CONTACT_RADIUS,
+        Math.hypot(e.x - cx, e.y - cy) <= BUTTON_CONTACT_RADIUS + enemyGrow(s),
     )
   ) {
     return true;
@@ -1535,7 +1661,7 @@ export function grandmaAdvice(s: State): string {
 }
 
 function lightTorchAt(world: World, s: State, tx: number, ty: number): void {
-  const torch = s.torches.find((t) => t.x === tx && t.y === ty);
+  const torch = torchAt(s, tx, ty);
   if (!torch || torch.lit) return;
 
   const room = currentRoom(world, s);
@@ -1598,7 +1724,7 @@ function hasBlastLineOfSight(
   for (const frac of [0.2, 0.4, 0.6, 0.8]) {
     const mx = Math.floor(ox + (tx - ox) * frac);
     const my = Math.floor(oy + (ty - oy) * frac);
-    if (mx < 0 || my < 0 || mx >= ROOM_W || my >= ROOM_H) continue;
+    if (mx < 0 || my < 0 || mx >= s.roomW || my >= s.roomH) continue;
     if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, mx, my))) return false;
   }
   return true;
@@ -1622,7 +1748,7 @@ function isBlastContactOccluded(
     const mx = Math.floor(ox + (clampedX - ox) * frac);
     const my = Math.floor(oy + (clampedY - oy) * frac);
     if ((mx === ocx && my === ocy) || (mx === tx && my === ty)) continue;
-    if (mx < 0 || my < 0 || mx >= ROOM_W || my >= ROOM_H) continue;
+    if (mx < 0 || my < 0 || mx >= s.roomW || my >= s.roomH) continue;
     if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, mx, my))) return true;
   }
   // Prevent diagonal blasts leaking through a sealed corner between two adjacent solid walls
@@ -1663,7 +1789,7 @@ function igniteTile(
   generation: number,
   sourcePatch?: FirePatch,
 ): FirePatch | null {
-  if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H || generation > MAX_FIRE_GENERATION) {
+  if (tx < 0 || ty < 0 || tx >= s.roomW || ty >= s.roomH || generation > MAX_FIRE_GENERATION) {
     return null;
   }
   const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
@@ -1679,7 +1805,7 @@ function igniteTile(
 
   if (t === 'T') {
     const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
-    const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
+    const torch = torchAt(s, tx, ty);
     if (torch?.order !== undefined && sourcePatch) {
       const contacts = getFireTorchContacts(s, sourcePatch);
       if (!contacts.has(ck)) {
@@ -1725,7 +1851,7 @@ function slideMetalBlockToward(
   }
   const destX = blk.x + sdx;
   const destY = blk.y + sdy;
-  if (destX < 1 || destX > ROOM_W - 2 || destY < 1 || destY > ROOM_H - 2) return false;
+  if (destX < 1 || destX > s.roomW - 2 || destY < 1 || destY > s.roomH - 2) return false;
   const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
   if (!isPushBlockFloor(destTile) || hasBlockAt(s, destX, destY)) return false;
   blk.x = destX;
@@ -1736,8 +1862,8 @@ function slideMetalBlockToward(
 }
 
 function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<number>): Bomb[] {
-  const cx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(bomb.x)));
-  const cy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(bomb.y)));
+  const cx = Math.max(0, Math.min(s.roomW - 1, Math.floor(bomb.x)));
+  const cy = Math.max(0, Math.min(s.roomH - 1, Math.floor(bomb.y)));
   getFloatingBombs(s).delete(bomb.id);
   getCatapultedBombs(s).delete(bomb.id);
   const facing =
@@ -1752,8 +1878,8 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     s.blasts.push({ x: cx + 0.5, y: cy + 0.5, kind: 'squeak', shape: 'single' });
     for (const e of s.enemies) {
       if (
-        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
-        Math.hypot(e.x - (cx + 0.5), e.y - (cy + 0.5)) <= 1.85
+        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 + enemyGrow(s) ||
+        Math.hypot(e.x - (cx + 0.5), e.y - (cy + 0.5)) <= 1.85 + enemyGrow(s)
       ) {
         e.stumbleTimer = SQUEAK_DAZE;
         e.aiState = 'recover';
@@ -1774,7 +1900,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       for (let dx = -1; dx <= 1; dx++) {
         const tx = cx + dx;
         const ty = cy + dy;
-        if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) continue;
+        if (tx < 0 || ty < 0 || tx >= s.roomW || ty >= s.roomH) continue;
         if (isSolidBlastWall(tileAt(world, s, s.zone, s.rx, s.ry, tx, ty))) continue;
         s.blasts.push({
           x: tx + 0.5,
@@ -1786,7 +1912,10 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     }
     for (const e of s.enemies) {
       const eDir = radialDir(bomb.x, bomb.y, e.x, e.y, facing.dx, facing.dy);
-      if (eDir.dist <= 2.2 && hasBlastLineOfSight(world, s, bomb.x, bomb.y, e.x, e.y)) {
+      if (
+        eDir.dist <= 2.2 + enemyGrow(s) &&
+        hasBlastLineOfSight(world, s, bomb.x, bomb.y, e.x, e.y)
+      ) {
         e.vx = eDir.dirX * 6.5;
         e.vy = eDir.dirY * 6.5;
       }
@@ -1797,7 +1926,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       const isJumpObstacle = (t: Tile): boolean =>
         t === '^' || t === '=' || t === '!' || isWaterTile(t);
       const isWalkLanding = (tx: number, ty: number): boolean => {
-        if (tx < 1 || tx > ROOM_W - 2 || ty < 1 || ty > ROOM_H - 2) return false;
+        if (tx < 1 || tx > s.roomW - 2 || ty < 1 || ty > s.roomH - 2) return false;
         const lt = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
         return (
           !isTileSolidForWalk(lt, s.crystalColor) &&
@@ -1871,8 +2000,8 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       slideMetalBlockToward(world, s, blk, bomb.x, bomb.y, 3.5);
     }
     let flipped = false;
-    for (let ty = Math.max(0, cy - 2); ty <= Math.min(ROOM_H - 1, cy + 2); ty++) {
-      for (let tx = Math.max(0, cx - 2); tx <= Math.min(ROOM_W - 1, cx + 2); tx++) {
+    for (let ty = Math.max(0, cy - 2); ty <= Math.min(s.roomH - 1, cy + 2); ty++) {
+      for (let tx = Math.max(0, cx - 2); tx <= Math.min(s.roomW - 1, cx + 2); tx++) {
         if (
           tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) === 'C' &&
           (Math.hypot(tx + 0.5 - bomb.x, ty + 0.5 - bomb.y) <= 1.85 ||
@@ -1895,7 +2024,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
       for (let dx = -1; dx <= 1; dx++) {
         const tx = cx + dx;
         const ty = cy + dy;
-        if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) continue;
+        if (tx < 0 || ty < 0 || tx >= s.roomW || ty >= s.roomH) continue;
         const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
         if (isSolidBlastWall(t)) continue;
         s.blasts.push({
@@ -1921,15 +2050,16 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
         }
         if (!s.roomSolved) {
           for (const tr of s.torches) {
-            if (tr.x === tx && tr.y === ty && !tr.decor) tr.lit = false;
+            if (tr === torchAt(s, tx, ty) && !tr.decor) tr.lit = false;
           }
         }
       }
     }
     for (const e of s.enemies) {
       if (
-        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 ||
-        (Math.abs(e.x - (cx + 0.5)) <= 1.65 && Math.abs(e.y - (cy + 0.5)) <= 1.65)
+        Math.hypot(e.x - bomb.x, e.y - bomb.y) <= 1.85 + enemyGrow(s) ||
+        (Math.abs(e.x - (cx + 0.5)) <= 1.65 + enemyGrow(s) &&
+          Math.abs(e.y - (cy + 0.5)) <= 1.65 + enemyGrow(s))
       ) {
         e.frozenTimer = FREEZE_DURATION;
         e.vx = 0;
@@ -1949,7 +2079,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     const aheadX = cx + facing.dx;
     const aheadY = cy + facing.dy;
     const aheadTile =
-      aheadX >= 0 && aheadX < ROOM_W && aheadY >= 0 && aheadY < ROOM_H
+      aheadX >= 0 && aheadX < s.roomW && aheadY >= 0 && aheadY < s.roomH
         ? tileAt(world, s, s.zone, s.rx, s.ry, aheadX, aheadY)
         : '#';
     if (hereTile === ';' || hereTile === '!') {
@@ -1982,7 +2112,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     for (let r = 1; r <= reach; r++) {
       const tx = cx + dx * r;
       const ty = cy + dy * r;
-      if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) break;
+      if (tx < 0 || ty < 0 || tx >= s.roomW || ty >= s.roomH) break;
       const t = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
       if (isSolidBlastWall(t)) break;
       ray.push([tx, ty]);
@@ -2009,9 +2139,9 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   const maxDist = reach + BLAST_CONTACT_PADDING;
   const maxEdgeDist = reach + (BLAST_CONTACT_PADDING - 0.5); // reach + 0.18
   const minTx = Math.max(0, Math.floor(bomb.x - maxDist));
-  const maxTx = Math.min(ROOM_W - 1, Math.floor(bomb.x + maxDist));
+  const maxTx = Math.min(s.roomW - 1, Math.floor(bomb.x + maxDist));
   const minTy = Math.max(0, Math.floor(bomb.y - maxDist));
-  const maxTy = Math.min(ROOM_H - 1, Math.floor(bomb.y + maxDist));
+  const maxTy = Math.min(s.roomH - 1, Math.floor(bomb.y + maxDist));
   for (let ty = minTy; ty <= maxTy; ty++) {
     for (let tx = minTx; tx <= maxTx; tx++) {
       const key = `${tx},${ty}`;
@@ -2039,6 +2169,12 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     if (bomb.kind === 'bomb') {
       if (t === '%' || t === 'W') {
         s.brokenTiles.add(ck);
+        // A cracked wall breaks as one piece, however many tiles it spans
+        if (t === '%') {
+          for (const [x, y] of connectedTiles(world, s, tx, ty)) {
+            s.brokenTiles.add(cellKey(s.zone, s.rx, s.ry, x, y));
+          }
+        }
         s.events.push('tile-break');
       }
       const hadRock = s.blocks.some((blk) => blk.rock && blk.x === tx && blk.y === ty);
@@ -2091,10 +2227,13 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
   for (const enemy of [...s.enemies]) {
     const eDir = radialDir(bomb.x, bomb.y, enemy.x, enemy.y, enemy.fx || 0, enemy.fy || 1);
     const hasLos = hasBlastLineOfSight(world, s, bomb.x, bomb.y, enemy.x, enemy.y);
+    const grow = enemyGrow(s);
     const hit =
-      hitTiles.some(([tx, ty]) => Math.hypot(enemy.x - (tx + 0.5), enemy.y - (ty + 0.5)) < 0.92) ||
-      (eDir.dist <= reach + 0.55 && hasLos);
-    const inShove = hit || (eDir.dist <= shoveRadius && hasLos);
+      hitTiles.some(
+        ([tx, ty]) => Math.hypot(enemy.x - (tx + 0.5), enemy.y - (ty + 0.5)) < 0.92 + grow,
+      ) ||
+      (eDir.dist <= reach + 0.55 + grow && hasLos);
+    const inShove = hit || (eDir.dist <= shoveRadius + grow && hasLos);
     if (inShove) {
       const massScale =
         enemy.kind === 'cinderhull'
@@ -2162,7 +2301,7 @@ function detonateSingleBomb(world: World, s: State, bomb: Bomb, blownIds: Set<nu
     }
     const destX = blk.x + sdx;
     const destY = blk.y + sdy;
-    if (destX >= 1 && destX <= ROOM_W - 2 && destY >= 1 && destY <= ROOM_H - 2) {
+    if (destX >= 1 && destX <= s.roomW - 2 && destY >= 1 && destY <= s.roomH - 2) {
       const destTile = tileAt(world, s, s.zone, s.rx, s.ry, destX, destY);
       if (isPushBlockFloor(destTile) && !hasBlockAt(s, destX, destY)) {
         blk.x = destX;
@@ -2281,8 +2420,17 @@ function applyBombHitToEnemy(
         enemy.aiState = 'windup';
         enemy.stateTimer = 0.65;
         enemy.invulnTimer = 0.65;
-        enemy.x = enemy.x < ROOM_W / 2 ? ROOM_W - 3.5 : 3.5;
-        enemy.y = enemy.y < ROOM_H / 2 ? ROOM_H - 4.5 : 4.5;
+        // Blink to the far quarter of the room, clear of the corner braziers (on a doubled
+        // screen the 4-thick wall and 2x braziers sit further in)
+        const inX = enemyGrow(s) > 0 ? 7 : 3.5;
+        const inY = enemyGrow(s) > 0 ? 7 : 4.5;
+        [enemy.x, enemy.y] = fitEnemyBody(
+          world,
+          s,
+          enemy.kind,
+          enemy.x < s.roomW / 2 ? s.roomW - inX : inX,
+          enemy.y < s.roomH / 2 ? s.roomH - inY : inY,
+        );
         enemy.vx = 0;
         enemy.vy = 0;
         for (const [gx, gy] of [
@@ -2392,8 +2540,8 @@ function applyBombHitToEnemy(
     const perpX = -awayY;
     const perpY = awayX;
     for (const sign of [-1, 1] as const) {
-      const candX = Math.max(0.75, Math.min(ROOM_W - 0.75, enemy.x + perpX * 0.32 * sign));
-      const candY = Math.max(0.75, Math.min(ROOM_H - 0.75, enemy.y + perpY * 0.32 * sign));
+      const candX = Math.max(0.75, Math.min(s.roomW - 0.75, enemy.x + perpX * 0.32 * sign));
+      const candY = Math.max(0.75, Math.min(s.roomH - 0.75, enemy.y + perpY * 0.32 * sign));
       const ct = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(candX), Math.floor(candY));
       const canStand =
         !isTileSolidForWalk(ct, s.crystalColor) &&
@@ -2641,15 +2789,15 @@ function startRoll(world: World, s: State, input: Input, inLen: number): void {
 function isBombSpotFree(world: World, s: State, px: number, py: number, z: number): boolean {
   if (
     px < BOMB_RADIUS ||
-    px > ROOM_W - BOMB_RADIUS ||
+    px > s.roomW - BOMB_RADIUS ||
     py < BOMB_RADIUS ||
-    py > ROOM_H - BOMB_RADIUS
+    py > s.roomH - BOMB_RADIUS
   ) {
     return false;
   }
   for (let cy = Math.floor(py - BOMB_RADIUS); cy <= Math.floor(py + BOMB_RADIUS); cy++) {
     for (let cx = Math.floor(px - BOMB_RADIUS); cx <= Math.floor(px + BOMB_RADIUS); cx++) {
-      if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+      if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
       if (classifyBombBlocker(world, s, cx, cy, z) !== 'none') return false;
     }
   }
@@ -2737,20 +2885,20 @@ function advanceWalk(world: World, s: State, input: Input, inLen: number, walkDt
   let driftDy = 0;
   const px = Math.floor(s.x);
   const py = Math.floor(s.y);
-  if (px >= 0 && px < ROOM_W && py >= 0 && py < ROOM_H) {
+  if (px >= 0 && px < s.roomW && py >= 0 && py < s.roomH) {
     const sv = slopeVector(tileAt(world, s, s.zone, s.rx, s.ry, px, py));
     if (sv !== null) {
       const rawDx = sv.dx * PLAYER_SLOPE_DRIFT * walkDt;
       const rawDy = sv.dy * PLAYER_SLOPE_DRIFT * walkDt;
       if (rawDx < 0 && s.x > PLAYER_RADIUS) {
         driftDx = Math.max(rawDx, PLAYER_RADIUS - s.x);
-      } else if (rawDx > 0 && s.x < ROOM_W - PLAYER_RADIUS) {
-        driftDx = Math.min(rawDx, ROOM_W - PLAYER_RADIUS - s.x);
+      } else if (rawDx > 0 && s.x < s.roomW - PLAYER_RADIUS) {
+        driftDx = Math.min(rawDx, s.roomW - PLAYER_RADIUS - s.x);
       }
       if (rawDy < 0 && s.y > PLAYER_RADIUS) {
         driftDy = Math.max(rawDy, PLAYER_RADIUS - s.y);
-      } else if (rawDy > 0 && s.y < ROOM_H - PLAYER_RADIUS) {
-        driftDy = Math.min(rawDy, ROOM_H - PLAYER_RADIUS - s.y);
+      } else if (rawDy > 0 && s.y < s.roomH - PLAYER_RADIUS) {
+        driftDy = Math.min(rawDy, s.roomH - PLAYER_RADIUS - s.y);
       }
     }
   }
@@ -2913,10 +3061,10 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       ? Math.max(v, Math.min(v - d, PLAYER_RADIUS))
       : Math.min(v, Math.max(v - d, size - PLAYER_RADIUS));
   if (Math.abs(knockDx) > 1e-5 && !playerBlockedAt(world, s, s.x + knockDx, s.y, false, true)) {
-    s.x = keepInRoom(s.x + knockDx, ROOM_W, knockDx);
+    s.x = keepInRoom(s.x + knockDx, s.roomW, knockDx);
   }
   if (Math.abs(knockDy) > 1e-5 && !playerBlockedAt(world, s, s.x, s.y + knockDy, false, true)) {
-    s.y = keepInRoom(s.y + knockDy, ROOM_H, knockDy);
+    s.y = keepInRoom(s.y + knockDy, s.roomH, knockDy);
   }
 
   // Check if knockback pushed player onto pit/water/spikes
@@ -2993,18 +3141,14 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
     // Squeak Bomb continuous lure: pulls Clockwork Creatures ('beetle', 'mimic', 'otter', 'slime') within 4.5 tiles at 1.8 tiles/s
     if (b.kind === 'squeak') {
-      const canEnemyStep = (nx: number, ny: number): boolean => {
-        if (nx < 0.55 || ny < 0.55 || nx > ROOM_W - 0.55 || ny > ROOM_H - 0.55) return false;
-        const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(nx), Math.floor(ny));
-        return (
-          !isTileSolidForWalk(t, s.crystalColor) && !hasBlockAt(s, Math.floor(nx), Math.floor(ny))
-        );
-      };
       for (const e of s.enemies) {
         if (
           (e.kind === 'beetle' || e.kind === 'mimic' || e.kind === 'otter' || e.kind === 'slime') &&
           (e.frozenTimer ?? 0) <= 0
         ) {
+          const wedged = enemyBodyBlocked(world, s, e.kind, e.x, e.y);
+          const canEnemyStep = (nx: number, ny: number): boolean =>
+            !enemyBodyBlocked(world, s, e.kind, nx, ny, wedged ? 0 : undefined);
           const ldx = b.x - e.x;
           const ldy = b.y - e.y;
           const lDist = Math.hypot(ldx, ldy);
@@ -3084,8 +3228,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       let appliedSlopeThisStep = false;
       let strongDryWind = false;
       if (b.z <= 0.12) {
-        const sx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
-        const sy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+        const sx = Math.max(0, Math.min(s.roomW - 1, Math.floor(b.x)));
+        const sy = Math.max(0, Math.min(s.roomH - 1, Math.floor(b.y)));
         const st = tileAt(world, s, s.zone, s.rx, s.ry, sx, sy);
         const sv = slopeVector(st);
         if (sv !== null) {
@@ -3107,8 +3251,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
                 s.zone,
                 s.rx,
                 s.ry,
-                Math.max(0, Math.min(ROOM_W - 1, Math.floor(px))),
-                Math.max(0, Math.min(ROOM_H - 1, Math.floor(py))),
+                Math.max(0, Math.min(s.roomW - 1, Math.floor(px))),
+                Math.max(0, Math.min(s.roomH - 1, Math.floor(py))),
               ) === '^';
             if (intoPit(b.x + b.vx * bombSubDt, b.y)) b.vx = 0;
             if (intoPit(b.x, b.y + b.vy * bombSubDt)) b.vy = 0;
@@ -3131,8 +3275,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         if (b.z <= 0) {
           b.z = 0;
           catapultedSet.delete(b.id);
-          const lx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
-          const ly = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+          const lx = Math.max(0, Math.min(s.roomW - 1, Math.floor(b.x)));
+          const ly = Math.max(0, Math.min(s.roomH - 1, Math.floor(b.y)));
           const landedTile = tileAt(world, s, s.zone, s.rx, s.ry, lx, ly);
           if (landedTile === '^') {
             swallowed = true;
@@ -3170,8 +3314,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       }
 
       if (b.z <= 0.02 && b.vz <= 0) {
-        const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
-        const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+        const gx = Math.max(0, Math.min(s.roomW - 1, Math.floor(b.x)));
+        const gy = Math.max(0, Math.min(s.roomH - 1, Math.floor(b.y)));
         const groundTile = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
         const groundSv = slopeVector(groundTile);
         if (groundTile === '^') {
@@ -3264,7 +3408,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         b.kicked &&
         Math.hypot(b.vx, b.vy) > 2.0 &&
         clearOfPip &&
-        s.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < 0.68)
+        s.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < 0.68 + enemyGrow(s))
       ) {
         impactDetonated = true;
         break;
@@ -3287,8 +3431,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     const postSwallowed = new Set<number>();
     for (const b of s.bombs) {
       if (b.z > 0.02) continue;
-      const gx = Math.max(0, Math.min(ROOM_W - 1, Math.floor(b.x)));
-      const gy = Math.max(0, Math.min(ROOM_H - 1, Math.floor(b.y)));
+      const gx = Math.max(0, Math.min(s.roomW - 1, Math.floor(b.x)));
+      const gy = Math.max(0, Math.min(s.roomH - 1, Math.floor(b.y)));
       const gt = tileAt(world, s, s.zone, s.rx, s.ry, gx, gy);
       if (gt === '^') {
         postSwallowed.add(b.id);
@@ -3352,12 +3496,12 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     f.tickCooldown = Math.max(0, f.tickCooldown - dt);
 
     const patchContacts = getFireTorchContacts(s, f);
-    for (let ty = Math.max(0, fcy - 1); ty <= Math.min(ROOM_H - 1, fcy + 1); ty++) {
-      for (let tx = Math.max(0, fcx - 1); tx <= Math.min(ROOM_W - 1, fcx + 1); tx++) {
+    for (let ty = Math.max(0, fcy - 1); ty <= Math.min(s.roomH - 1, fcy + 1); ty++) {
+      for (let tx = Math.max(0, fcx - 1); tx <= Math.min(s.roomW - 1, fcx + 1); tx++) {
         if (Math.hypot(tx + 0.5 - (f.x + 0.5), ty + 0.5 - (f.y + 0.5)) > 1.25) continue;
         if (tileAt(world, s, s.zone, s.rx, s.ry, tx, ty) !== 'T') continue;
         const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
-        const torch = s.torches.find((tr) => tr.x === tx && tr.y === ty);
+        const torch = torchAt(s, tx, ty);
         if (torch?.order !== undefined) {
           if (!patchContacts.has(ck)) {
             patchContacts.add(ck);
@@ -3384,7 +3528,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
         const nx = fcx + dx;
         const ny = fcy + dy;
         igniteTile(world, s, nx, ny, nextGen, f);
-        if (w.dx * dx + w.dy * dy > 0.6 && nx >= 0 && ny >= 0 && nx < ROOM_W && ny < ROOM_H) {
+        if (w.dx * dx + w.dy * dy > 0.6 && nx >= 0 && ny >= 0 && nx < s.roomW && ny < s.roomH) {
           const midT = tileAt(world, s, s.zone, s.rx, s.ry, nx, ny);
           if (!isWaterTile(midT) && !isTallWall(midT, s.crystalColor)) {
             igniteTile(world, s, fcx + dx * 2, fcy + dy * 2, nextGen, f);
@@ -3413,7 +3557,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       const litNow = isRoomLit(world, s);
       for (const e of [...s.enemies]) {
         if (e.kind === 'bat' && (e.stumbleTimer ?? 0) <= 0) continue;
-        if (Math.hypot(e.x - (f.x + 0.5), e.y - (f.y + 0.5)) < 0.72) {
+        if (Math.hypot(e.x - (f.x + 0.5), e.y - (f.y + 0.5)) < 0.72 + enemyGrow(s)) {
           applyBombHitToEnemy(world, s, e, 'fire', f.x + 0.5, f.y + 0.5, litNow);
           f.tickCooldown = 0.55;
         }
@@ -3452,18 +3596,15 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     e.homeX ??= e.x;
     e.homeY ??= e.y;
 
-    const canFly = e.kind === 'bat' || e.kind === 'wickgeist';
-    const enemyBlocked = (nx: number, ny: number): boolean => {
-      if (nx < 0.7 || ny < 0.7 || nx > ROOM_W - 0.7 || ny > ROOM_H - 0.7) return true;
-      const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(nx), Math.floor(ny));
-      if (canFly) return isTallWall(t, s.crystalColor);
-      return isTileSolidForWalk(t, s.crystalColor) || hasBlockAt(s, Math.floor(nx), Math.floor(ny));
-    };
+    // A body already wedged against a wall (blown there) moves by its centre until it is clear
+    const wedged = enemyBodyBlocked(world, s, e.kind, e.x, e.y);
+    const enemyBlocked = (nx: number, ny: number): boolean =>
+      enemyBodyBlocked(world, s, e.kind, nx, ny, wedged ? 0 : undefined);
 
     if ((e.frozenTimer ?? 0) > 0) {
       e.frozenTimer = Math.max(0, (e.frozenTimer ?? 0) - dt);
       if ((e.frozenTimer ?? 0) > 0) {
-        if (Math.hypot(s.x - e.x, s.y - e.y) <= 0.65) {
+        if (Math.hypot(s.x - e.x, s.y - e.y) <= 0.65 + enemyGrow(s)) {
           const kickDir = cardinalFacing(s);
           e.vx = kickDir.dx * 6.5;
           e.vy = kickDir.dy * 6.5;
@@ -3599,8 +3740,8 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
           const awayLen = Math.hypot(awayX, awayY) || 1;
           const ax = awayX / awayLen;
           const ay = awayY / awayLen;
-          const toCx = ROOM_W * 0.5 - e.x;
-          const toCy = ROOM_H * 0.5 - e.y;
+          const toCx = s.roomW * 0.5 - e.x;
+          const toCy = s.roomH * 0.5 - e.y;
           const sign = -ay * toCx + ax * toCy >= 0 ? 1 : -1;
           const sx = -ay * sign * 0.8 + ax * 0.6;
           const sy = ax * sign * 0.8 + ay * 0.6;
@@ -3868,6 +4009,19 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
       }
     }
 
+    // The Ice Wraith never stays pinned against walls or a brazier: it breaks for the middle
+    if (e.kind === 'wickgeist' && (e.unstickTimer ?? 0) > 0) {
+      e.unstickTimer = Math.max(0, (e.unstickTimer ?? 0) - dt);
+      const toCx = s.roomW * 0.5 - e.x;
+      const toCy = s.roomH * 0.5 - e.y;
+      const toLen = Math.hypot(toCx, toCy) || 1;
+      e.fx = toCx / toLen;
+      e.fy = toCy / toLen;
+      speed = 1.65;
+    }
+
+    const x0 = e.x;
+    const y0 = e.y;
     const ex = e.x + (e.fx * speed + e.vx) * dt;
     const ey = e.y + (e.fy * speed + e.vy) * dt;
     e.vx *= Math.pow(0.002, dt);
@@ -3876,8 +4030,17 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     if (!enemyBlocked(ex, e.y)) e.x = ex;
     if (!enemyBlocked(e.x, ey)) e.y = ey;
 
+    if (e.kind === 'wickgeist' && speed > 0) {
+      const moved = Math.hypot(e.x - x0, e.y - y0);
+      e.stuckTimer = moved < speed * dt * 0.25 ? (e.stuckTimer ?? 0) + dt : 0;
+      if (e.stuckTimer > 0.5) {
+        e.stuckTimer = 0;
+        e.unstickTimer = 1.0;
+      }
+    }
+
     // Contact damage to player (Wickgeist while ghostly in dark deals 1, Cinderhull deals 2, others 1)
-    const hitDist = e.kind === 'cinderhull' ? 0.78 : 0.58;
+    const hitDist = (e.kind === 'cinderhull' ? 0.78 : 0.58) + enemyGrow(s);
     if (
       e.stumbleTimer <= 0 &&
       Math.hypot(s.x - e.x, s.y - e.y) < hitDist &&
@@ -3901,7 +4064,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.life -= dt;
-    if (p.life <= 0 || p.x < 0 || p.y < 0 || p.x >= ROOM_W || p.y >= ROOM_H) continue;
+    if (p.life <= 0 || p.x < 0 || p.y < 0 || p.x >= s.roomW || p.y >= s.roomH) continue;
     const t = tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(p.x), Math.floor(p.y));
     if (isTallWall(t, s.crystalColor)) continue;
     if (Math.hypot(p.x - s.x, p.y - s.y) < 0.45) {
@@ -3922,7 +4085,7 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   checkSolveCondition(world, s);
 
   const canPickupStand = (nx: number, ny: number): boolean => {
-    if (nx < 1.15 || nx > ROOM_W - 1.15 || ny < 1.15 || ny > ROOM_H - 1.15) return false;
+    if (nx < 1.15 || nx > s.roomW - 1.15 || ny < 1.15 || ny > s.roomH - 1.15) return false;
     const tx = Math.floor(nx);
     const ty = Math.floor(ny);
     const pt = tileAt(world, s, s.zone, s.rx, s.ry, tx, ty);
@@ -3974,7 +4137,13 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   if (s.portalCooldown <= 0 && room?.portals) {
     for (const portal of room.portals) {
       if (portal.requiresWarpUnlock && !s.cryptWarpUnlocked) continue;
-      if (Math.hypot(s.x - (portal.x + 0.5), s.y - (portal.y + 0.5)) < 0.48) {
+      // On doubled screens a flight of stairs is a 2 x 2 block of `'>'`: any of it leads on
+      const flight = connectedTiles(world, s, portal.x, portal.y);
+      const onIt =
+        flight.length > 1
+          ? flight.some(([fx, fy]) => fx === Math.floor(s.x) && fy === Math.floor(s.y))
+          : Math.hypot(s.x - (portal.x + 0.5), s.y - (portal.y + 0.5)) < 0.48;
+      if (onIt) {
         s.portalCooldown = 0.7;
         enterRoom(
           world,
@@ -3997,9 +4166,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
   // 10. Flip-screen edge transitions (`GAME.md` §1 — quick fade cut, never a scroll)
   const edgeMoves: [boolean, number, number][] = [
     [s.x < 0, -1, 0],
-    [s.x >= ROOM_W, 1, 0],
+    [s.x >= s.roomW, 1, 0],
     [s.y < 0, 0, -1],
-    [s.y >= ROOM_H, 0, 1],
+    [s.y >= s.roomH, 0, 1],
   ];
   // Where crossing an edge would land, or null if there is no room or the arrival spot is
   // blocked (brambles or a raised barrier on the far side). Doors and shutters are settled
@@ -4011,11 +4180,11 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
     const nrx = s.rx + dx;
     const nry = s.ry + dy;
     if (!world.rooms.has(roomKey(s.zone, nrx, nry))) return null;
-    const nx = dx > 0 ? PLAYER_RADIUS + 0.15 : dx < 0 ? ROOM_W - PLAYER_RADIUS - 0.15 : s.x;
-    const ny = dy > 0 ? PLAYER_RADIUS + 0.15 : dy < 0 ? ROOM_H - PLAYER_RADIUS - 0.15 : s.y;
+    const nx = dx > 0 ? PLAYER_RADIUS + 0.15 : dx < 0 ? s.roomW - PLAYER_RADIUS - 0.15 : s.x;
+    const ny = dy > 0 ? PLAYER_RADIUS + 0.15 : dy < 0 ? s.roomH - PLAYER_RADIUS - 0.15 : s.y;
     for (let cy = Math.floor(ny - PLAYER_RADIUS); cy <= Math.floor(ny + PLAYER_RADIUS); cy++) {
       for (let cx = Math.floor(nx - PLAYER_RADIUS); cx <= Math.floor(nx + PLAYER_RADIUS); cx++) {
-        if (cx < 0 || cy < 0 || cx >= ROOM_W || cy >= ROOM_H) continue;
+        if (cx < 0 || cy < 0 || cx >= s.roomW || cy >= s.roomH) continue;
         const t = tileAt(world, s, s.zone, nrx, nry, cx, cy);
         if (t === 'S' || t === 'D' || t === 'K') continue;
         if (isTileSolidForWalk(t, s.crystalColor)) return null;
@@ -4033,9 +4202,9 @@ export function tick(world: World, s: State, input: Input, dt: number = FIXED_DT
 
   // Clamp inside room edges that cannot be crossed here
   if (!arrival(-1, 0)) s.x = Math.max(s.x, PLAYER_RADIUS);
-  if (!arrival(1, 0)) s.x = Math.min(s.x, ROOM_W - PLAYER_RADIUS);
+  if (!arrival(1, 0)) s.x = Math.min(s.x, s.roomW - PLAYER_RADIUS);
   if (!arrival(0, -1)) s.y = Math.max(s.y, PLAYER_RADIUS);
-  if (!arrival(0, 1)) s.y = Math.min(s.y, ROOM_H - PLAYER_RADIUS);
+  if (!arrival(0, 1)) s.y = Math.min(s.y, s.roomH - PLAYER_RADIUS);
 
   return false;
 }

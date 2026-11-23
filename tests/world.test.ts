@@ -4,7 +4,6 @@ import {
   FIRE_FUSE,
   FIXED_DT,
   BOMB_FUSE,
-  ROOM_W,
   campaignWorld,
   enterRoom,
   equipBomb,
@@ -17,37 +16,38 @@ import {
 } from '../src/game/world';
 
 describe('core movement, bombs, puzzles, and bosses', () => {
-  it('walls stop you, and corner sliding nudges you cleanly into a 1-tile doorway', () => {
+  it('walls stop you, and corner sliding nudges you cleanly into a doorway', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 3.5, 4.5);
+    // Mouse House: the tree wall west of the doorstep ends at x = 4
+    const s = newState(world, 'overworld', 3, 2, 6.5, 8.5);
     stepSeconds(world, s, 1.6, { ...idle, dx: -1 });
-    expect(s.x).toBeGreaterThan(2.12);
+    expect(s.x).toBeGreaterThan(4.12);
 
-    // Stand slightly off-centre below the 1-tile doorway at x=5 in Crystal Crossroads (1, 2)
-    enterRoom(world, s, 'ice-cave', 1, 2, 5.28, 10.8);
-    stepSeconds(world, s, 1.2, { ...idle, dy: 1 });
-    // Corner-slide nudges x toward 5.5 and transitions south into Entry Hall (1, 3)
+    // Stand off-centre below the 2-tile doorway at x = 10..11 in Crystal Crossroads (1, 2)
+    enterRoom(world, s, 'ice-cave', 1, 2, 9.95, 20.8);
+    stepSeconds(world, s, 2.4, { ...idle, dy: 1 });
+    // Corner-slide nudges x into the doorway and transitions south into Entry Hall (1, 3)
     expect([s.zone, s.rx, s.ry]).toEqual(['ice-cave', 1, 3]);
   });
 
   it('walking off an open edge cuts to the adjacent room', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 0.6, 6.5);
+    const s = newState(world, 'overworld', 3, 2, 0.6, 12.5);
     let moved = false;
     for (let i = 0; i < 80 && !moved; i++) {
       moved = tick(world, s, { ...idle, dx: -1 }, FIXED_DT);
     }
     expect(moved).toBe(true);
     expect([s.rx, s.ry]).toEqual([2, 2]);
-    expect(s.x).toBeGreaterThan(ROOM_W - 1);
+    expect(s.x).toBeGreaterThan(s.roomW - 1);
   });
 
   it('placed Bomb breaks cracked walls and deals 1/4th heart (0.5 half-hearts) splashback with knockback when no enemy is hit', () => {
     const world = campaignWorld();
-    // Mouse House has a cracked smithy wall at (7, 1)
-    const s = newState(world, 'overworld', 3, 2, 6.5, 1.5);
+    // Mouse House has a cracked smithy wall at (14..15, 2..3), which breaks as one piece
+    const s = newState(world, 'overworld', 3, 2, 12.5, 2.5);
     const startHp = s.hp;
-    expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('%');
+    expect(tileAt(world, s, 'overworld', 3, 2, 14, 2)).toBe('%');
 
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     s.aimX = 1; // face the cracked wall: the bomb is placed against it
@@ -58,18 +58,25 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     stepSeconds(world, s, BOMB_FUSE + 0.15);
     expect(s.bombs).toHaveLength(0);
-    expect(tileAt(world, s, 'overworld', 3, 2, 7, 1)).toBe('.');
+    for (const [x, y] of [
+      [14, 2],
+      [15, 2],
+      [14, 3],
+      [15, 3],
+    ] as const) {
+      expect(tileAt(world, s, 'overworld', 3, 2, x, y)).toBe('.');
+    }
     // Self-blast dealt 1/4th heart (0.5 half-hearts) splashback and knocked Pip back west
     expect(s.hp).toBe(startHp - 0.5);
-    expect(s.x).toBeLessThan(6.0);
+    expect(s.x).toBeLessThan(12.0);
   });
 
   it('a kicked Bomb bomb detonates on enemy impact', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ice-cave', 1, 2, 5.5, 7.5);
+    const s = newState(world, 'ice-cave', 1, 2, 10.5, 14.5);
 
-    // Impact detonation on enemy: Tower Causeway (2, 1) has a slime at (5.5, 4.5)
-    enterRoom(world, s, 'overworld', 2, 1, 5.5, 6.5);
+    // Impact detonation on enemy: Tower Causeway (2, 1) has a slime at (10.5, 8.5)
+    enterRoom(world, s, 'overworld', 2, 1, 10.5, 10.5);
     s.aimX = 0;
     s.aimY = -1;
     const initialEnemies = s.enemies.length;
@@ -82,19 +89,19 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('Fire burns brambles, strips wooden shields, and enforces ordered braziers (I → II → III)', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ice-cave', 1, 3, 3.5, 6.5);
+    const s = newState(world, 'ice-cave', 1, 3, 6.5, 12.5);
     s.unlockedBombs.push('fire');
     equipBomb(s, 'fire');
 
-    // Burn inset west bramble at (2, 6) in Entry Hall
-    expect(tileAt(world, s, 'ice-cave', 1, 3, 2, 6)).toBe('B');
+    // Burn the inset west bramble (4..5, 12..13) in Entry Hall: the fire spreads through it
+    expect(tileAt(world, s, 'ice-cave', 1, 3, 4, 12)).toBe('B');
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
     tapA(world, s);
-    stepSeconds(world, s, FIRE_FUSE + 0.15);
-    expect(tileAt(world, s, 'ice-cave', 1, 3, 2, 6)).toBe('.');
+    stepSeconds(world, s, FIRE_FUSE + 2);
+    expect(tileAt(world, s, 'ice-cave', 1, 3, 4, 12)).toBe('.');
 
-    // Ordered braziers in Hall of Three Flames (0, 2): (2,9)=1, (2,2)=2, (8,2)=3
-    enterRoom(world, s, 'ice-cave', 0, 2, 2.5, 5.5);
+    // Ordered 2 x 2 braziers in Hall of Three Flames (0, 2): (4,18)=1, (4,4)=2, (16,4)=3
+    enterRoom(world, s, 'ice-cave', 0, 2, 4.5, 8.5);
     s.enemies = [];
     // Kicking into torch #2 first fizzles back to 0!
     s.bombCooldown = 0; // staged setup, not a test of the cooldown
@@ -105,9 +112,9 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
     // Now kick 1 -> 2 -> 3 in order to spawn the Boss Key!
     const shots: [number, number, number, number][] = [
-      [4.5, 9.5, -1, 0], // kick West into I (2, 9)
-      [2.5, 5.5, 0, -1], // kick North into II (2, 2)
-      [6.2, 2.5, 1, 0], // kick East into III (8, 2)
+      [8.5, 18.5, -1, 0], // kick West into I (4, 18)
+      [4.5, 8.5, 0, -1], // kick North into II (4, 4)
+      [13.5, 4.5, 1, 0], // kick East into III (16, 4)
     ];
     for (const [px, py, kdx, kdy] of shots) {
       s.x = px;
@@ -124,7 +131,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('Wickgeist is immune unless a corner brazier is lit (not just a bomb fire), and unleashes 3 ice storms at fixed health thresholds', () => {
     const world = campaignWorld();
-    const s = newState(world, 'ice-cave', 0, 0, 5.5, 7.5);
+    const s = newState(world, 'ice-cave', 0, 0, 10.5, 12.5);
     s.unlockedBombs.push('fire');
     const geist = s.enemies[0]!;
     expect(geist.kind).toBe('wickgeist');
@@ -139,7 +146,7 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(geist.hp).toBe(8);
 
     // A Fire bomb fire patch on the floor (not lighting a corner torch) does NOT expose Wickgeist!
-    s.fires.push({ x: 5, y: 6, remaining: 2.0, tickCooldown: 0, generation: 0 });
+    s.fires.push({ x: 10, y: 12, remaining: 2.0, tickCooldown: 0, generation: 0 });
     expect(isRoomLit(world, s)).toBe(false);
     geist.invulnTimer = 0;
     s.bombs.push({
@@ -159,9 +166,9 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(geist.hp).toBe(8);
     s.fires = [];
 
-    // Light NW brazier (2, 2) with Fire, then damage Wickgeist
-    s.x = 3.5;
-    s.y = 2.5;
+    // Light the NW brazier (4..5, 4..5) with Fire, then damage Wickgeist
+    s.x = 7.5;
+    s.y = 4.5;
     s.vx = 0;
     s.vy = 0;
     s.aimX = -1;
@@ -184,8 +191,8 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       if (!s.torches.some((t) => t.lit)) {
         iceStormCount++;
         s.hp = s.maxHp;
-        s.x = 3.5;
-        s.y = 2.5;
+        s.x = 7.5;
+        s.y = 4.5;
         s.vx = 0;
         s.vy = 0;
         s.aimX = -1;
@@ -200,8 +207,14 @@ describe('core movement, bombs, puzzles, and bosses', () => {
       if (!target) break;
       target.invulnTimer = 0;
       s.hp = s.maxHp;
+      // This test is about the damage thresholds, not the chase: in the big room the
+      // Wickgeist flees to a far corner, so stage each volley in the middle of the room
+      target.x = 10.5;
+      target.y = 12.5;
+      target.vx = 0;
+      target.vy = 0;
       s.x = target.x;
-      s.y = Math.min(10.2, target.y + 1.8);
+      s.y = target.y + 1.8;
       s.vx = 0;
       s.vy = 0;
       s.aimX = 0;
@@ -214,6 +227,54 @@ describe('core movement, bombs, puzzles, and bosses', () => {
     expect(s.enemies).toHaveLength(0);
     expect(s.roomSolved).toBe(true);
     expect(s.pickups.map((p) => p.kind).sort()).toEqual(['cinder-core', 'heart-container']);
+  });
+
+  it('an Ice Storm blinks the Wickgeist to open floor in the far quarter, never into a wall or brazier', () => {
+    const world = campaignWorld();
+    for (const [gx, gy] of [
+      [7.5, 6.5],
+      [14.5, 6.5],
+      [7.5, 19.5],
+      [14.5, 19.5],
+    ] as const) {
+      const s = newState(world, 'ice-cave', 0, 0, 11, 13);
+      for (const t of s.torches) t.lit = true;
+      const geist = s.enemies[0]!;
+      geist.x = gx;
+      geist.y = gy;
+      geist.hp = 7;
+      geist.invulnTimer = 0;
+      s.invulnTimer = 999;
+      s.bombs.push({
+        id: 888,
+        kind: 'bomb',
+        x: gx,
+        y: gy,
+        vx: 0,
+        vy: 0,
+        z: 0,
+        vz: 0,
+        fuse: 0.005,
+        graceOverlap: false,
+        shoveCount: 0,
+      });
+      tick(world, s, idle, FIXED_DT);
+      expect(s.events).toContain('ice-storm');
+      // Its whole 2x body is on open floor, on the far side of the room both ways
+      expect(Math.sign(geist.x - 11)).toBe(-Math.sign(gx - 11));
+      expect(Math.sign(geist.y - 13)).toBe(-Math.sign(gy - 13));
+      for (const oy of [-0.85, 0, 0.85]) {
+        for (const ox of [-0.85, 0, 0.85]) {
+          const tx = Math.floor(geist.x + ox);
+          const ty = Math.floor(geist.y + oy);
+          expect(tileAt(world, s, 'ice-cave', 0, 0, tx, ty), `${tx},${ty}`).toBe('.');
+        }
+      }
+      // And it comes back out after Pip
+      const d0 = Math.hypot(geist.x - s.x, geist.y - s.y);
+      stepSeconds(world, s, 3);
+      expect(Math.hypot(geist.x - s.x, geist.y - s.y)).toBeLessThan(d0 - 1);
+    }
   });
 
   it('Cinderhull requires Fire to burn thorn wraps before Bomb can damage its core, and unlocks the midpoint warp on defeat', () => {
@@ -282,24 +343,24 @@ describe('core movement, bombs, puzzles, and bosses', () => {
 
   it('respawns on the initial screen on overworld death, in the dungeon foyer on dungeon death, and round-trips v3 autosaves cleanly', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 2, 1, 9.2, 6.5);
+    const s = newState(world, 'overworld', 2, 1, 18.2, 12.5);
     s.hp = 1;
-    // Collide with slime at (5.5, 4.5) in overworld (2, 1) -> returns to initial screen (3, 2)
-    s.x = 5.5;
-    s.y = 4.5;
+    // Collide with the slime in overworld (2, 1) -> returns to initial screen (3, 2)
+    s.x = s.enemies[0]!.x;
+    s.y = s.enemies[0]!.y;
     tick(world, s, idle, FIXED_DT);
     expect(s.hp).toBe(s.maxHp);
-    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['overworld', 3, 2, 5.5, 6.5]);
+    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['overworld', 3, 2, 10.5, 12.5]);
 
     // Die inside the dungeon (ice-cave 2, 3) -> returns to dungeon foyer (ice-cave 1, 3)
-    enterRoom(world, s, 'ice-cave', 2, 3, 2.5, 6.5);
+    enterRoom(world, s, 'ice-cave', 2, 3, 4.5, 12.5);
     s.invulnTimer = 0;
     s.hp = 1;
-    s.x = 6.5;
-    s.y = 7.5;
+    s.x = s.enemies[0]!.x;
+    s.y = s.enemies[0]!.y;
     tick(world, s, idle, FIXED_DT);
     expect(s.hp).toBe(s.maxHp);
-    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['ice-cave', 1, 3, 5.5, 9.5]);
+    expect([s.zone, s.rx, s.ry, s.x, s.y]).toEqual(['ice-cave', 1, 3, 10.5, 18.5]);
 
     // Autosave export & import
     s.unlockedBombs.push('fire');

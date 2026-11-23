@@ -3,9 +3,11 @@
  * spawned from simulation events and drawn above the lit frame. Pure simulation in native
  * pixels (no DOM or WebGL) so it is testable; `hdView.ts` draws them.
  */
-import type { BlastVisual, State } from '../../game/types';
+import { BIG_ROOM_W, type BlastVisual, type State } from '../../game/types';
 
-const TILE = 16;
+// Frame pixels per tile for the current room: 16, or 32 in Grandma's rooms drawn at 2x
+let TILE = 16;
+const tileFor = (s: State): number => (16 * BIG_ROOM_W) / s.roomW;
 
 /** Hard cap so a chain of blasts can never flood a phone. */
 export const MAX_PARTICLES = 600;
@@ -69,6 +71,7 @@ export class ParticleSystem {
 
   /** Spawn bursts for this frame's simulation events and blasts. */
   spawnFromFrame(s: State, events: readonly string[], blasts: readonly BlastVisual[]): void {
+    TILE = tileFor(s);
     const r = this.rand;
     for (const bl of blasts) {
       const x = bl.x * TILE;
@@ -317,6 +320,7 @@ export class ParticleSystem {
 
   /** Rising embers from fire patches and lit braziers, at a steady rate. */
   emitAmbient(s: State, dt: number): void {
+    TILE = tileFor(s);
     const sources: Array<[number, number]> = [
       ...s.fires.map((f): [number, number] => [(f.x + 0.5) * TILE, (f.y + 0.6) * TILE]),
       ...s.torches

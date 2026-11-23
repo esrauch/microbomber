@@ -6,9 +6,9 @@ import { DEAD, TURN, mapJoystickDeflection } from '../src/ui/joystick';
 describe('movement feel', () => {
   it('stops flush against a wall even with a coarse frame step', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 3.5, 4.5);
+    const s = newState(world, 'overworld', 3, 2, 6.5, 8.5);
     for (let i = 0; i < 20; i++) tick(world, s, { ...idle, dx: -1 }, 0.05);
-    expect(s.x).toBeCloseTo(2.14, 2);
+    expect(s.x).toBeCloseTo(4.14, 2);
   });
 
   it('tracks continuous 360° aim above deadzone, ignores a lifting thumb, and keeps cardinalFacing for blocks', () => {
@@ -65,27 +65,28 @@ describe('movement feel', () => {
 
   it('corner assist settles on the lane centre without overshooting', () => {
     const world = campaignWorld();
-    // Crystal Crossroads (1,2): one-tile south doorway at x=5, approached off-centre
-    const s = newState(world, 'ice-cave', 1, 2, 5.28, 10.8);
+    // Crystal Crossroads (1,2): two-tile south doorway at x = 10..11, approached off-centre
+    // with Pip's left side over the wall
+    const s = newState(world, 'ice-cave', 1, 2, 9.9, 20.8);
     s.enemies = [];
     const xs: number[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       tick(world, s, { ...idle, dy: 1 }, 1 / 60);
       xs.push(s.x);
     }
-    for (const x of xs) expect(x).toBeLessThanOrEqual(5.5 + 1e-9);
+    for (const x of xs) expect(x).toBeLessThanOrEqual(11 + 1e-9);
   });
 
   it('a blast never knocks you out through a doorway, but you can still walk out', () => {
     const world = campaignWorld();
     // Crystal Crossroads (1,2): stand in the south doorway with a bomb just inside the room
-    const s = newState(world, 'ice-cave', 1, 2, 5.5, 12.4);
+    const s = newState(world, 'ice-cave', 1, 2, 10.5, 24.4);
     s.enemies = [];
     s.bombs.push({
       id: 999,
       kind: 'bomb',
-      x: 5.5,
-      y: 11.5,
+      x: 10.5,
+      y: 22.5,
       vx: 0,
       vy: 0,
       z: 0,
@@ -98,7 +99,7 @@ describe('movement feel', () => {
     for (let i = 0; i < 60; i++) cut = tick(world, s, idle, 1 / 60) || cut;
     expect(cut).toBe(false);
     expect([s.rx, s.ry]).toEqual([1, 2]);
-    for (let i = 0; i < 30 && !cut; i++) cut = tick(world, s, { ...idle, dy: 1 }, 1 / 60);
+    for (let i = 0; i < 60 && !cut; i++) cut = tick(world, s, { ...idle, dy: 1 }, 1 / 60);
     expect([s.rx, s.ry]).toEqual([1, 3]);
   });
 
@@ -138,7 +139,7 @@ describe('movement feel', () => {
     const world = campaignWorld();
     // Drop off-centre, then walk away at every angle in open floor
     for (let a = 0; a < 16; a++) {
-      const s = newState(world, 'overworld', 3, 2, 5.25, 6.25);
+      const s = newState(world, 'overworld', 3, 2, 10.25, 12.25);
       s.enemies = [];
       tapA(world, s);
       const dx = Math.cos((a * Math.PI) / 8);
@@ -152,7 +153,7 @@ describe('movement feel', () => {
 
   it('a point-blank throw at a wall lands under you without trapping you', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 1.5);
+    const s = newState(world, 'overworld', 3, 2, 8.5, 2.5);
     s.enemies = [];
     s.aimX = -1;
     s.aimY = 0;

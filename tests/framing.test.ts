@@ -44,7 +44,7 @@ describe('Phase 6.1 integer device-pixel framing (`computeIntegerFrame`)', () =>
     const f = computeIntegerFrame(411, 520, dpr);
     expect(f.clamped).toBe(false);
     expect(Number.isInteger(f.deviceScale)).toBe(true);
-    expect([5, 6]).toContain(f.deviceScale);
+    expect([2, 3]).toContain(f.deviceScale);
     expect(f.cssWidth).toBeLessThanOrEqual(411);
     expect(f.cssHeight).toBeLessThanOrEqual(520);
     expect(Math.round(f.cssWidth * dpr) % NATIVE_W).toBe(0);
@@ -56,10 +56,10 @@ describe('Phase 6.1 integer device-pixel framing (`computeIntegerFrame`)', () =>
     expect(f.bezelBottomPx).toBeGreaterThan(0);
   });
 
-  it('chooses 4x integer device scale on 375x460 @ 2x phone with zero fractional art pixels', () => {
+  it('chooses 2x integer device scale on 375x460 @ 2x phone with zero fractional art pixels', () => {
     const f = computeIntegerFrame(375, 460, 2);
     expect(f.clamped).toBe(false);
-    expect(f.deviceScale).toBe(4);
+    expect(f.deviceScale).toBe(2);
     expect((f.cssWidth * 2) % NATIVE_W).toBe(0);
     expect((f.cssHeight * 2) % NATIVE_H).toBe(0);
     expect(f.cssWidth).toBe(352);
@@ -69,10 +69,10 @@ describe('Phase 6.1 integer device-pixel framing (`computeIntegerFrame`)', () =>
     expect(f.bezelBottomPx).toBe(22);
   });
 
-  it('chooses 6x integer device scale on 390x500 @ 3x phone with positive bezel bands', () => {
+  it('chooses 3x integer device scale on 390x500 @ 3x phone with positive bezel bands', () => {
     const f = computeIntegerFrame(390, 500, 3);
     expect(f.clamped).toBe(false);
-    expect(f.deviceScale).toBe(6);
+    expect(f.deviceScale).toBe(3);
     expect((f.cssWidth * 3) % NATIVE_W).toBe(0);
     expect((f.cssHeight * 3) % NATIVE_H).toBe(0);
     expect(f.cssWidth).toBe(352);
@@ -82,9 +82,11 @@ describe('Phase 6.1 integer device-pixel framing (`computeIntegerFrame`)', () =>
     expect(f.bezelBottomPx).toBeGreaterThan(0);
   });
 
+  // The frame is a full 352 x 416 screen (GAME.md 1.1), so scales are half the old
+  // 176 x 208 ones; where the old scale was odd, the playfield drops a step smaller
   it.each([
-    [1280, 800, 1, 3],
-    [1440, 900, 2, 8],
+    [1280, 800, 1, 1],
+    [1440, 900, 2, 4],
   ])(
     'chooses whole integer deviceScale=%i on desktop %ix%i @ %ix',
     (stageW, stageH, dpr, expectedScale) => {

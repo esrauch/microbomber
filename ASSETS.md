@@ -9,8 +9,8 @@ This plan defines the visual architecture, multi-tile kits, sprite specification
 ### 1.1 Two Screen Sizes: `11 × 13` at Grandma's, `22 × 26` Everywhere Else
 - **Grandma's House & basement:** **`11 × 13` tiles (`176 × 208 px`)**—odd on both axes so doorways and altars center cleanly at `(5, 6)`, with a full `2`-tile-deep perimeter leaving a `7 × 9` playable interior.
 - **Everywhere else (Overworld, Shrines, Dungeons, Dungeon 999):** **`22 × 26` tiles (`352 × 416 px`)**, shown whole in the same on-screen space as Grandma's rooms, so tiles draw at half their on-screen size (`GAME.md` §1.1).
-- **Space doubles, objects don't:** a converted room doubles every terrain tile into a `2 × 2` block (walls, so a `2`-tile perimeter becomes `4`), while blocks, switches, crystals, chests, creatures and door openings stay one tile.
-- **Drawn `2×` to keep their on-screen size:** trees (`4 × 4` tiles) and braziers (`2 × 2`). Pip, creatures, bombs and other props keep their pixel size.
+- **Space doubles, objects don't:** a converted room doubles every terrain tile into a `2 × 2` block (walls, so a `2`-tile perimeter becomes `4`), while blocks, switches, crystals, chests and door openings stay one tile.
+- **Drawn `2×` to keep their on-screen size:** trees (`4 × 4` tiles), braziers and stairs (`2 × 2`, a flight of stairs is a `2 × 2` block of `>`), the crypt-mausoleum dungeon arch, and every creature and boss (hitboxes too). The Mouse House door stays a single stair tile. Pip, bombs and other props keep their pixel size.
 - **Hybrid Camera:** Overworld screens flip; Single-Room Shrines and Large Dungeon Chambers can span more than one screen with **integer pixel-snapped camera follow** clamped to the room bounds, so an entire 3- to 4-stage Rube Goldberg chain runs in one continuous room.
 
 ### 1.2 Authentic `2`-Tile-Deep Dungeon Walls & Recessed Archways

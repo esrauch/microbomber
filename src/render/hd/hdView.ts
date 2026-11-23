@@ -29,8 +29,8 @@ import {
   UniformGroup,
 } from 'pixi.js';
 import type { State, Tile, World } from '../../game/types';
-import { ROOM_H, ROOM_W, currentRoom, tileAt } from '../../game/world';
-import { type GbcView, NATIVE_H, NATIVE_W, TILE_PX, computeGbcCanvasSize } from '../gbc';
+import { currentRoom, enemyGrow, tileAt } from '../../game/world';
+import { type GbcView, NATIVE_H, NATIVE_W, TILE_PX, computeGbcCanvasSize, roomScale } from '../gbc';
 import { type Flash, MAX_LIGHTS, computeLighting } from './lights';
 import { ParticleSystem } from './particles';
 
@@ -485,12 +485,14 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   canvas.id = 'game-hd';
   canvas.style.imageRendering = 'pixelated';
 
+  // One mask cell per 16 frame pixels; a room drawn at 2x fills 2 x 2 cells per tile
+  const wallCols = NATIVE_W / TILE_PX;
   const wallRows = NATIVE_H / TILE_PX;
   const wallCanvas = document.createElement('canvas');
-  wallCanvas.width = ROOM_W;
+  wallCanvas.width = wallCols;
   wallCanvas.height = wallRows;
   const wallCtx = wallCanvas.getContext('2d');
-  const wallImg = wallCtx ? wallCtx.createImageData(ROOM_W, wallRows) : null;
+  const wallImg = wallCtx ? wallCtx.createImageData(wallCols, wallRows) : null;
 
   const albedoTex = canvasTexture(gbc.frame, 'nearest');
   const auxTex = canvasTexture(gbc.aux, 'nearest');
@@ -645,12 +647,15 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
     wallSig = sig;
     const data = wallImg.data;
     const room = currentRoom(world, s);
-    for (let y = 0; y < ROOM_H; y++) {
-      for (let x = 0; x < ROOM_W; x++) {
+    const k = roomScale(s);
+    for (let my = 0; my < wallRows; my++) {
+      for (let mx = 0; mx < wallCols; mx++) {
+        const x = Math.floor(mx / k);
+        const y = Math.floor(my / k);
         const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
         const isPillar = room?.rows[y]?.[x] === 'L';
         const solid = !isPillar && isShadowCasterTile(t, s.crystalColor) ? 255 : 0;
-        const i = (y * ROOM_W + x) * 4;
+        const i = (my * wallCols + mx) * 4;
         data[i] = solid;
         data[i + 1] = 0;
         data[i + 2] = 0;
@@ -660,8 +665,14 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
     for (const blk of s.blocks) {
       const bx = Math.round(blk.x);
       const by = Math.round(blk.y);
-      if (bx >= 0 && bx < ROOM_W && by >= 0 && by < ROOM_H) {
-        data[(by * ROOM_W + bx) * 4] = 255;
+      for (let dy = 0; dy < k; dy++) {
+        for (let dx = 0; dx < k; dx++) {
+          const mx = bx * k + dx;
+          const my = by * k + dy;
+          if (mx >= 0 && mx < wallCols && my >= 0 && my < wallRows) {
+            data[(my * wallCols + mx) * 4] = 255;
+          }
+        }
       }
     }
     wallCtx.putImageData(wallImg, 0, 0);
@@ -669,6 +680,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
   }
 
   function collectEmissivePads(world: World, s: State, time: number): number {
+    const tilePx = TILE_PX * roomScale(s);
     padArray.fill(0);
     let count = 0;
     const room = currentRoom(world, s);
@@ -676,7 +688,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       for (const p of room?.portals ?? []) {
         if (!p.requiresWarpUnlock || count >= MAX_EMISSIVE_PADS) continue;
         padArray.set(
-          [(p.x + 0.5) * TILE_PX, (p.y + 0.5) * TILE_PX, 8.5, 0.85 + 0.12 * Math.sin(time * 3)],
+          [(p.x + 0.5) * tilePx, (p.y + 0.5) * tilePx, 8.5, 0.85 + 0.12 * Math.sin(time * 3)],
           count * 4,
         );
         count++;
@@ -686,7 +698,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       for (const st of room?.stamps ?? []) {
         if (st.id !== 'spire-seal' || count >= MAX_EMISSIVE_PADS) continue;
         padArray.set(
-          [(st.x + 0.5) * TILE_PX, (st.y + 0.5) * TILE_PX, 8.0, 0.85 + 0.1 * Math.sin(time * 3.5)],
+          [(st.x + 0.5) * tilePx, (st.y + 0.5) * tilePx, 8.0, 0.85 + 0.1 * Math.sin(time * 3.5)],
           count * 4,
         );
         count++;
@@ -699,6 +711,7 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
     canvas,
 
     render(world: World, s: State, time: number, dt: number): void {
+      const tilePx = TILE_PX * roomScale(s);
       // 1. Upload this frame's albedo, sprite G-buffer, and wall shadow-caster mask
       albedoTex.source.update();
       auxTex.source.update();
@@ -722,13 +735,13 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
         const age = time - fl.born;
         if (age < 0 || age > 0.28) continue;
         const k = 1 - age / 0.28;
-        shockArray.set([fl.x * TILE_PX, fl.y * TILE_PX, 4 + age * 150, k * k], shockCount * 4);
+        shockArray.set([fl.x * tilePx, fl.y * tilePx, 4 + age * 150, k * k], shockCount * 4);
         shockCount++;
       }
 
       actorArray.fill(0);
       // 1. Pip (the fuse mouse) casts a directional shadow from every torch, fire, and bomb blast
-      actorArray.set([s.x * TILE_PX, s.y * TILE_PX + 2, 4.4, 30], 0);
+      actorArray.set([s.x * tilePx, s.y * tilePx + 2, 4.4, 30], 0);
       let actorCount = 1;
       // 2. Enemies & Bosses
       for (const e of s.enemies) {
@@ -743,14 +756,19 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
                 : 5.5;
         const reach = e.kind === 'cinderhull' ? 56 : e.kind === 'wickgeist' ? 44 : 34;
         const footOff = e.kind === 'slime' ? 1 : 2;
-        actorArray.set([e.x * TILE_PX, e.y * TILE_PX + footOff, rad, reach], actorCount * 4);
+        // 2x creatures on doubled screens cast 2x shadows
+        const k = enemyGrow(s) > 0 ? 2 : 1;
+        actorArray.set(
+          [e.x * tilePx, e.y * tilePx + footOff * k, rad * k, reach * k],
+          actorCount * 4,
+        );
         actorCount++;
       }
       // 3. NPCs
       const room = currentRoom(world, s);
       for (const npc of room?.npcs ?? []) {
         if (actorCount >= MAX_SHADOW_ACTORS) break;
-        actorArray.set([npc.x * TILE_PX, npc.y * TILE_PX + 2, 5.5, 34], actorCount * 4);
+        actorArray.set([npc.x * tilePx, npc.y * tilePx + 2, 5.5, 34], actorCount * 4);
         actorCount++;
       }
 
@@ -824,8 +842,8 @@ export async function createHdView(host: HTMLElement, gbc: GbcView): Promise<HdV
       particles.update(dt, (px, py) => {
         const tx = Math.floor(px / TILE_PX);
         const ty = Math.floor(py / TILE_PX);
-        if (tx < 0 || tx >= ROOM_W || ty < 0 || ty >= ROOM_H) return true;
-        return (wallImg?.data[(ty * ROOM_W + tx) * 4] ?? 0) > 128;
+        if (tx < 0 || tx >= wallCols || ty < 0 || ty >= wallRows) return true;
+        return (wallImg?.data[(ty * wallCols + tx) * 4] ?? 0) > 128;
       });
       let solidN = 0;
       let glowN = 0;

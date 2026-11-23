@@ -7,7 +7,7 @@
  * under it is a second, solid face tile. Slope letters on an edge are ramps instead, and
  * `'L'` pillars stand one level up once they have risen.
  */
-import { ROOM_H, ROOM_W, type RoomSpec, type State } from './types';
+import { type RoomSpec, type State } from './types';
 
 type LevelState = Pick<State, 'pillars'>;
 
@@ -59,7 +59,8 @@ export function levelAt(
   x: number,
   y: number,
 ): number | null {
-  if (!hasLevels(room) || x < 0 || y < 0 || x >= ROOM_W || y >= ROOM_H) return null;
+  if (!hasLevels(room) || x < 0 || y < 0 || y >= room.rows.length) return null;
+  if (x >= (room.rows[y]?.length ?? 0)) return null;
   if (room.rows[y]?.[x] === '#') return null;
   const base = Number(room.levels?.[y]?.[x] ?? '0') || 0;
   return isPillarTile(room, x, y) && pillarPos(s, x, y) >= 1 && !isPillarMoving(s, x, y)

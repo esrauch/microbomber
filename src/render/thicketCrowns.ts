@@ -6,7 +6,6 @@
  *
  * Pure (no DOM): indexed art plus placement, so both are testable.
  */
-import { ROOM_H, ROOM_W } from '../game/types';
 
 const TILE = 16;
 export const CROWN_W = 20;
@@ -71,21 +70,26 @@ export const CROWN_VARIANTS: readonly string[][] = [0, 1, 2].map(makeCrown);
  * Place crowns over every thicket cell, sorted top to bottom (draw in this order). A crown
  * may overhang the thicket's open edge by at most a few pixels.
  */
-export function placeCrowns(isThicket: (tx: number, ty: number) => boolean, seed: number): Crown[] {
+export function placeCrowns(
+  isThicket: (tx: number, ty: number) => boolean,
+  seed: number,
+  roomW: number,
+  roomH: number,
+): Crown[] {
   const cellAt = (px: number, py: number): boolean =>
     isThicket(Math.floor(px / TILE), Math.floor(py / TILE));
   const crowns: Crown[] = [];
-  const rows = Math.ceil((ROOM_H * TILE + 16) / ROW_STEP);
+  const rows = Math.ceil((roomH * TILE + 16) / ROW_STEP);
   for (let r = 0; r <= rows; r++) {
     const baseY = -8 + r * ROW_STEP;
     const offset = r % 2 === 0 ? 0 : COL_STEP / 2;
-    for (let c = -1; c <= Math.ceil((ROOM_W * TILE) / COL_STEP) + 1; c++) {
+    for (let c = -1; c <= Math.ceil((roomW * TILE) / COL_STEP) + 1; c++) {
       const h = hash(r, c, seed);
       const cx = Math.round(c * COL_STEP + offset + ((h % 5) - 2));
       const cy = Math.round(baseY + (((h >>> 4) % 5) - 2));
       // The centre must be a thicket cell inside the room (margins may run off-screen), and a
       // margin on each side must be thicket too, so the overhang into a clearing stays small
-      if (cx < 0 || cy < 0 || cx >= ROOM_W * TILE || cy >= ROOM_H * TILE) continue;
+      if (cx < 0 || cy < 0 || cx >= roomW * TILE || cy >= roomH * TILE) continue;
       if (!cellAt(cx, cy) || !cellAt(cx - 6, cy) || !cellAt(cx + 6, cy)) continue;
       if (!cellAt(cx, cy - 5) || !cellAt(cx, cy + 5)) continue;
       crowns.push({

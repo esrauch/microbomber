@@ -35,7 +35,7 @@ describe('Roll (B), Place (A), orthogonal kicks, and single equipped bomb', () =
 
   it('throwing an overhead bomb sends it straight along the dominant orthogonal axis and over fences', () => {
     const world = campaignWorld();
-    const s = newState(world, 'overworld', 3, 2, 4.5, 6.5);
+    const s = newState(world, 'overworld', 3, 2, 8.5, 12.5);
     s.enemies = [];
     // Pull bomb overhead with A
     tick(world, s, { dx: 0, dy: 0, holdA: true }, FIXED_DT);

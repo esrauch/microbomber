@@ -31,10 +31,13 @@ and Dungeon is a clockwork Rube Goldberg puzzle box**.
 - **Space doubles; objects don't.** Converting a room, each terrain tile (floor,
   wall, water, pit, cliff, path, fence, grass) becomes a `2 × 2` block of itself.
   Interactive things (blocks, switches, plates, crystals, chests, pickups,
-  creatures, pads, door openings) stay one tile, placed at their scaled spot.
-- **Trees and braziers are drawn `2×`**, so they keep the size they had on screen:
-  a tree covers `4 × 4` tiles and a brazier `2 × 2`. Everything else (Pip,
-  creatures, bombs, props) keeps its pixel size and reads half as big.
+  door openings) stay one tile, placed at their scaled spot.
+- **Drawn `2×` to keep the size they had on screen:** trees (`4 × 4` tiles),
+  braziers, stairs (`2 × 2`), the dungeon entrance arch, and every creature,
+  bosses included. A creature's hitbox grows with it: its body is about `2 × 2`
+  tiles against walls, and contact, blasts and plates reach half a tile further.
+  The Mouse House door stays a single stair tile. Pip, bombs and other props
+  keep their pixel size and read half as big.
 - **Distances stay in tiles.** Walking speed, throw length, blast reach and every
   timing are unchanged, so a screen takes twice as long to cross and every
   puzzle is re-tuned at the new size.

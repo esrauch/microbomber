@@ -27,7 +27,7 @@ import {
   PILLAR_TRAVEL,
 } from './game/world';
 import { OBJ, type ObjSpriteName } from './render/gbcArt';
-import { NATIVE_W, hudIconDataUrl, makeGbcView } from './render/gbc';
+import { hudIconDataUrl, makeGbcView } from './render/gbc';
 import type { ObjPaletteId } from './render/gbcPalette';
 import { type HdView, SLIDE_SECONDS, createHdView } from './render/hd/hdView';
 import {
@@ -148,27 +148,22 @@ try {
   throw err;
 }
 
-// Experiment: render the playfield 2x smaller in display dimensions while keeping all assets,
-// simulation coordinates, and high-DPI physical device-pixel backing resolution intact.
-const DISPLAY_ZOOM = 0.5;
-
+// The frame is one full 22 x 26 screen (`GAME.md` §1.1); Grandma's 11 x 13 rooms are drawn
+// into it at 2x, so every room fills the same space on screen.
 const resize = (): void => {
   const stageW = stageEl.clientWidth || 360;
   const stageH = stageEl.clientHeight || 480;
   const dpr = window.devicePixelRatio || 1;
-  const fullFrame = computeIntegerFrame(stageW, stageH, dpr);
-  const cssWidth = Math.max(1, Math.round(fullFrame.cssWidth * DISPLAY_ZOOM));
-  const cssHeight = Math.max(1, Math.round(fullFrame.cssHeight * DISPLAY_ZOOM));
-  const deviceScale = Math.max(1, Math.round((cssWidth * dpr) / NATIVE_W));
+  const frame = computeIntegerFrame(stageW, stageH, dpr);
   const hdWithScale = hd as HdView & {
     setScale?: (deviceScale: number, cssWidth: number, cssHeight: number) => void;
   };
   if (hdWithScale.setScale) {
-    hdWithScale.setScale(deviceScale, cssWidth, cssHeight);
+    hdWithScale.setScale(frame.deviceScale, frame.cssWidth, frame.cssHeight);
   } else {
-    hd.resize(stageW * DISPLAY_ZOOM, stageH * DISPLAY_ZOOM);
-    hd.canvas.style.width = `${cssWidth}px`;
-    hd.canvas.style.height = `${cssHeight}px`;
+    hd.resize(stageW, stageH);
+    hd.canvas.style.width = `${frame.cssWidth}px`;
+    hd.canvas.style.height = `${frame.cssHeight}px`;
   }
 };
 window.addEventListener('resize', resize);

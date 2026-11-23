@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   FIXED_DT,
+  BIG_ROOM_H,
+  BIG_ROOM_W,
   ROOM_H,
   ROOM_W,
   campaignWorld,
@@ -57,7 +59,7 @@ const isWallBorder = (ch: string | undefined): boolean => ch === '#' || ch === '
 describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', () => {
   const world = campaignWorld();
 
-  it('has 37 rooms (5 Basement + 9 Overworld + 10 Ice Cave + 13 Dungeon 999), all exactly ROOM_W × ROOM_H with valid tiles and levels', () => {
+  it("has 37 rooms (5 Basement + 9 Overworld + 10 Ice Cave + 13 Dungeon 999), 11 × 13 at Grandma's and 22 × 26 elsewhere, with valid tiles and levels", () => {
     const rooms = [...world.rooms.values()];
     expect(rooms.filter((r) => r.zone === 'basement')).toHaveLength(5);
     expect(rooms.filter((r) => r.zone === 'overworld')).toHaveLength(9);
@@ -65,16 +67,19 @@ describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', (
     expect(rooms.filter((r) => r.zone === 'dungeon-999')).toHaveLength(13);
 
     for (const r of rooms) {
-      expect(r.rows, r.name).toHaveLength(ROOM_H);
+      // GAME.md 1.1: Grandma's House keeps small screens, every other zone is doubled
+      const [w, h] = r.zone === 'basement' ? [ROOM_W, ROOM_H] : [BIG_ROOM_W, BIG_ROOM_H];
+      expect(r.rows, r.name).toHaveLength(h);
       for (const [y, row] of r.rows.entries()) {
-        expect(row, `${r.name} row ${y}`).toHaveLength(ROOM_W);
+        expect(row, `${r.name} row ${y}`).toHaveLength(w);
         for (const ch of row) {
           expect(VALID_TILES.has(ch), `${r.name} invalid tile '${ch}'`).toBe(true);
         }
       }
       if (r.levels) {
-        expect(r.levels, `${r.name} levels`).toHaveLength(ROOM_H);
-        for (const row of r.levels) expect(row, `${r.name} levels`).toMatch(/^[0-2]{11}$/);
+        expect(r.levels, `${r.name} levels`).toHaveLength(h);
+        for (const row of r.levels) expect(row, `${r.name} levels`).toMatch(/^[0-2]+$/);
+        for (const row of r.levels) expect(row, `${r.name} levels`).toHaveLength(w);
       }
     }
   });
@@ -84,18 +89,18 @@ describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', (
       // North / South edges
       const north = world.rooms.get(roomKey(r.zone, r.rx, r.ry - 1));
       if (north) {
-        for (let x = 0; x < ROOM_W; x++) {
+        for (let x = 0; x < r.rows[0]!.length; x++) {
           const hereOpen = !isWallBorder(r.rows[0]![x]);
-          const thereOpen = !isWallBorder(north.rows[ROOM_H - 1]![x]);
+          const thereOpen = !isWallBorder(north.rows[north.rows.length - 1]![x]);
           expect(hereOpen, `${r.name} N col ${x} vs ${north.name} S`).toBe(thereOpen);
         }
       }
       // West / East edges
       const west = world.rooms.get(roomKey(r.zone, r.rx - 1, r.ry));
       if (west) {
-        for (let y = 0; y < ROOM_H; y++) {
+        for (let y = 0; y < r.rows.length; y++) {
           const hereOpen = !isWallBorder(r.rows[y]![0]);
-          const thereOpen = !isWallBorder(west.rows[y]![ROOM_W - 1]);
+          const thereOpen = !isWallBorder(west.rows[y]![west.rows[y]!.length - 1]);
           expect(hereOpen, `${r.name} W row ${y} vs ${west.name} E`).toBe(thereOpen);
         }
       }
@@ -110,12 +115,14 @@ describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', (
     const pickupIds = new Set<string>();
 
     for (const r of world.rooms.values()) {
-      for (const row of r.rows) {
-        for (const ch of row) {
-          if (ch === 'D') lockedDoors++;
-          if (ch === 'K') bossDoors++;
-        }
-      }
+      // A door is a connected block of D (or K) tiles: 2 x 2 on doubled screens
+      r.rows.forEach((row, y) => {
+        [...row].forEach((ch, x) => {
+          const startsBlock = r.rows[y]?.[x - 1] !== ch && r.rows[y - 1]?.[x] !== ch;
+          if (ch === 'D' && startsBlock) lockedDoors++;
+          if (ch === 'K' && startsBlock) bossDoors++;
+        });
+      });
       for (const t of r.torches ?? []) {
         expect(r.rows[t.y]?.[t.x], `${r.name} torch (${t.x},${t.y})`).toBe('T');
       }
@@ -152,24 +159,24 @@ describe('vertical slice campaign integrity (Basement + Prologue + Ice Cave)', (
   it('includes systemic dry grass, directional water current, and breeze flavour in Overworld rooms', () => {
     const millbrookNorth = world.rooms.get(roomKey('overworld', 3, 1));
     expect(millbrookNorth?.wind).toEqual({ dx: 0.35, dy: 0 });
-    expect(millbrookNorth?.rows[6]?.[8]).toBe('2');
+    expect(millbrookNorth?.rows[12]?.[16]).toBe('2');
 
     const brambleWoods = world.rooms.get(roomKey('overworld', 3, 3));
-    expect(brambleWoods?.rows[5]?.[6]).toBe(',');
-    expect(brambleWoods?.rows[3]?.[6]).toBe(',');
-    expect(brambleWoods?.rows[3]?.[7]).toBe('B');
+    expect(brambleWoods?.rows[10]?.[12]).toBe(',');
+    expect(brambleWoods?.rows[6]?.[12]).toBe(',');
+    expect(brambleWoods?.rows[6]?.[14]).toBe('B');
 
     const millbrookSquare = world.rooms.get(roomKey('overworld', 3, 2));
-    expect(millbrookSquare?.rows[6]?.[7]).toBe(';');
-    expect(millbrookSquare?.rows[6]?.[8]).toBe(';');
+    expect(millbrookSquare?.rows[12]?.[14]).toBe(';');
+    expect(millbrookSquare?.rows[12]?.[16]).toBe(';');
     expect(isShallowWaterTile(';')).toBe(true);
     expect(isTileSolidForWalk(';', 'red')).toBe(false);
 
-    const s = newState(world, 'overworld', 3, 2, 6.5, 6.5);
-    for (let i = 0; i < 30; i++) {
+    const s = newState(world, 'overworld', 3, 2, 12.5, 12.5);
+    for (let i = 0; i < 60; i++) {
       tick(world, s, { dx: 1, dy: 0 }, FIXED_DT);
     }
-    expect(s.x).toBeGreaterThan(7.4);
+    expect(s.x).toBeGreaterThan(14.4);
   });
 });
 

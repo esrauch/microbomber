@@ -18,11 +18,14 @@ import type {
 } from '../game/types';
 import {
   ROLL_DURATION,
+  BIG_ROOM_H,
+  BIG_ROOM_W,
   ROOM_H,
   ROOM_W,
   type State,
   type World,
   currentRoom,
+  enemyGrow,
   isShallowWaterTile,
   isWaterTile,
   tileAt,
@@ -43,8 +46,17 @@ import {
 } from './gbcPalette';
 
 export const TILE_PX = 16;
-export const NATIVE_W = ROOM_W * TILE_PX; // 176 px (11 tiles)
-export const NATIVE_H = ROOM_H * TILE_PX; // 208 px (13 tiles)
+/**
+ * The frame is one full-size screen (`GAME.md` §1.1): `22 × 26` tiles at 16 px. Grandma's
+ * `11 × 13` rooms are drawn into it at 2x, so both sizes fill the same space on screen.
+ */
+export const NATIVE_W = BIG_ROOM_W * TILE_PX; // 352 px (22 tiles)
+export const NATIVE_H = BIG_ROOM_H * TILE_PX; // 416 px (26 tiles)
+
+/** How much the current room is scaled to fill the frame: 2 at Grandma's, 1 elsewhere. */
+export function roomScale(s: Pick<State, 'roomW'>): number {
+  return NATIVE_W / (s.roomW * TILE_PX);
+}
 
 export function computeGbcCanvasSize(
   stageWidth: number,
@@ -303,6 +315,9 @@ const FIRE_WHITE = cssRgb(OBJ_PALETTES.fire[0]);
 const FIRE_LIGHT = cssRgb(OBJ_PALETTES.fire[1]);
 
 export function makeGbcView(): GbcView {
+  // The current room's size in tiles, for helpers that don't take the state
+  let viewRoomW = ROOM_W;
+  let viewRoomH = ROOM_H;
   const [frameBuf, mainCtx] = canvasOf(NATIVE_W, NATIVE_H);
   const [roomLayer, rctx] = canvasOf(NATIVE_W, NATIVE_H);
   const [canopyLayer, cctx] = canvasOf(NATIVE_W, NATIVE_H);
@@ -472,8 +487,8 @@ export function makeGbcView(): GbcView {
         }
       }
     }
-    for (let y = 0; y < ROOM_H; y++) {
-      for (let x = 0; x < ROOM_W; x++) {
+    for (let y = 0; y < s.roomH; y++) {
+      for (let x = 0; x < s.roomW; x++) {
         const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
         if (t === 'D' || t === 'K' || t === 'S') {
           closedDoors.set(`${x},${y}`, { x, y, tile: t });
@@ -483,11 +498,17 @@ export function makeGbcView(): GbcView {
   }
 
   /** Overhead art drawn over actors hides them from the G-buffer too. */
-  function eraseAux(img: HTMLCanvasElement, dx: number, dy: number): void {
+  function eraseAux(img: HTMLCanvasElement, dx: number, dy: number, scale = 1): void {
     auxCtx.save();
     auxCtx.globalCompositeOperation = 'destination-out';
-    auxCtx.drawImage(img, dx, dy);
+    auxCtx.drawImage(img, dx, dy, img.width * scale, img.height * scale);
     auxCtx.restore();
+  }
+
+  /** Draw a placed tile at its own scale (2x trees, braziers and doors on doubled screens). */
+  function drawPlaced(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, p: PlacedTile): void {
+    const size = TILE_PX * (p.scale ?? 1);
+    ctx.drawImage(img, p.x * TILE_PX, p.y * TILE_PX, size, size);
   }
 
   function drawObjSprite(
@@ -574,7 +595,7 @@ export function makeGbcView(): GbcView {
     const keep = 8 - split;
     if (keep <= 0) return;
 
-    const ew = d.tile === 'S' && (d.x === 0 || d.x === ROOM_W - 1);
+    const ew = d.tile === 'S' && (d.x === 0 || d.x === viewRoomW - 1);
     const bgTile: BgTile =
       d.tile === 'D'
         ? BG.doorKeyNS
@@ -1097,6 +1118,8 @@ export function makeGbcView(): GbcView {
     const streakBodyCss = cssRgb(OBJ_PALETTES.spectral[2]);
 
     // 1. Subtle drifting leaf / breeze motes in rooms with ambient room.wind
+    const roomPxW = viewRoomW * TILE_PX;
+    const roomPxH = viewRoomH * TILE_PX;
     if (roomWind && (Math.abs(roomWind.dx) > 0.01 || Math.abs(roomWind.dy) > 0.01)) {
       const leafGoldCss =
         zone === 'overworld'
@@ -1107,14 +1130,13 @@ export function makeGbcView(): GbcView {
       const vxPx = roomWind.dx * TILE_PX * 1.9;
       const vyPx = roomWind.dy * TILE_PX * 1.9;
       for (let i = 0; i < 6; i++) {
-        const seedX = (i * 37 + 19) % NATIVE_W;
-        const seedY = (i * 53 + 29) % (NATIVE_H - 32);
-        const mx = (((seedX + time * vxPx) % NATIVE_W) + NATIVE_W) % NATIVE_W;
+        const seedX = (i * 37 + 19) % roomPxW;
+        const seedY = (i * 53 + 29) % (roomPxH - 32);
+        const mx = (((seedX + time * vxPx) % roomPxW) + roomPxW) % roomPxW;
         const flutter = Math.sin(time * 4.6 + i * 1.9) * 3.5;
         const my =
           16 +
-          ((((seedY + time * vyPx + flutter) % (NATIVE_H - 32)) + (NATIVE_H - 32)) %
-            (NATIVE_H - 32));
+          ((((seedY + time * vyPx + flutter) % (roomPxH - 32)) + (roomPxH - 32)) % (roomPxH - 32));
         const px = Math.round(mx);
         const py = Math.round(my);
         if (i % 3 === 0) {
@@ -1669,6 +1691,8 @@ export function makeGbcView(): GbcView {
 
   return {
     rebuild(world: World, s: State): void {
+      viewRoomW = s.roomW;
+      viewRoomH = s.roomH;
       const rk = `${s.zone}:${s.rx},${s.ry}`;
       const roomChanged = rk !== activeRoomKey || s.events.includes('player-respawn');
       activeRoomKey = rk;
@@ -1695,13 +1719,13 @@ export function makeGbcView(): GbcView {
 
       plan = buildRoomLayout(world, s);
       const isWet = (x: number, y: number): boolean => {
-        if (x < 0 || y < 0 || x >= ROOM_W || y >= ROOM_H) return false;
+        if (x < 0 || y < 0 || x >= s.roomW || y >= s.roomH) return false;
         const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
         return isWaterTile(t) || isShallowWaterTile(t);
       };
       waterCells = [];
-      for (let y = 0; y < ROOM_H; y++) {
-        for (let x = 0; x < ROOM_W; x++) {
+      for (let y = 0; y < s.roomH; y++) {
+        for (let x = 0; x < s.roomW; x++) {
           if (!isWet(x, y)) continue;
           const l = isWet(x - 1, y) ? 0 : 2;
           const r = isWet(x + 1, y) ? 0 : 2;
@@ -1721,14 +1745,18 @@ export function makeGbcView(): GbcView {
         return t === 'W' || t === 'T' || t === 'C';
       });
 
-      rctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
-      cctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
+      const k = roomScale(s);
+      for (const ctx of [rctx, cctx]) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
+        ctx.setTransform(k, 0, 0, k, 0, 0);
+      }
 
       for (const g of plan.ground) {
-        rctx.drawImage(getPlacedBg(s.zone, g), g.x * TILE_PX, g.y * TILE_PX);
+        drawPlaced(rctx, getPlacedBg(s.zone, g), g);
       }
       for (const d of plan.decals) {
-        rctx.drawImage(getPlacedBg(s.zone, d), d.x * TILE_PX, d.y * TILE_PX);
+        drawPlaced(rctx, getPlacedBg(s.zone, d), d);
       }
       // Thicket crowns back to front: each lower crown overlaps the ones above it
       for (const cr of plan.crowns) {
@@ -1736,15 +1764,17 @@ export function makeGbcView(): GbcView {
       }
       for (const p of plan.props) {
         if (isFlatFloorDecal(p.tile)) {
-          rctx.drawImage(getPlacedBg(s.zone, p), p.x * TILE_PX, p.y * TILE_PX);
+          drawPlaced(rctx, getPlacedBg(s.zone, p), p);
         }
       }
       for (const c of plan.ceiling) {
-        cctx.drawImage(getPlacedBg(s.zone, c), c.x * TILE_PX, c.y * TILE_PX);
+        drawPlaced(cctx, getPlacedBg(s.zone, c), c);
       }
     },
 
     sync(world: World, s: State, time: number): void {
+      viewRoomW = s.roomW;
+      viewRoomH = s.roomH;
       if (s.burnedTiles.size !== lastBurnedCount || s.brokenTiles.size !== lastBrokenCount) {
         this.rebuild(world, s);
       }
@@ -1955,8 +1985,14 @@ export function makeGbcView(): GbcView {
 
       // 1. Pass 1 & 2: Static terrain + animated interior water, warp runes & retracting doors
       mainCtx.imageSmoothingEnabled = false;
+      mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+      auxCtx.setTransform(1, 0, 0, 1, 0, 0);
       mainCtx.drawImage(roomLayer, 0, 0);
       auxCtx.clearRect(0, 0, NATIVE_W, NATIVE_H);
+      // Everything from here is drawn in room pixels, scaled to fill the frame
+      const k = roomScale(s);
+      mainCtx.setTransform(k, 0, 0, k, 0, 0);
+      auxCtx.setTransform(k, 0, 0, k, 0, 0);
 
       const waterFrame = Math.floor(time * 2.6) % 3;
       const waterTile =
@@ -1992,8 +2028,8 @@ export function makeGbcView(): GbcView {
       // Render s.frozenTiles over water/hazards as crisp ice tiles
       if (s.frozenTiles && s.frozenTiles.size > 0) {
         const roomPrefix = `${s.zone}:${s.rx},${s.ry}:`;
-        for (let fy = 0; fy < ROOM_H; fy++) {
-          for (let fx = 0; fx < ROOM_W; fx++) {
+        for (let fy = 0; fy < s.roomH; fy++) {
+          for (let fx = 0; fx < s.roomW; fx++) {
             if (
               !s.frozenTiles.has(`${roomPrefix}${fx},${fy}`) &&
               !s.frozenTiles.has(`${fx},${fy}`)
@@ -2124,8 +2160,8 @@ export function makeGbcView(): GbcView {
       // Pillars rise half a tile, the plate climbing as the solid column face grows under it;
       // when higher ground sits directly north, its 8 px vertical cliff wall is visible above
       // the lowered socket (`py - 8 .. py - 1`) and covered up as the pillar plate rises over it.
-      for (let ty = 0; ty < ROOM_H; ty++) {
-        for (let tx = 0; tx < ROOM_W; tx++) {
+      for (let ty = 0; ty < s.roomH; ty++) {
+        for (let tx = 0; tx < s.roomW; tx++) {
           if (!isPillarTile(room, tx, ty)) continue;
           const px = tx * TILE_PX;
           const py = ty * TILE_PX;
@@ -2264,8 +2300,8 @@ export function makeGbcView(): GbcView {
 
       // Freestanding pillars with lower ground to their north occlude lower-level actors behind
       // their raised top edge (`footY < ty`), while staying below riders on the pillar (`footY > ty`).
-      for (let ty = 0; ty < ROOM_H; ty++) {
-        for (let tx = 0; tx < ROOM_W; tx++) {
+      for (let ty = 0; ty < s.roomH; ty++) {
+        for (let tx = 0; tx < s.roomW; tx++) {
           if (!isPillarTile(room, tx, ty)) continue;
           const baseLevel = Number(room?.levels?.[ty]?.[tx] ?? '0') || 0;
           const northLevel = levelAt(room, s, tx, ty - 1);
@@ -2288,12 +2324,12 @@ export function makeGbcView(): GbcView {
       for (const p of plan.props) {
         if (isFlatFloorDecal(p.tile)) continue;
         rawActors.push({
-          footY: actorFootY('prop', p.y),
+          footY: actorFootY('prop', p.y + (p.scale ?? 1) - 1),
           orderTie: tieSeq++,
           draw: () => {
             const img = getPlacedBg(s.zone, p);
-            mainCtx.drawImage(img, p.x * TILE_PX, p.y * TILE_PX);
-            eraseAux(img, p.x * TILE_PX, p.y * TILE_PX);
+            drawPlaced(mainCtx, img, p);
+            eraseAux(img, p.x * TILE_PX, p.y * TILE_PX, p.scale ?? 1);
             // Ice blocks catch the light, so they still read as ice in a dim cave
             if (p.tile === BG.iceBlock) auxCtx.drawImage(iceAux, p.x * TILE_PX, p.y * TILE_PX);
           },
@@ -2302,12 +2338,12 @@ export function makeGbcView(): GbcView {
 
       for (const o of plan.overhead) {
         rawActors.push({
-          footY: actorFootY('overhead', o.y),
+          footY: actorFootY('overhead', o.y + (o.scale ?? 1) - 1),
           orderTie: tieSeq++,
           draw: () => {
             const img = getPlacedBg(s.zone, o);
-            mainCtx.drawImage(img, o.x * TILE_PX, o.y * TILE_PX);
-            eraseAux(img, o.x * TILE_PX, o.y * TILE_PX);
+            drawPlaced(mainCtx, img, o);
+            eraseAux(img, o.x * TILE_PX, o.y * TILE_PX, o.scale ?? 1);
           },
         });
       }
@@ -2389,17 +2425,19 @@ export function makeGbcView(): GbcView {
         const leanPx = Math.round(wv.dx * 2.5);
         const tilt = Math.max(-0.28, Math.min(0.28, wv.dx * 0.14));
         rawActors.push({
-          footY: actorFootY('torchFlame', t.y),
+          footY: actorFootY('torchFlame', t.y + (s.roomW > ROOM_W ? 1 : 0)),
           orderTie: tieSeq++,
           draw: () => {
             if (fast && Math.floor(time * 16) % 4 === 0) return;
+            // On a doubled screen the brazier is 2x (2 x 2 tiles), and so is its flame
+            const bs = s.roomW > ROOM_W ? 2 : 1;
             drawScaledSprite(
               mainCtx,
               fireNames[fIdx] ?? 'FIRE_1',
-              t.x * TILE_PX + leanPx,
-              t.y * TILE_PX - 5,
-              1,
-              1,
+              t.x * TILE_PX + (bs - 1) * 8 + leanPx * bs,
+              t.y * TILE_PX - 5 + (bs - 1) * 11,
+              bs,
+              bs,
               false,
               undefined,
               tilt,
@@ -2495,10 +2533,23 @@ export function makeGbcView(): GbcView {
           tileAt(world, s, s.zone, s.rx, s.ry, Math.floor(e.x), Math.floor(e.y)),
         );
         rawActors.push({
-          footY: actorFootY(ek, e.y),
+          // A 2x creature's feet sit twice as far below its centre
+          footY: e.y + (actorFootY(ek, e.y) - e.y) * (enemyGrow(s) > 0 ? 2 : 1),
           orderTie: tieSeq++,
           lift: riderLift(e.x, e.y),
           draw: () => {
+            // On doubled screens creatures are drawn at 2x about their centre, like their bodies
+            const k = enemyGrow(s) > 0 ? 2 : 1;
+            if (k > 1) {
+              const cx = e.x * TILE_PX;
+              const cy = e.y * TILE_PX;
+              for (const c of [mainCtx, auxCtx]) {
+                c.save();
+                c.translate(cx, cy);
+                c.scale(k, k);
+                c.translate(-cx, -cy);
+              }
+            }
             if (enemyInShallow && e.kind !== 'bat' && e.kind !== 'wickgeist') {
               drawFloatingWaterRing(
                 mainCtx,
@@ -2510,6 +2561,10 @@ export function makeGbcView(): GbcView {
               );
             }
             drawEnemy(mainCtx, e, time);
+            if (k > 1) {
+              auxCtx.restore();
+              mainCtx.restore();
+            }
           },
         });
       }
@@ -2552,8 +2607,15 @@ export function makeGbcView(): GbcView {
       }
 
       // 4. Pass 4: True walk-under north doorway lintels, chimney smoke & wind!
+      // The canopy layer is already baked at frame size
+      mainCtx.save();
+      auxCtx.save();
+      mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+      auxCtx.setTransform(1, 0, 0, 1, 0, 0);
       mainCtx.drawImage(canopyLayer, 0, 0);
       eraseAux(canopyLayer, 0, 0);
+      auxCtx.restore();
+      mainCtx.restore();
       for (const [cx, cy] of plan.chimneys) {
         const rise = Math.floor((time * 7) % 10);
         const sway = Math.round(Math.sin(time * 4) * 1.5);
@@ -2588,6 +2650,8 @@ export function makeGbcView(): GbcView {
       // 9. Dark-room Bayer-dithered lantern mask (`Lantern Hall`)
 
       // 10. Crisp 4x nearest-neighbour blit to display canvas
+      mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+      auxCtx.setTransform(1, 0, 0, 1, 0, 0);
     },
 
     frame: frameBuf,

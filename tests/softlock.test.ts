@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { BombKind, CrystalColor, RoomSpec, Tile, World, ZoneId } from '../src/game/types';
 import { ROOM_H, ROOM_W, campaignWorld, roomKey } from '../src/game/world';
 
+// The room size of the dungeon being verified: 22 x 26 outside Grandma's House (GAME.md 1.1).
+// Every room in one dungeon shares it; set from the world at the start of each verification.
+let W = ROOM_W;
+let H = ROOM_H;
+
 /**
  * Exhaustive State-Space No-Softlock Verifier (`DUNGEONS.md` Shared Rules, `ROADMAP.md` Phase 7).
  *
@@ -52,6 +57,33 @@ function effectiveTile(room: RoomSpec, s: VerifierState, x: number, y: number): 
   return raw;
 }
 
+/**
+ * Cell keys of the connected block sharing the raw character at `(x, y)`: on doubled screens
+ * a cracked wall, a bramble patch or a door is a 2 x 2 block that acts as one piece.
+ */
+function blockOf(room: RoomSpec, x: number, y: number): string[] {
+  const ch = room.rows[y]?.[x];
+  const seen = new Set([`${x},${y}`]);
+  const queue: [number, number][] = [[x, y]];
+  const out: string[] = [];
+  for (let qi = 0; qi < queue.length && qi < 64; qi++) {
+    const [cx, cy] = queue[qi]!;
+    out.push(cellKey(room.zone, room.rx, room.ry, cx, cy));
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const key = `${cx + dx},${cy + dy}`;
+      if (seen.has(key) || room.rows[cy + dy]?.[cx + dx] !== ch) continue;
+      seen.add(key);
+      queue.push([cx + dx, cy + dy]);
+    }
+  }
+  return out;
+}
+
 function isWalkable(t: Tile, crystal: CrystalColor): boolean {
   if (
     t === '#' ||
@@ -93,13 +125,13 @@ function floodWalkableComponent(
   startY: number,
 ): Set<number> {
   const visited = new Set<number>();
-  const sx = Math.max(0, Math.min(ROOM_W - 1, startX));
-  const sy = Math.max(0, Math.min(ROOM_H - 1, startY));
+  const sx = Math.max(0, Math.min(W - 1, startX));
+  const sy = Math.max(0, Math.min(H - 1, startY));
   if (!isWalkable(effectiveTile(room, s, sx, sy), s.crystalColor)) return visited;
 
   const queue: Array<[number, number]> = [[sx, sy]];
-  visited.add(sy * ROOM_W + sx);
-  for (let qi = 0; qi < queue.length && qi < ROOM_W * ROOM_H; qi++) {
+  visited.add(sy * W + sx);
+  for (let qi = 0; qi < queue.length && qi < W * H; qi++) {
     const [x, y] = queue[qi]!;
     for (const [dx, dy] of [
       [1, 0],
@@ -109,8 +141,8 @@ function floodWalkableComponent(
     ] as const) {
       const nx = x + dx;
       const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= ROOM_W || ny >= ROOM_H) continue;
-      const idx = ny * ROOM_W + nx;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const idx = ny * W + nx;
       if (visited.has(idx)) continue;
       if (isWalkable(effectiveTile(room, s, nx, ny), s.crystalColor)) {
         visited.add(idx);
@@ -149,18 +181,22 @@ function canonicalize(world: World, initialState: VerifierState): VerifierState 
 
     if (hasBomb || hasFire) {
       for (const sIdx of struck) {
-        const tx = sIdx % ROOM_W;
-        const ty = Math.floor(sIdx / ROOM_W);
+        const tx = sIdx % W;
+        const ty = Math.floor(sIdx / W);
         const t = effectiveTile(room, s, tx, ty);
         const ck = cellKey(s.zone, s.rx, s.ry, tx, ty);
         if (hasBomb && (t === '%' || t === 'W') && !nextBroken.has(ck)) {
           const copy = new Set(nextBroken);
           copy.add(ck);
+          // A cracked wall breaks as one piece
+          if (t === '%') for (const k of blockOf(room, tx, ty)) copy.add(k);
           nextBroken = copy;
           changed = true;
         } else if (hasFire && (t === 'B' || (t === 'W' && !hasBomb)) && !nextBurned.has(ck)) {
           const copy = new Set(nextBurned);
           copy.add(ck);
+          // Fire spreads through a bramble patch
+          if (t === 'B') for (const k of blockOf(room, tx, ty)) copy.add(k);
           nextBurned = copy;
           changed = true;
         }
@@ -180,9 +216,9 @@ function canonicalize(world: World, initialState: VerifierState): VerifierState 
       let canSolve = false;
       if (room.condition === 'hold-buttons') {
         const buttons: number[] = [];
-        for (let y = 0; y < ROOM_H; y++) {
-          for (let x = 0; x < ROOM_W; x++) {
-            if (effectiveTile(room, s, x, y) === 'O') buttons.push(y * ROOM_W + x);
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            if (effectiveTile(room, s, x, y) === 'O') buttons.push(y * W + x);
           }
         }
         canSolve =
@@ -192,7 +228,14 @@ function canonicalize(world: World, initialState: VerifierState): VerifierState 
         canSolve =
           hasFire &&
           puzzleTorches.length > 0 &&
-          puzzleTorches.every((t) => struck.has(t.y * ROOM_W + t.x));
+          // A brazier is struck through any of its tiles (2 x 2 on doubled screens)
+          puzzleTorches.every((t) =>
+            [0, 1].some((j) =>
+              [0, 1].some(
+                (i) => room.rows[t.y + j]?.[t.x + i] === 'T' && struck.has((t.y + j) * W + t.x + i),
+              ),
+            ),
+          );
       } else if (room.condition === 'clear-enemies') {
         const needsFire = (room.enemies ?? []).some((e) => e.kind === 'cinderhull');
         canSolve = hasBomb && (!needsFire || hasFire);
@@ -213,8 +256,8 @@ function canonicalize(world: World, initialState: VerifierState): VerifierState 
       const minIdx = Math.min(...comp);
       return {
         ...s,
-        cx: minIdx % ROOM_W,
-        cy: Math.floor(minIdx / ROOM_W),
+        cx: minIdx % W,
+        cy: Math.floor(minIdx / W),
       };
     }
 
@@ -229,11 +272,11 @@ function canonicalize(world: World, initialState: VerifierState): VerifierState 
   }
 
   const finalComp = floodWalkableComponent(room, s, s.cx, s.cy);
-  const minIdx = finalComp.size > 0 ? Math.min(...finalComp) : s.cy * ROOM_W + s.cx;
+  const minIdx = finalComp.size > 0 ? Math.min(...finalComp) : s.cy * W + s.cx;
   return {
     ...s,
-    cx: minIdx % ROOM_W,
-    cy: Math.floor(minIdx / ROOM_W),
+    cx: minIdx % W,
+    cy: Math.floor(minIdx / W),
   };
 }
 
@@ -266,8 +309,8 @@ function computeBlastableCells(
 ): Set<number> {
   const landingCenters = new Set<number>();
   for (const idx of comp) {
-    const x = idx % ROOM_W;
-    const y = Math.floor(idx / ROOM_W);
+    const x = idx % W;
+    const y = Math.floor(idx / W);
     landingCenters.add(idx);
     // Orthogonal Throw: clears '=' fences, water & pits up to 2 tiles ahead, stopping before walls/pedestals
     for (const [dx, dy] of [
@@ -279,7 +322,7 @@ function computeBlastableCells(
       for (let dist = 1; dist <= 2; dist++) {
         const tx = x + dx * dist;
         const ty = y + dy * dist;
-        if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) break;
+        if (tx < 0 || ty < 0 || tx >= W || ty >= H) break;
         const t = effectiveTile(room, s, tx, ty);
         if (!isAirPassableForThrow(t, s.crystalColor)) break;
         if (t === 'C' || t === 'T' || t === 'B' || t === 'W') {
@@ -287,12 +330,12 @@ function computeBlastableCells(
           const prevX = tx - dx;
           const prevY = ty - dy;
           const prevT = effectiveTile(room, s, prevX, prevY);
-          if (prevT !== '^') landingCenters.add(prevY * ROOM_W + prevX);
+          if (prevT !== '^') landingCenters.add(prevY * W + prevX);
           break;
         }
         // Bombs landing on pits are swallowed; water or walkable floor detonates
         if (t !== '^' && t !== '=') {
-          landingCenters.add(ty * ROOM_W + tx);
+          landingCenters.add(ty * W + tx);
         }
       }
     }
@@ -300,8 +343,8 @@ function computeBlastableCells(
 
   const struck = new Set<number>();
   for (const lIdx of landingCenters) {
-    const lx = lIdx % ROOM_W;
-    const ly = Math.floor(lIdx / ROOM_W);
+    const lx = lIdx % W;
+    const ly = Math.floor(lIdx / W);
     struck.add(lIdx);
     for (const [dx, dy] of [
       [1, 0],
@@ -311,8 +354,8 @@ function computeBlastableCells(
     ] as const) {
       const tx = lx + dx;
       const ty = ly + dy;
-      if (tx >= 0 && ty >= 0 && tx < ROOM_W && ty < ROOM_H) {
-        struck.add(ty * ROOM_W + tx);
+      if (tx >= 0 && ty >= 0 && tx < W && ty < H) {
+        struck.add(ty * W + tx);
       }
     }
   }
@@ -353,7 +396,7 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
     }
     const px = Math.floor(pk.x);
     const py = Math.floor(pk.y);
-    if (!comp.has(py * ROOM_W + px)) continue;
+    if (!comp.has(py * W + px)) continue;
 
     let bombs = s.bombs;
     let smallKeys = s.smallKeys;
@@ -377,8 +420,8 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
   // 2. Unlock adjacent locked doors ('D' or 'K') — EACH door is a separate player choice!
   const adjObstacles = new Set<number>();
   for (const idx of comp) {
-    const x = idx % ROOM_W;
-    const y = Math.floor(idx / ROOM_W);
+    const x = idx % W;
+    const y = Math.floor(idx / W);
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
@@ -387,29 +430,35 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
     ] as const) {
       const nx = x + dx;
       const ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < ROOM_W && ny < ROOM_H) {
-        adjObstacles.add(ny * ROOM_W + nx);
+      if (nx >= 0 && ny >= 0 && nx < W && ny < H) {
+        adjObstacles.add(ny * W + nx);
       }
     }
   }
   for (const obsIdx of adjObstacles) {
-    const ox = obsIdx % ROOM_W;
-    const oy = Math.floor(obsIdx / ROOM_W);
+    const ox = obsIdx % W;
+    const oy = Math.floor(obsIdx / W);
     const t = effectiveTile(room, s, ox, oy);
     const ck = cellKey(s.zone, s.rx, s.ry, ox, oy);
+    // One key opens the whole door, however many tiles it spans
+    const openDoor = (): Set<string> => {
+      const next = new Set(s.openedDoors);
+      for (const k of blockOf(room, ox, oy)) next.add(k);
+      return next;
+    };
     if (t === 'D' && s.smallKeys > 0 && !s.openedDoors.has(ck)) {
       out.push(
         canonicalize(world, {
           ...s,
           smallKeys: s.smallKeys - 1,
-          openedDoors: addSet(s.openedDoors, ck),
+          openedDoors: openDoor(),
         }),
       );
     } else if (t === 'K' && s.hasBossKey && !s.openedDoors.has(ck)) {
       out.push(
         canonicalize(world, {
           ...s,
-          openedDoors: addSet(s.openedDoors, ck),
+          openedDoors: openDoor(),
         }),
       );
     }
@@ -422,8 +471,8 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
     const struck = computeBlastableCells(room, s, comp);
     let canFlipCrystal = false;
     for (const sIdx of struck) {
-      const tx = sIdx % ROOM_W;
-      const ty = Math.floor(sIdx / ROOM_W);
+      const tx = sIdx % W;
+      const ty = Math.floor(sIdx / W);
       if (effectiveTile(room, s, tx, ty) === 'C') {
         canFlipCrystal = true;
         break;
@@ -434,8 +483,8 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
       const flippedBase: VerifierState = { ...s, crystalColor: nextColor };
       const seenPostFlipMin = new Set<number>();
       for (const idx of comp) {
-        const px = idx % ROOM_W;
-        const py = Math.floor(idx / ROOM_W);
+        const px = idx % W;
+        const py = Math.floor(idx / W);
         if (!isWalkable(effectiveTile(room, flippedBase, px, py), nextColor)) continue;
         const postComp = floodWalkableComponent(room, flippedBase, px, py);
         if (postComp.size === 0) continue;
@@ -445,8 +494,8 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
         out.push(
           canonicalize(world, {
             ...flippedBase,
-            cx: postMin % ROOM_W,
-            cy: Math.floor(postMin / ROOM_W),
+            cx: postMin % W,
+            cy: Math.floor(postMin / W),
           }),
         );
       }
@@ -456,7 +505,7 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
   // 5. Portals ('>') inside `comp`
   for (const portal of room.portals ?? []) {
     if (portal.requiresWarpUnlock && !s.warpUnlocked) continue;
-    if (!comp.has(portal.y * ROOM_W + portal.x)) continue;
+    if (!comp.has(portal.y * W + portal.x)) continue;
     if (portal.targetZone !== s.zone) {
       if (portal.targetZone === 'overworld' && s.zone === 'basement') {
         out.push({ ...s, exitedToOverworld: true });
@@ -478,13 +527,13 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
 
   // 6. Cardinal room-edge transitions from boundary cells in `comp`
   for (const idx of comp) {
-    const x = idx % ROOM_W;
-    const y = Math.floor(idx / ROOM_W);
+    const x = idx % W;
+    const y = Math.floor(idx / W);
     const dirs: Array<[boolean, number, number, number, number]> = [
-      [x === 0, -1, 0, ROOM_W - 1, y],
-      [x === ROOM_W - 1, 1, 0, 0, y],
-      [y === 0, 0, -1, x, ROOM_H - 1],
-      [y === ROOM_H - 1, 0, 1, x, 0],
+      [x === 0, -1, 0, W - 1, y],
+      [x === W - 1, 1, 0, 0, y],
+      [y === 0, 0, -1, x, H - 1],
+      [y === H - 1, 0, 1, x, 0],
     ];
     for (const [atEdge, dx, dy, destEdgeX, destEdgeY] of dirs) {
       if (!atEdge) continue;
@@ -502,10 +551,15 @@ function nextStates(world: World, s: VerifierState): VerifierState[] {
       // Mirror `settleAtDoorway` (`world.ts`): paired 'D'/'K' on arrival side opens automatically,
       // and closed 'S' shutter steps 1 tile inward into the room!
       if (destTile === 'D' || destTile === 'K') {
-        nextOpened = addSet(nextOpened, cellKey(s.zone, nrx, nry, landX, landY));
+        const opened = new Set(nextOpened);
+        for (const k of blockOf(destRoom, landX, landY)) opened.add(k);
+        nextOpened = opened;
       } else if (destTile === 'S') {
-        landX = Math.max(0, Math.min(ROOM_W - 1, landX + dx));
-        landY = Math.max(0, Math.min(ROOM_H - 1, landY + dy));
+        // Step inward until clear of the shutter (2 tiles deep on doubled screens)
+        for (let i = 0; i < 4 && effectiveTile(destRoom, s, landX, landY) === 'S'; i++) {
+          landX = Math.max(0, Math.min(W - 1, landX + dx));
+          landY = Math.max(0, Math.min(H - 1, landY + dy));
+        }
       }
 
       const tempState: VerifierState = {
@@ -538,6 +592,9 @@ function verifyDungeonNoSoftlock(
   isGoal: (s: VerifierState) => boolean,
   maxStates = 15000,
 ): VerificationReport {
+  const firstRoom = [...world.rooms.values()].find((r) => r.zone === initial.zone);
+  W = firstRoom?.rows[0]?.length ?? ROOM_W;
+  H = firstRoom?.rows.length ?? ROOM_H;
   const start = canonicalize(world, initial);
   const startKey = serializeState(start);
 
@@ -660,7 +717,8 @@ describe('Automated No-Key-Softlock Verifier (BFS + reverse reachability)', () =
 
     expect(report.goalCount).toBeGreaterThan(0);
     expect(report.deadEndStates).toEqual([]);
-  });
+    // 22 x 26 rooms make each flood fill four times bigger
+  }, 60_000);
 
   it('detects a genuine key soft-lock on a synthetic flawed hub (negative control)', () => {
     // Hub (1,1) starts with 1 key and TWO reachable locked doors:
