@@ -29,14 +29,14 @@ do to it. Most puzzles are one of each.
 
 | Primitive | What it does | Where it shows up |
 |---|---|---|
-| **Still water** | Blocks walking; you swim or dive; things float or sink. Its **level** can be raised or lowered as a dungeon-wide state. | *Ocarina* Water Temple: playing Zelda's Lullaby at a Triforce symbol raises the water, *"notice how the block also floats up"* (`1998-ocarina-of-time/water-temple.wiki`). |
-| **Moving water** | Currents, waterfalls and whirlpools carry you and objects one way. | *Breath of the Wild* "The Current Solution", "Drifting"; *Tears of the Kingdom* "Against the Flow"; *Recall* sends a raft back *up* a waterfall (`nachoyah-shrine.wiki`). |
-| **Ice** | Slippery floors slide you and blocks until they hit something (creating **backstop** routing puzzles); ice blocks melt; water freezes. | Heaviest in *A Link to the Past* (`98` ice/slide mentions), *Ocarina* (`93`) and *Breath of the Wild* (`93`). *Minish Cap* Temple of Droplets (`2004-the-minish-cap/temple-of-droplets.wiki`) and *Seasons* Sword & Shield Dungeon (`temple-remains-and-sword-shield-dungeon.wiki`) use multi-block ice-sliding backstop puzzles. *Breath of the Wild* "The Melting Point", "Melting Ice Hazard". |
+| **Still water (shallow vs. deep & rising levels)** | Shallow water lets you wade and douses fire; deep water blocks walking while buoyant crates and rafts float. Raising or lowering the **water level** re-indexes height across the whole room—floating crates up into level-flush bridges *or* lifting buoyant weights *off* submerged floor switches. | *Ocarina* Water Temple (`1998-ocarina-of-time/water-temple.wiki`). *Wind Waker* Tower of the Gods: push wooden crates into a dry trench so rising water floats them into a bridge, while elsewhere rising water floats a crate *off* a switch and drops a magic bridge (`2002-the-wind-waker/tower-of-the-gods.wiki`). *Breath of the Wild* Sheh Rata "Speed of Light": a barrel holds a submerged switch only while water is drained (`2017-breath-of-the-wild/shrines/sheh-rata-shrine.wiki`). *A Link to the Past* floodgates (`1991-a-link-to-the-past/swamp-palace.wiki`). |
+| **Moving water & waterfalls** | Currents, waterfalls and whirlpools carry floating objects one way; waterfall curtains douse carried flames while letting you step through. | *Breath of the Wild* "The Current Solution", "Drifting"; *Tears of the Kingdom* "Against the Flow", *Recall* sending a raft back *up* a waterfall (`2023-tears-of-the-kingdom/shrines/nachoyah-shrine.wiki`), and `river-of-the-dead` waterfall caves (`tadarok-shrine.wiki`). |
+| **Ice** | Slippery floors slide you and blocks until they hit a **backstop**; ice blocks melt in fire/beams (leaving water or dropping cargo); water freezes into bridges. | Heaviest in *A Link to the Past* (`98` mentions), *Ocarina* (`93`) and *Breath of the Wild* (`93`). *Minish Cap* Temple of Droplets (`2004-the-minish-cap/temple-of-droplets.wiki`) and *Seasons* Sword & Shield Dungeon (`temple-remains-and-sword-shield-dungeon.wiki`) use multi-block ice-sliding backstop puzzles. *Tears of the Kingdom* Tadarok "Fire and Water": shield an Ice Block from Flame Fountains using a Stone Box (`2023-tears-of-the-kingdom/shrines/tadarok-shrine.wiki`). |
 | **Lava** | Deadly floor that turns to stone where water or ice lands. | *Wind Waker* Dragon Roost: *"the pots by the entrance are filled with water… throw it in the lava… a rock surface you can jump on"* (`dragon-roost-cavern.wiki`). *Seasons* Sword & Shield Dungeon: carry Magic Ice crystals and drop them down floor holes into lava vents below (`temple-remains-and-sword-shield-dungeon.wiki`). *Tears of the Kingdom* Kadaunar: a wall hydrant streams water onto lava, making Lava Slabs (`kadaunar-shrine.wiki`). |
-| **Flammables** | Webs, vines, wooden boxes and grass burn, and fire spreads. | *Ocarina* Deku Tree web; *Breath of the Wild* Tah Muhl "Passing the Flame": vines burned from torches, by weapon or arrow (`tah-muhl-shrine.wiki`). |
-| **Wind** | Fans, updrafts and gusts push you, gliders and objects. | Everywhere in the later games (*Breath of the Wild* `132` mentions, *Tears of the Kingdom* `165`; *Wind Waker*'s count is inflated by its own title). *Breath of the Wild* "Directing the Wind", "The Four Winds", "Windmills"; *Tears of the Kingdom* "Ride the Winds", "Turbine Power". |
+| **Flammables (including pushable wooden crates)** | Webs, vines, grass and **pushable wooden boxes** burn, and fire spreads—unless doused by water or shielded by stone. | *Ocarina* Deku Tree web; *Breath of the Wild* Tah Muhl "Passing the Flame" (`tah-muhl-shrine.wiki`). *Tears of the Kingdom* Tadarok "Fire and Water": wooden boxes catch fire in Flame Fountains unless snatched into water to douse them, then float as non-conductive bridges (`2023-tears-of-the-kingdom/shrines/tadarok-shrine.wiki`). |
+| **Wind & fans** | Fixed fans, blowers, updrafts and gusts push gliders, rafts and loose objects while solid blocks cast a calm wind-shadow behind them. | Everywhere in the later games (*Breath of the Wild* `132` mentions, *Tears of the Kingdom* `165`). *Breath of the Wild* "Directing the Wind", "The Four Winds", "Windmills", and fan-driven rafts (`rok-uwog-shrine.wiki`); *Tears of the Kingdom* "Ride the Winds", "Turbine Power". |
 | **Electricity** | Flows from a source through conductive metal to a switch. | *Breath of the Wild* Hawa Koth: *"position the two metal cubes… so that the green power source is conducting power to the Switch"* (`hawa-koth-shrine.wiki`); "Electric Path", "Metal Connections". |
-| **Light** | Sunbeams and reflected light trip sun switches or melt ice; darkness hides the room. | *Ocarina* Spirit Temple: bomb a boulder, *"sun will shine through onto the sun switch"* (`spirit-temple.wiki`). *Minish Cap* Temple of Droplets: open an upstairs skylight so sunlight melts a frozen key below (`temple-of-droplets.wiki`). *Tears of the Kingdom* "Proving Grounds: Lights Out", "Shining in Darkness", "A Reflective Device". |
+| **Light & laser beams** | Sunbeams, reflected rays, and height-layered **laser beams / sensors** trip switches, open gates when interrupted, or melt ice; darkness hides the room. | *Ocarina* Spirit Temple (`spirit-temple.wiki`); *Minish Cap* skylight melting a frozen key (`temple-of-droplets.wiki`). *Tears of the Kingdom* Sahirow "Aid from Above": jump over floor-height sensor lasers, pass under head-height lasers, and push an Iron Box *into* a sensor beam to hold a portcullis open (`2023-tears-of-the-kingdom/shrines/sahirow-shrine.wiki`). *Breath of the Wild* Sheh Rata: a rotating laser sweeps across a crystal pump switch (`2017-breath-of-the-wild/shrines/sheh-rata-shrine.wiki`). |
 | **Metal and magnetism** | Metal objects can be grabbed at range; some doors are metal. | *Breath of the Wild* (`216` mentions): "Magnesis Trial", "Metal Doors Open the Way", "Metal Makes a Path". *Seasons* Magnetic Gloves. |
 | **Gravity and momentum** | Balls roll, boulders fall, platforms tilt and balance, launched things fly in arcs. | *Breath of the Wild* "Drawing Parabolas", "A Balanced Approach", "Halt the Tilt"; *Tears of the Kingdom* "Gravity and Velocity", "A Route for a Ball", "Forward Force", "Proving Grounds: Low Gravity". |
 | **Time** | Past and present versions of a room; objects with a recorded path. | *Oracle of Ages* time travel; *Tears of the Kingdom* Recall: "The Ability to Rewind", "A Retraced Path", "Backtrack". |
@@ -54,9 +54,10 @@ do to it. Most puzzles are one of each.
 | **Torch / brazier** | Lit to open a door or light the room; sometimes in order or on a timer. | *A Link to the Past* `69`, *Ocarina* `68`; *Breath of the Wild* "Five Flames", "Swinging Flames", "Blue Flame". |
 | **Socket / pedestal** | Accepts a carried token: an orb, a statue, a pearl. | *Breath of the Wild* Ancient Orbs in Concave Slots (`monya-toma-shrine.wiki`); *Wind Waker* statues on the Tower of the Gods altar. |
 | **Step-cycling tiles & colour rollers** | Floor tiles that change colour or crumble (`Green → Yellow → Red → Hole`) each time you step on them, or cylinder rollers pushed to repaint a floor. | *Link's Awakening* Color Dungeon (`1993-links-awakening/color-dungeon.wiki`); *Ages* Wing Dungeon & Crown Dungeon (`western-woods-and-wing-dungeon.wiki`, `west-rolling-ridge-and-crown-dungeon.wiki`); *Seasons* Ancient Ruins (`tarm-ruins-and-ancient-ruins.wiki`). |
-| **Doors** | Shutters, key doors, barred cells, boss doors, one-way turnstiles, doors that open on "all enemies defeated". | Every game; turnstiles in *Ages* Moonlit Grotto & Crown Dungeon (`crescent-island-and-moonlit-grotto.wiki`). |
-| **Movers** | Conveyors, moving and tilting platforms, elevators, carts on switchable rails. | Conveyors: *A Link to the Past* (`23`), *Breath of the Wild* (`11`). Carts with mid-ride lever switches: *Oracle* Unicorn's Cave & Sword & Shield Dungeon (`eyeglass-lake-and-unicorn-s-cave.wiki`, `temple-remains-and-sword-shield-dungeon.wiki`); *Tears of the Kingdom* "Built for Rails". Platforms: *Breath of the Wild* (`29`). |
-| **Rotating / reconfigurable room** | Turning or moving part of the dungeon re-routes it. | *Breath of the Wild*: Naboris lets you *"rotate the three cylindrical sections of Naboris' torso by increments of 90 degrees"* (`divine-beast-vah-naboris.wiki`); Ruta's trunk *"constantly spews water, allowing Link to position the stream"* (`divine-beast-vah-ruta.wiki`). *Tears of the Kingdom* "Shape Rotation", "Proving Grounds: Rotation". |
+| **Doors & asymmetric filters** | Shutters, key doors, barred cells, boss doors, one-way turnstiles, **mouseholes** (hero fits empty-handed; large items/bombs blocked), and **slotted grates / low transoms** (bombs, rays and gusts pass; hero blocked). | Every game; turnstiles in *Ages* Moonlit Grotto & Crown Dungeon (`crescent-island-and-moonlit-grotto.wiki`); Minish mouseholes in *The Minish Cap* (`2004-the-minish-cap/deepwood-shrine.wiki`); barred bomb/laser windows in *Breath of the Wild* (`ja-baij-shrine.wiki`) & *Tears of the Kingdom* (`sahirow-shrine.wiki`). |
+| **Elevation, pillars & spring pads** | Multi-tier ledges (`0/1/2`) you hop down one way, ramps, switch-risen **floor pillars** (`ELEVATION.md`), and **trampolines / springs** that launch actors and objects up a tier. | *Oracle of Ages / Seasons* cliff hops, raisable dungeon floors, Roc's Cape gap-jumps, and trampolines (`2001-oracle-of-seasons/woods-of-winter-and-snake-s-remains.wiki`, `tarm-ruins-and-ancient-ruins.wiki`); *Echoes of Wisdom* Trampoline echoes (`2024-echoes-of-wisdom/echoes.wiki`). |
+| **Movers & floating rafts** | Conveyors, cycling and triggered platforms, elevators, switchable-rail carts, and **buoyant rafts** pushed across water by wind or blasts. | Conveyors: *A Link to the Past* (`23`), *Breath of the Wild* (`11`). Carts: *Oracle* Unicorn's Cave (`eyeglass-lake-and-unicorn-s-cave.wiki`); *Tears of the Kingdom* "Built for Rails". Wind/blast rafts & moving laser-blocking platforms: *Breath of the Wild* (`rok-uwog-shrine.wiki`, `ishto-soh-shrine.wiki`). |
+| **Rotating turntables & mounts** | Turning a floor dial, turret, or cylindrical section in `90°` increments re-routes chutes, bridges, fans, or lasers—and re-indexes whatever stands on the dial. | *Oracle of Ages* Moonlit Grotto 4-spoke crystal wheel & Crown Dungeon turnstiles (`2001-oracle-of-ages/crescent-island-and-moonlit-grotto.wiki`); *Breath of the Wild* Vah Naboris `90°` rings (`divine-beast-vah-naboris.wiki`) and Sheh Rata rotating laser (`sheh-rata-shrine.wiki`); *Tears of the Kingdom* "Shape Rotation", "Proving Grounds: Rotation". |
 | **Enemies as puzzle mechanisms** | Foes whose movement, body or appetite *is* the puzzle tool: mirror-walking knights, bomb-swallowing Dodongos, foes that walk across invisible floors, or monsters turned into movable weights. | Mirror Armos/Stalfos: *Ages* Crown Dungeon (`west-rolling-ridge-and-crown-dungeon.wiki`) & *Seasons* Explorer's Crypt (`graveyard-and-explorer-s-crypt.wiki`). Moblins revealing invisible floor over a pit: *Ages* Crown Dungeon (`west-rolling-ridge-and-crown-dungeon.wiki`). Bomb-swallowing Dodongos: *Zelda 1*, *Seasons* Snake's Remains (`woods-of-winter-and-snake-s-remains.wiki`). |
 | **Hazards that are also tools** | Blade traps, fire bars, beamos, spiked rollers, crumbling floors. | *A Link to the Past*'s trap catalogue (`dungeon-traps.wiki`): Balls, Bumper, Cannons, Fire Bars, Blade Traps, Beamos, Wall Eye, Winder. |
 | **Hidden things** | Fake walls, invisible paths, hidden switches. | *Ocarina* Shadow Temple: *"it looks like a dead end… put on the Lens of Truth and go past the wall"* (`shadow-temple.wiki`). *Breath of the Wild* "Buried Secrets", "Secret Stairway", "Blind Spots". |
@@ -244,6 +245,28 @@ where it appears.
     - Composition with exactly two parts is the sweet spot the series keeps
       returning to.
 
+16. **Dual-role multi-property objects ("Wait—I can use X *as* Y!").**
+    - **Chain:** `use object for Role A (weight / shield / raft) → transform or destroy it for Role B (bridge / fuse / unblock)`.
+    - *Tears of the Kingdom* Tadarok "Fire and Water" (`tadarok-shrine.wiki`): a
+      Stone Box first bridges electrified water, then shields an Ice Block from
+      Flame Fountains, then bridges lava; a Wooden Box catches fire in a flame
+      lane, is doused in water, and finally floats as an insulated stepping stone.
+    - *Wind Waker* Tower of the Gods (`tower-of-the-gods.wiki`): crates pushed
+      into a dry trench become a floating bridge when the water rises.
+    - This repurposing is the primary engine of player **"aha!" creativity**: the
+      room never tells you a wooden crate is a timed laser-shutter that burns away
+      on cue—you discover it from its physical properties.
+
+17. **State-inversion & split-track routing ("What helps here hurts there").**
+    - **Chain:** `State High enables crossing → delayed trigger flips to State Low after crossing → submerged switch re-engages`.
+    - *Breath of the Wild* Sheh Rata "Speed of Light" (`sheh-rata-shrine.wiki`):
+      high water lets you reach the exit gate, *but* floats the barrel off the
+      submerged switch that opens that gate—forcing you to arrange a delayed
+      laser sweep (or remote bomb) that drains the water *after* you cross.
+    - *Tears of the Kingdom* Sahirow "Aid from Above" (`sahirow-shrine.wiki`):
+      asymmetric barriers let Link slip under a high sensor ray empty-handed and
+      then push an Iron Box *into* the ray from the far side to lift a portcullis.
+
 ### 2.2b Macro-dungeon compositions (how 2D rooms compose into a dungeon)
 
 Beyond single-room chains, the 2D games in `inspiration/` (*Link's Awakening*,
@@ -300,26 +323,41 @@ multi-room architectural patterns that make a dungeon read as one machine:
 
 ### 2.4 What this means for microbomber
 
-- **Shrine-sized rooms** are our Dungeon 999 rooms. Give each one a **trial
-  name** that is its hint ("Stop to Start"), as the shrines do.
-- **Our verb is the explosion**, so the strongest borrowings are those where a
-  *blast* or *timed fuse* is the actuator:
-  - Bomb at the apex or on a fuse delay across a crystal barrier ("Two Bombs",
-    Dark Palace)
-  - bomb a boulder or burn a rope to drop a weight/bridge across floors (Spirit
-    Temple, Temple of Droplets, Sword & Shield Dungeon)
-  - water/ice versus lava (Dragon Roost, Sword & Shield Dungeon, Kadaunar → Ice
-    versus lava)
-  - ice-sliding backstop puzzles (Temple of Droplets → Glazed Crust + Rock Bomb
-    backstops)
-  - carry a flame (Deku Tree → Fire Bombs and dry-grass fuse lines)
-  - scale-filtered passages (Deepwood Shrine mouseholes → Pip's mouseholes that
-    block bombs and blocks)
-- **Keep to pairs.** The series' best compositions combine *two* systems. That
-  matches our "simple, one job per bomb" rule.
-- **Homage, not copy.** Take the composition (water on lava, backstop on ice),
-  never the room. A Dragon Roost pot puzzle becomes "freeze the lava with an Ice
-  Bomb before the fuse of the Bomb you're carrying runs out".
+- **Whole-screen `22 × 26` puzzle boxes (`14 × 18` interior).** Doubling the
+  standard room to `22 × 26` tiles (`4×` the floor area of Grandma's `11 × 13`
+  rooms) lets an entire **3- to 5-stage multi-lane machine**—elevation tiers,
+  water basins, laser sightlines, fan lanes, and turntables—sit on **one screen
+  at once**. Every cause and effect stays in view while Pip experiments.
+- **Shrine-sized rooms with hint titles.** Every room gets a **trial name** that
+  frames its insight ("High Water, Heavy Feet", "Burn the Shield"), just as the
+  *BotW*/*TotK* shrines do.
+- **Our actuator is the 7-Bomb kit + physical terrain rules**, so the strongest
+  borrowings are systemic cross-reactions where **one object plays multiple
+  physical roles**:
+  - **Push + Float + Burn crates** (*TotK* `tadarok-shrine.wiki`, *Wind Waker*
+    `tower-of-the-gods.wiki`): walk-pushed weights that block lasers/fans, float
+    up with rising water into bridges, and burn away on a delay when lit
+  - **Rising/lowering water & shallow vs. deep basins** (*Ocarina* Water Temple,
+    *BotW* `sheh-rata-shrine.wiki`, *ALttP* Swamp Palace): flooding floats
+    wooden crates and rafts up one level while lifting buoyant weights *off*
+    submerged plates; draining turns deep water into walkable shallow fords
+  - **Height-layered lasers, fans & elevation (`0 / 1 / 2`)** (*TotK*
+    `sahirow-shrine.wiki`, *Oracles* cliffs & raisable pillars): beams and gusts
+    travel at their own tier, passing over sunken blocks until water or a pillar
+    lifts an obstacle into the stream
+  - **Richer melting, freezing & cryo-stasis** (*Minish Cap* Temple of Droplets,
+    *Seasons* Sword & Shield): freezing deep water into bridges, shallow water
+    into slick curling frost, and encasing creatures—or ticking bombs!—in sliding
+    ice cubes until Fire or a Thermal Laser thaws them
+  - **Asymmetric Pip-only vs. Bomb-only gates** (*Minish Cap* `deepwood-shrine.wiki`
+    mouseholes & waterfall douse curtains vs. slotted bomb grates & low fences):
+    splitting Pip's route from the bomb's route so the two reunite at the target
+  - **`90°` turntables & propelling rafts** (*Ages* Moonlit Grotto, *BotW* Vah
+    Naboris & Korok rafts): rotating curved chutes, fans, mirrors, or a pinned
+    crate-and-Pip pair to unlock impossible angles
+- **Reward lateral player creativity, block only trivial cheese.** Like *BotW*'s
+  "Halt the Tilt" and Sheh Rata's remote-bomb solve, rooms should reject 0- or
+  1-step shortcuts while welcoming clever multi-step emergent physics solves.
 
 ### 2.5 What we leave behind (anti-patterns in the corpus)
 
