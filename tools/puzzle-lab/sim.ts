@@ -512,11 +512,18 @@ function settleBuoyancy(room: LabRoomSpec, s: LabState): void {
     }
   }
 
-  // If Pip ends up over unfrozen deep water without a floating deck, pop back to safe tile
+  // If Pip ends up over unfrozen deep water without a floating deck, pop back to safe tile (or entry if safe tile also flooded)
   if (
     liquidKindAt(room, s, s.pip.x, s.pip.y) === 'deep' &&
     !hasFloatingDeckAt(room, s, s.pip.x, s.pip.y)
   ) {
+    const safeFlooded =
+      liquidKindAt(room, s, s.pip.safeX, s.pip.safeY) === 'deep' &&
+      !hasFloatingDeckAt(room, s, s.pip.safeX, s.pip.safeY);
+    if (safeFlooded) {
+      s.pip.safeX = room.entry[0];
+      s.pip.safeY = room.entry[1];
+    }
     s.pip.x = s.pip.safeX;
     s.pip.y = s.pip.safeY;
     s.pip.vx = 0;
@@ -1663,9 +1670,9 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
             break;
           }
           if (!s.frostCells.has(cellKey(b.x, b.y))) {
-            // Keep rolling only if still on a chute/current/fan
+            // Keep rolling only if still on a chute/grate/current/fan
             const nextT = effectiveTileAt(room, s, b.x, b.y);
-            if (!slopeDir(nextT) && !cd && !gust) {
+            if (!slopeDir(nextT) && nextT !== 'g' && !cd && !gust) {
               b.vx = 0;
               b.vy = 0;
             }

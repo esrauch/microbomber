@@ -299,13 +299,21 @@ export function evaluateRoomQuality(
   const backportErrors = validateBackportInvariants(room);
   const solve = solveLabRoom(room, solveBudget);
   const replayVerified = solve.solved && replayWitness(room, solve.flatActions);
-  const shortcuts = findTrivialShortcuts(room, minMacroSteps, ablationBudget);
-  const ablation = runAblationAudit(room, solve, ablationBudget);
+  const solveValid = backportErrors.length === 0 && solve.solved && replayVerified;
+
+  const shortcuts = solveValid ? findTrivialShortcuts(room, minMacroSteps, ablationBudget) : [];
+  const ablation = solveValid
+    ? runAblationAudit(room, solve, ablationBudget)
+    : {
+        unusedKitBombs: [],
+        requiredProps: [],
+        obstacleProps: [],
+        redundantProps: [],
+        inactiveMechanisms: [],
+      };
 
   const structuralValid =
-    backportErrors.length === 0 &&
-    solve.solved &&
-    replayVerified &&
+    solveValid &&
     solve.steps.length >= minMacroSteps &&
     shortcuts.length === 0 &&
     ablation.unusedKitBombs.length === 0 &&

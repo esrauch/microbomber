@@ -69,7 +69,8 @@ export function liquidKindAt(
       raw === 'Q' ||
       raw === 'G' ||
       raw === 'X' ||
-      raw === '!')
+      raw === '!' ||
+      SLOPES.has(raw))
   ) {
     return 'deep';
   }
