@@ -318,6 +318,8 @@ function isOpaqueSolidTile(room: LabRoomSpec, s: LabState, x: number, y: number)
   if (t === '|' && s.frozenVeils.has(key)) return true;
   if (hasRockBlockAt(s, x, y)) return true;
   if (hasBrazierAt(s, x, y)) return true;
+  if (room.lasers?.some((l) => l.x === x && l.y === y)) return true;
+  if (room.fans?.some((f) => f.x === x && f.y === y)) return true;
   return false;
 }
 
@@ -423,7 +425,7 @@ function canPropEnterCell(
   return true;
 }
 
-function canGroundedBombEnter(
+export function canGroundedBombEnter(
   room: LabRoomSpec,
   s: LabState,
   fromX: number,
@@ -1185,8 +1187,13 @@ function detonateBomb(room: LabRoomSpec, s: LabState, bomb: BombState): void {
 
   if (kind === 'wind') {
     // Instant 3x3 push + Pip +1 tier blast-jump + lingering whirlwind vortex
-    if (Math.abs(s.pip.x - cx) <= 1 && Math.abs(s.pip.y - cy) <= 1) {
-      const [dx, dy] = DIR_DELTA[s.pip.dir];
+    const pipOnRaft = Boolean(raftAt(s, s.pip.x, s.pip.y));
+    if (!pipOnRaft && Math.abs(s.pip.x - cx) <= 1 && Math.abs(s.pip.y - cy) <= 1) {
+      const jumpDir =
+        s.pip.x === cx && s.pip.y === cy
+          ? s.pip.dir
+          : (dirFromDelta(Math.sign(s.pip.x - cx), Math.sign(s.pip.y - cy)) ?? s.pip.dir);
+      const [dx, dy] = DIR_DELTA[jumpDir];
       const srcL = entityLevelAt(room, s, s.pip.x, s.pip.y);
       for (const dist of [2, 3, 1] as const) {
         const tx = s.pip.x + dx * dist;
@@ -1630,6 +1637,9 @@ export function stepLabTick(room: LabRoomSpec, s: LabState): string[] {
           } else {
             b.x = nx;
             b.y = ny;
+          }
+          if (rawTileAt(room, s, b.x, b.y) === 'g') {
+            s.events.push('bomb-grate-pass');
           }
 
           if (isVeilActiveAt(room, s, b.x, b.y)) {
@@ -2231,6 +2241,9 @@ function placeOrThrowHeld(
       launchLevel: entityLevelAt(room, s, bx, by),
       shoveCount: 0,
     });
+    if (rawTileAt(room, s, bx, by) === 'g') {
+      collectedEvents.push('bomb-grate-pass');
+    }
     collectedEvents.push('bomb-drop', ...stepLabTick(room, s));
     return { ok: true, ticksElapsed: 1, events: collectedEvents };
   }

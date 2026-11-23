@@ -31,8 +31,8 @@ describe('Phase 1: Standalone Abstracted Puzzle Lab', () => {
         '##########',
       ],
       props: [{ id: 'box', kind: 'crate', x: 5, y: 2 }],
-      // Laser shoots East across row 3 (directly across the path from (5,2) down to O at (5,5)!)
-      lasers: [{ id: 'L1', x: 1, y: 3, dir: 'E', level: 0 }],
+      // Laser shoots East from (2,3) across row 3 (leaving col 1 open so Pip can place the Rock stop)
+      lasers: [{ id: 'L1', x: 2, y: 3, dir: 'E', level: 0 }],
       sensors: [{ id: 'S1', x: 8, y: 3, level: 0 }],
     };
 

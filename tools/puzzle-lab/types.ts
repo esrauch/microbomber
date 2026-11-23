@@ -52,7 +52,7 @@ export const LAB_BOMB_FUSE_TICKS: Record<LabBombKind, number> = {
   rock: 3,
 };
 
-export const CRATE_BURN_TICKS = 3;
+export const CRATE_BURN_TICKS = 4;
 export const GRASS_BURN_TICKS = 2;
 export const SELF_CRYO_TICKS = 6;
 export const CREATURE_FREEZE_TICKS = 8;
