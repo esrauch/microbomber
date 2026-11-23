@@ -340,4 +340,16 @@ describe('GBC colour and multi-tile rules', () => {
       false,
     );
   });
+
+  it('keeps the water backdrop under frozen bridge tiles when the room rebuilds on solve', () => {
+    const world = campaignWorld();
+    const st = newState(world, 'dungeon-999', 3, 0, 10.5, 19.5);
+    const before = buildRoomLayout(world, st);
+    st.frozenTiles?.add('dungeon-999:3,0:7,11');
+    st.frozenTiles?.add('dungeon-999:3,0:8,11');
+    st.frozenTiles?.add('dungeon-999:3,0:6,10');
+    st.roomSolved = true;
+    const after = buildRoomLayout(world, st);
+    expect(after.ground).toEqual(before.ground);
+  });
 });

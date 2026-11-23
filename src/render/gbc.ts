@@ -1718,9 +1718,10 @@ export function makeGbcView(): GbcView {
       lastBrokenCount = s.brokenTiles.size;
 
       plan = buildRoomLayout(world, s);
+      const unfrozen: State = { ...s, frozenTiles: new Set() };
       const isWet = (x: number, y: number): boolean => {
         if (x < 0 || y < 0 || x >= s.roomW || y >= s.roomH) return false;
-        const t = tileAt(world, s, s.zone, s.rx, s.ry, x, y);
+        const t = tileAt(world, unfrozen, s.zone, s.rx, s.ry, x, y);
         return isWaterTile(t) || isShallowWaterTile(t);
       };
       waterCells = [];
@@ -1734,7 +1735,7 @@ export function makeGbcView(): GbcView {
           waterCells.push({
             x,
             y,
-            shallow: isShallowWaterTile(tileAt(world, s, s.zone, s.rx, s.ry, x, y)),
+            shallow: isShallowWaterTile(tileAt(world, unfrozen, s.zone, s.rx, s.ry, x, y)),
             rect: [x * TILE_PX + l, y * TILE_PX + u, TILE_PX - l - r, TILE_PX - u - d],
           });
         }

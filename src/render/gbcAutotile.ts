@@ -96,11 +96,13 @@ export function buildRoomLayout(world: World, s: State): RoomRenderPlan {
   const isIceCave = s.zone === 'ice-cave';
   const solved = s.roomSolved || s.solvedRooms.has(roomKey(s.zone, s.rx, s.ry));
 
+  // Frozen water keeps its water backdrop under the live ice overlay (`gbc.ts`) on rebuilds
+  const unfrozen: State = { ...s, frozenTiles: new Set() };
   const grid: Tile[][] = [];
   for (let y = 0; y < s.roomH; y++) {
     const row: Tile[] = [];
     for (let x = 0; x < s.roomW; x++) {
-      row.push(tileAt(world, s, s.zone, s.rx, s.ry, x, y));
+      row.push(tileAt(world, unfrozen, s.zone, s.rx, s.ry, x, y));
     }
     grid.push(row);
   }
