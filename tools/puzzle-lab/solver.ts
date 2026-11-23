@@ -585,14 +585,12 @@ function generateMacroSuccessors(
               Boolean(
                 room.fans?.some((f) => f.x === rx || f.y === ry || f.x === midX || f.y === midY),
               );
-            // Skip throwing over a walkable cell when stepping forward + dropping reaches the same tile
-            if (
-              how === 'throw' &&
-              bomb !== 'wind' &&
-              reachSet.has(cellKey(midX, midY)) &&
-              !midHasFanOrSlope
-            ) {
-              continue;
+            // Skip throwing straight into a solid wall or Bomb Grate, or over an ordinary walkable cell
+            if (how === 'throw') {
+              if (midRaw === '#' || midRaw === 'g') continue;
+              if (bomb !== 'wind' && reachSet.has(cellKey(midX, midY)) && !midHasFanOrSlope) {
+                continue;
+              }
             }
 
             if (

@@ -927,21 +927,37 @@ function buildHighTideSeed(): {
     },
   ];
 
-  // Act III: Sweep a `level 1` Laser East across `y=11` (`(7,11) -> S1(13,11)`, moving `W` to `(7,12)`)
-  // so bridging on `y=11` eclipses `S1`! Pip must hop into `(9,11)` (under the `level 1` ray!), push BOTH
-  // crates South to `y=13`, climb up uncovered ramp `(9,12)`, bomb `W`, and cross on `y=13`!
+  // Act III: Sweep a `level 1` Laser East across `y=11` (`(7,11) -> S1(13,11)`, moving `W` to `(5,12)` with `(6..7,12)` open)
+  // so `b1` at `(10,11)` sits under the beam when Low, and would block `S1` & burn if floated in place!
+  // Pip must walk down the ramp into the `level 0` trench, walk UNDER the `level 1` Laser at `(9,11)` into the
+  // north trench turnaround `(9..10,10)`, push `b1` South out of the beam to `(10,13)` alongside `b2` `(9,13)`,
+  // climb the ramp back up to the West bank, bomb `W`, and cross the floating bridge on `y=13`!
   const act3Mutations: CandidateMutation[] = [
     {
       description: 'add-level1-laser-across-primary-bridge-axis',
       mutate: (r2) => {
         const rows3 = r2.rows.map((row, y) => {
           const chars = [...row];
+          if (y === 10) {
+            chars[9] = ';';
+            chars[10] = ';';
+          }
           if (y === 11) {
             chars[7] = '.';
             chars[12] = '.';
           }
-          if (y === 12) chars[7] = 'W';
+          if (y === 12) {
+            chars[5] = 'W';
+            chars[6] = '.';
+          }
           if (y === 13) chars[12] = 'O';
+          return chars.join('');
+        });
+        const levels3 = (r2.levels ?? []).map((row, y) => {
+          if (y !== 10) return row;
+          const chars = [...row];
+          chars[9] = '0';
+          chars[10] = '0';
           return chars.join('');
         });
         return [
@@ -949,11 +965,13 @@ function buildHighTideSeed(): {
             ...r2,
             id: 'triad-tide-3',
             name: 'High Tide III: Under the Beam, Over the Tide',
+            maxActiveBombs: 1,
             condition: 'buttons-and-sensors',
             rows: rows3,
+            ...(levels3.length > 0 ? { levels: levels3 } : {}),
             props: [
-              { id: 'b1', kind: 'crate', x: 10, y: 12 },
-              { id: 'b2', kind: 'crate', x: 9, y: 12 },
+              { id: 'b1', kind: 'crate', x: 10, y: 11 },
+              { id: 'b2', kind: 'crate', x: 9, y: 13 },
             ],
             lasers: [{ id: 'L1', x: 7, y: 11, dir: 'E', level: 1 }],
             sensors: [{ id: 'S1', x: 13, y: 11, level: 1 }],

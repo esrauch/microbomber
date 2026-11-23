@@ -114,7 +114,7 @@ function renderBoardSvg(room: LabRoomSpec, s: LabState): string {
                   ? 'N'
                   : t === 'G' || t === 'R' || t === 'U' || t === 'X'
                     ? t
-                    : t === 'g' || t === 'm' || t === '|' || t === 'J' || t === 'L'
+                    : t === 'g' || t === 'm' || t === 't' || t === '|' || t === 'J' || t === 'L'
                       ? t
                       : t === 'n' || t === 's' || t === 'e' || t === 'w'
                         ? t
@@ -223,10 +223,19 @@ function renderBoardSvg(room: LabRoomSpec, s: LabState): string {
     );
   }
 
-  // Creatures
+  // Creatures & Mine Carts
   for (const c of s.creatures) {
     const cx = c.x * CELL + CELL / 2;
     const cy = c.y * CELL + CELL / 2;
+    if (c.kind === 'cart') {
+      const px = c.x * CELL;
+      const py = c.y * CELL;
+      parts.push(
+        `<rect x="${px + 2}" y="${py + 3}" width="${CELL - 4}" height="${CELL - 6}" rx="3" fill="#d29922" stroke="#f0f6fc" stroke-width="1.3"/>`,
+        `<text x="${cx}" y="${cy + 3.5}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#0d1117">M${c.dir}</text>`,
+      );
+      continue;
+    }
     const fill = c.frozenTicks > 0 ? '#7dd3fc' : '#d2a8ff';
     parts.push(
       `<circle cx="${cx}" cy="${cy}" r="7.5" fill="${fill}" stroke="#0d1117" stroke-width="1.2"/>`,

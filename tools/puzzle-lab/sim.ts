@@ -344,9 +344,17 @@ export function canPipStandAt(
   if (x < 0 || y < 0 || x >= room.width || y >= room.height) return false;
   if (isOpaqueSolidTile(room, s, x, y)) return false;
   const t = effectiveTileAt(room, s, x, y);
-  if (t === '=' || t === 'g') return false;
+  if (t === '=' || t === 'g' || t === 't') return false;
   if (t === 'm' && (s.pip.heldBomb !== null || s.pip.icedTicks > 0)) return false;
   if (labLedgeDrops(room, s, x, y) !== null) return false;
+  if (
+    s.creatures.some(
+      (c) =>
+        c.x === x && c.y === y && (c.kind === 'cart' || c.kind === 'otter' || c.frozenTicks > 0),
+    )
+  ) {
+    return false;
+  }
 
   // Cargo props block Pip from standing on the same tile (rafts & floating crates are decks!)
   const cargo = cargoPropAt(s, x, y);
@@ -393,7 +401,7 @@ function canPropEnterCell(
   if (nx < 0 || ny < 0 || nx >= room.width || ny >= room.height) return false;
   if (isOpaqueSolidTile(room, s, nx, ny)) return false;
   const t = effectiveTileAt(room, s, nx, ny);
-  if (t === '=' || t === 'g' || t === 'm' || t === '^') return false;
+  if (t === '=' || t === 'g' || t === 'm' || t === 't' || t === '^') return false;
   if (labLedgeDrops(room, s, nx, ny) !== null) return false;
 
   if (room.levels) {
@@ -440,8 +448,15 @@ export function canGroundedBombEnter(
   if (nx < 0 || ny < 0 || nx >= room.width || ny >= room.height) return false;
   if (isOpaqueSolidTile(room, s, nx, ny)) return false;
   const t = effectiveTileAt(room, s, nx, ny);
-  // Note: 'g' (Bomb Grate) and '|' (Waterfall Veil) ALLOW grounded bombs to enter!
+  // Note: 'g' (Bomb Grate) and '|' (Waterfall Veil) ALLOW grounded bombs to enter;
+  // 't' (Cart Track) allows dropping a bomb only onto a Mine Cart waiting on that tile!
   if (t === '=' || t === 'm') return false;
+  if (
+    t === 't' &&
+    !s.creatures.some((c) => (c.kind === 'cart' || c.kind === 'otter') && c.x === nx && c.y === ny)
+  ) {
+    return false;
+  }
 
   const cargo = cargoPropAt(s, nx, ny);
   if (cargo) {
@@ -492,7 +507,7 @@ function settleBuoyancy(room: LabRoomSpec, s: LabState): void {
       s.events.push('crate-doused');
     }
 
-    if (onOtherRaft || s.frozenWater.has(key)) {
+    if (onOtherRaft || (!p.submerged && s.frozenWater.has(key))) {
       p.submerged = false;
     } else if (liq === 'deep') {
       if (p.kind === 'crate' || p.kind === 'raft') {
@@ -1898,33 +1913,44 @@ function stepCreatures(
       }
     }
 
-    // Pack-Otter picks up adjacent/co-located live bomb and ferries it through mouseholes!
-    if (c.kind === 'otter') {
+    // Mine Cart ('cart') or Pack-Otter ('otter') loads an adjacent/co-located live bomb and runs along the track!
+    if (c.kind === 'cart' || c.kind === 'otter') {
       let carried = s.bombs.find((b) => b.carriedByOtterId === c.id);
       if (!carried) {
+        const maxPickupDist = c.kind === 'cart' ? 0 : 1;
         const nearby = s.bombs.find(
           (b) =>
             !b.carriedByOtterId &&
             b.kind !== 'squeak' &&
             b.airborneSteps === 0 &&
-            Math.abs(b.x - c.x) + Math.abs(b.y - c.y) <= 1,
+            Math.abs(b.x - c.x) + Math.abs(b.y - c.y) <= maxPickupDist,
         );
         if (nearby) {
           nearby.carriedByOtterId = c.id;
           nearby.x = c.x;
           nearby.y = c.y;
           carried = nearby;
-          s.events.push('otter-pickup');
+          s.events.push('cart-load', 'otter-pickup');
         }
       }
       if (carried) {
-        const [dx, dy] = DIR_DELTA[c.dir];
-        if (canCreatureStep(room, s, c, c.x + dx, c.y + dy)) {
-          c.x += dx;
-          c.y += dy;
+        const tryDirs: Dir[] =
+          c.kind === 'cart' ? [c.dir, rotateDirCW(c.dir, 1), rotateDirCW(c.dir, 3)] : [c.dir];
+        for (const candDir of tryDirs) {
+          const [dx, dy] = DIR_DELTA[candDir];
+          if (canCreatureStep(room, s, c, c.x + dx, c.y + dy)) {
+            c.x += dx;
+            c.y += dy;
+            c.dir = candDir;
+            break;
+          }
         }
         carried.x = c.x;
         carried.y = c.y;
+        if (c.kind === 'cart' && isVeilActiveAt(room, s, c.x, c.y)) {
+          s.bombs = s.bombs.filter((b) => b.id !== carried.id);
+          s.events.push('bomb-doused');
+        }
       }
     }
   }
@@ -1940,7 +1966,16 @@ function canCreatureStep(
   if (nx < 0 || ny < 0 || nx >= room.width || ny >= room.height) return false;
   if (isOpaqueSolidTile(room, s, nx, ny)) return false;
   const t = effectiveTileAt(room, s, nx, ny);
-  if (t === '=' || t === 'g' || t === '^' || t === '!') return false;
+  if (c.kind === 'cart') {
+    if (t !== 't' && t !== '|' && t !== 'g' && !(t === 'G' && s.gatesOpen)) return false;
+    if (s.pip.x === nx && s.pip.y === ny) return false;
+    if (cargoPropAt(s, nx, ny)) return false;
+    if (s.creatures.some((other) => other.id !== c.id && other.x === nx && other.y === ny)) {
+      return false;
+    }
+    return true;
+  }
+  if (t === '=' || t === 'g' || t === 't' || t === '^' || t === '!') return false;
   if (t === 'm' && c.kind !== 'otter') return false;
   if (labLedgeDrops(room, s, nx, ny) !== null) return false;
   if (liquidKindAt(room, s, nx, ny) === 'deep' && !hasFloatingDeckAt(room, s, nx, ny)) return false;
@@ -2060,6 +2095,7 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
 
   if (action.kind === 'settle') {
     const cap = Math.max(1, Math.min(MAX_SETTLE_TICKS, action.maxTicks ?? MAX_SETTLE_TICKS));
+    const hadBurningCrateAtStart = s.props.some((p) => p.burnTicks > 0);
     let elapsed = 0;
     for (let i = 0; i < cap; i++) {
       const isBusy =
@@ -2071,6 +2107,11 @@ export function applyLabAction(room: LabRoomSpec, s: LabState, action: LabAction
       elapsed++;
       collectedEvents.push(...stepLabTick(room, s));
       if (s.roomSolved) break;
+      // If a bomb detonation just ignited a crate (`P18 Burn-Away Timer`), pause right as the burn
+      // timer starts so Pip can cross the unblocked Laser corridor before the crate burns to ash!
+      if (!hadBurningCrateAtStart && s.bombs.length === 0 && s.props.some((p) => p.burnTicks > 0)) {
+        break;
+      }
     }
     return { ok: true, ticksElapsed: elapsed, events: collectedEvents };
   }

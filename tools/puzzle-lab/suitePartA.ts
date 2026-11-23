@@ -63,7 +63,7 @@ function buildTriadEntries(): CuratedPuzzleEntry[] {
       notes: [
         'Act I (High Tide): Detonate a Bomb on the Sluice pedestal to float two aligned crates up to level 1 as a bridge.',
         'Act II (High Tide): Hop into the dry trench, push the crate off the ramp to complete the bridge and uncover the exit ramp, then flood High.',
-        'Act III (High Tide): A level 1 Laser sweeps the north crossing—stage both crates on the south line in the dry level 0 trench under the beam, then flood High.',
+        'Act III (High Tide): A level 1 Laser sweeps the north crossing—walk down the ramp into the dry level 0 trench, pass safely UNDER the level 1 beam to push the north crate South out of the ray to y=13, climb back out, bomb W, and cross the floating bridge!',
       ],
     },
   ];
@@ -244,39 +244,21 @@ function buildP16TwoTierHandshake(): CuratedPuzzleEntry {
 }
 
 function buildP17DryTunnelWetFuse(): CuratedPuzzleEntry {
-  const c = new BigRoomCanvas();
-  // West chamber (`x=7..9, y=10..14`) + East chamber (`x=11..13, y=10..14`)
-  // Separated by `#` wall on `x=10` with:
-  // - Mousehole `m` at `(10, 11)` (Otter carries live Bomb East through `m` into `%` / `C` at `(12, 11)`!)
-  // - Active Waterfall Veil `|` at `(10, 13)` (douses any bomb Pip carries/throws, but Pip walks through empty-handed!)
-  c.carveRect(7, 10, 9, 14, '.');
-  c.carveRect(11, 10, 13, 14, '.');
-  c.set(10, 11, 'm');
-  c.set(10, 13, '|');
-  c.set(12, 11, 'C');
-  c.carveRect(11, 12, 13, 12, '#');
-  c.set(12, 12, 'U');
-  c.set(13, 11, '#');
-  c.set(12, 10, '#');
-  c.set(13, 10, '#');
-  c.set(11, 10, '#');
-  c.set(13, 14, 'O');
-
-  //Wait: check Otter movement in `sim.ts` lines 1825-1852:
-  // Otter at `(9, 11)` with `dir: 'E'`: when Pip drops a `bomb` at `(9, 11)` (adjacent to Pip at `(8, 11)`!),
-  // Tick 1 (`bomb-drop`): `stepCreatures` runs BEFORE bomb fuse decrement!
-  // Otter at `(9, 11)` picks up the nearby bomb (`Math.abs(b.x - c.x) + Math.abs(b.y - c.y) <= 1`),
-  // steps East onto `(10, 11)` (`m`! `canCreatureStep` allows `'m'` ONLY for `c.kind === 'otter'`!!),
-  // Tick 2: Otter steps East onto `(11, 11)` (adjacent to `C` at `(12, 11)`!),
-  // Tick 3: Otter blocked by `C` `(12, 11)` & `#` walls, bomb detonates at `(11, 11)` -> flips `C`, lowering `U`!
-  // Wait: let's keep `(12, 14)` `U` barrier on the East floor (`(12, 13..14)` = `U`, `O` at `(13, 14)`) so Pip
-  // doesn't even cross `(11, 11)`!
+  // North tunnel `(9..11, 11)` is a 1-tile Cart Track `'t'` ending at Crystal `'C'` `(12, 11)`.
+  // The Mine Cart sits at `(9, 11)` right in the mouth of the track—blocking Pip from entering the
+  // dry tunnel! South passage `(10, 13)` has a Waterfall Veil `'|'` that douses any bomb Pip carries/throws.
+  // Drop a Bomb into the Mine Cart at `(9, 11)` so it rolls East down the track `'t'` and detonates at `'C'`,
+  // lowering the `'U'` barriers so Pip can walk through the Waterfall Veil onto `'O'`!
   const c2 = new BigRoomCanvas();
-  c2.carveRect(7, 11, 9, 14, '.');
+  c2.carveRect(7, 11, 8, 14, '.');
+  c2.set(9, 13, '.');
+  c2.set(9, 14, '.');
   c2.carveRect(11, 13, 13, 14, '.');
-  c2.set(10, 11, 'm');
-  c2.set(11, 11, '.');
-  c2.set(12, 11, 'C');
+  c2.set(9, 11, 't');
+  c2.set(10, 11, 't');
+  c2.set(11, 11, 't');
+  c2.set(12, 11, 't');
+  c2.set(13, 11, 'C');
   c2.set(10, 13, '|');
   c2.set(12, 13, 'U');
   c2.set(12, 14, 'U');
@@ -285,10 +267,10 @@ function buildP17DryTunnelWetFuse(): CuratedPuzzleEntry {
   return {
     code: 'P17',
     designNote:
-      'The Waterfall Veil douses any bomb Pip carries, while the Mousehole forbids Pip from carrying a bomb—hand a live Bomb to the Pack-Otter so it smuggles the bomb dry through the Mousehole to C!',
+      'The Mine Cart blocks Pip from entering the dry north track tunnel, while the south Waterfall Veil douses bombs—load a Bomb into the Mine Cart so it rides the track to C, then walk through the Waterfall to O!',
     room: {
       id: 'p17',
-      name: 'P17 Dry Tunnel, Wet Fuse',
+      name: 'P17 Dry Track, Wet Passage',
       width: LAB_BIG_W,
       height: LAB_BIG_H,
       kit: ['bomb'],
@@ -296,64 +278,48 @@ function buildP17DryTunnelWetFuse(): CuratedPuzzleEntry {
       entry: [8, 13],
       condition: 'hold-buttons',
       rows: c2.rows(),
-      creatures: [{ id: 'otter', kind: 'otter', x: 9, y: 11, dir: 'E' }],
+      creatures: [{ id: 'cart1', kind: 'cart', x: 9, y: 11, dir: 'E' }],
     },
   };
 }
 
 function buildP18BurnAwayTimer(): CuratedPuzzleEntry {
-  const c = new BigRoomCanvas();
-  c.carveRect(7, 9, 14, 15, '.');
-  // 3x3 Dial centered at `(11, 12)` (`x in 10..12, y in 11..13`).
-  // Crate starts at `(11, 11)` inside a 3-wall pocket (`#` at `(10,11),(12,11),(11,10)`) so Pip can't push it!
-  // Laser `L1` shoots South down `x=13` (`(13, 9) -> S` to Inverter Latching Sensor `S1` at `(13, 15)`).
-  // Wait: when `3x3` Dial `(11, 12)` rotates `90° CW`, `(11, 11)` rotates to `(12, 12)`!
-  // So put Laser `L1` shooting South down `x=12` (`(12, 9) -> S` to `S1` `(12, 15)`, removing `#` at `(12, 11)`?
-  // Put `#` pocket around `(10, 12)` (`dx=-1, dy=0`): `#` at `(9, 12), (10, 11), (10, 13)`!
-  // When `3x3` Dial `(11, 12)` rotates `90° CW`:
-  // `(10, 12)` (`dx=-1, dy=0`) rotates to `(11 - 0, 12 - 1)` = `(11, 11)` — RIGHT INTO AN EASTWARD LASER ON `y=11`!!
-  const c2 = new BigRoomCanvas();
-  c2.carveRect(7, 9, 14, 15, '.');
-  c2.set(8, 9, 'C');
-  // Pocket pinning `crate` at `(10, 12)` from W/N/S (`(9,12)` outside dial, `(10,11)` & `(10,13)` inside dial, `#` at `(12,12)` so pushing E is blocked too!)
-  c2.set(9, 12, '#');
-  c2.set(10, 11, '#');
-  c2.set(10, 13, '#');
-  c2.set(12, 12, '#');
-  // Wait: `#` at `(10, 11)` is on `y=11`! When rotated `90° CW` around `(11, 12)`:
-  // `(10, 11)` (`dx=-1, dy=-1`) -> `(12, 11)` `#`? Wait: if `(12, 11)` becomes `#`, `#` stops the Laser too!
-  // Instead, use `.` around `(10, 12)`? Why can't Pip push `(10, 12)` onto `(11, 11)` directly?
-  // Because `=` fences surround the `3x3` Dial (`x=9` and `x=13` are `=`), so Pip CANNOT even touch the crate!
-  // Only bombing `C` rotates the `3x3` Dial `90° CW`, swinging the crate at `(10, 12)` into `(11, 11)` where the
-  // Eastward Laser `L1` `(7, 11) -> S1(14, 11)` ignites & burns the crate (eclipsing `S1` to latch it!), AND
-  // once the crate burns to ash, the Laser clears? Even better: `S1` is `inverted: true, latch: true` AND `O` is behind `=` via Mousehole `m`!
+  // True Burn-Away Timer:
+  // - Laser `L1` `(7, 11) -> E` powers normal Sensor `S1` `(15, 11)` AND blocks the only corridor `(13, 10..13)` to `O` `(13, 13)`!
+  // - Crate is fenced inside a 3x3 Dial centered at `(10, 12)` (`crate` at `(9, 12)`).
+  // - Bombing Crystal `C` `(12, 9)` rotates the Dial 90° CW, swinging the crate into `(10, 11)`:
+  //   1. While the crate burns in the beam (`4` ticks), the Laser downstream at `(13, 11)` is BLOCKED—unblocking Pip's path to `O` `(13, 13)`!
+  //   2. Once Pip crosses to `O`, the crate finishes burning to ash—so the Laser shoots across `(13, 11)` again (re-blocking the path behind Pip) and powers `S1`!
   const c3 = new BigRoomCanvas();
-  c3.carveRect(7, 9, 14, 15, '.');
-  c3.set(8, 9, 'C');
-  c3.carveRect(9, 10, 13, 14, '=');
-  c3.carveRect(10, 11, 12, 13, '.'); // 3x3 dial interior fenced off from Pip!
-  c3.set(7, 14, 'm');
-  c3.carveRect(7, 13, 14, 13, '=');
-  c3.set(7, 13, 'm');
-  c3.set(13, 15, 'O');
+  c3.carveRect(7, 9, 13, 10, '.');
+  c3.set(7, 9, 'C');
+  c3.carveRect(8, 10, 12, 14, '=');
+  c3.carveRect(9, 11, 11, 13, '.'); // 3x3 dial interior (`cx=10, cy=12`) fenced off from Pip
+  c3.set(7, 11, '.');
+  c3.set(8, 11, '=');
+  c3.set(12, 11, '=');
+  c3.carveRect(13, 10, 13, 13, '.'); // East crossing corridor across `y=11` to `O` `(13, 13)`
+  c3.set(13, 13, 'O');
+  c3.set(14, 11, '=');
+  c3.set(15, 11, '.');
 
   return {
     code: 'P18',
     designNote:
-      'Crate is fenced inside a 3x3 Dial; flip C with a Bomb so the Dial swings the crate into the Inverter Laser—eclipsing S1 while burning to ash—then slip through the Mousehole to O.',
+      'Laser L1 powers normal Sensor S1 while blocking the east hallway to O! Flip C with a Bomb so the 3x3 Dial swings the crate into L1—shielding the hallway for 4 ticks so you can cross to O before the crate burns to ash and re-powers S1.',
     room: {
       id: 'p18',
       name: 'P18 Burn-Away Timer',
       width: LAB_BIG_W,
       height: LAB_BIG_H,
       kit: ['bomb'],
-      entry: [8, 12],
+      entry: [11, 9],
       condition: 'buttons-and-sensors',
       rows: c3.rows(),
-      props: [{ id: 'crate', kind: 'crate', x: 10, y: 12 }],
-      turntables: [{ id: 'dial', cx: 11, cy: 12, size: 3, trigger: 'crystal' }],
+      props: [{ id: 'crate', kind: 'crate', x: 9, y: 12 }],
+      turntables: [{ id: 'dial', cx: 10, cy: 12, size: 3, trigger: 'crystal' }],
       lasers: [{ id: 'L1', x: 7, y: 11, dir: 'E', level: 0 }],
-      sensors: [{ id: 'S1', x: 14, y: 11, level: 0, inverted: true, latch: true }],
+      sensors: [{ id: 'S1', x: 15, y: 11, level: 0 }],
     },
   };
 }
@@ -437,34 +403,37 @@ function buildP20SpinToUnpin(): CuratedPuzzleEntry {
 
 function buildP21PrismBackhand(): CuratedPuzzleEntry {
   const c = new BigRoomCanvas();
-  // 1-tile `~` moat (`x=11`) + a second Mirror `m2` (`Mirrors` SINK in unfrozen `~`, so `Ice` is 100% required!)
-  // Push `m1` (`NE`) North into `(9, 11)` so its fireproof rear shields `(11, 11..12)` from `L1`, freeze `(11, 12)` with `Ice`,
-  // push `m2` East across `(11, 12)` onto `O1` `(12, 12)`, pull `m1` South out of `L1`, and thread `m` `(11, 13)` to `O2` `(13, 13)`!
+  // `(11, 11)` `~` directly under Laser `L1` `(6, 11) -> S1(14, 11)` is the ONLY gap through the `x=11` wall!
+  // Any ice frozen at `(11, 11)` while `L1` is active melts immediately on the same tick.
+  // 1. Push Mirror `m1` (`NE`) North into `(8, 11)` so its fireproof rear face blocks `L1`.
+  // 2. Freeze `(11, 11)` `~` with `Ice`, push Mirror `m2` East across `(11, 11)` to `(12, 11)` and South onto `O1` `(12, 12)`.
+  // 3. Walk back across `(11, 11)` and push `m1` South out of the beam onto `O2` `(8, 13)` (letting `L1` melt `(11, 11)` and power `S1`) while Pip steps onto `O3` `(7, 13)`!
   c.carveRect(7, 10, 10, 13, '.');
-  c.carveRect(11, 10, 11, 12, '~');
-  c.set(11, 13, 'm');
-  c.carveRect(12, 10, 14, 13, '.');
-  c.set(12, 12, 'O');
-  c.set(13, 13, 'O');
+  c.set(6, 11, '.');
+  c.set(11, 11, '~');
+  c.carveRect(12, 10, 14, 12, '.');
+  c.set(13, 12, 'O');
+  c.set(8, 13, 'O');
+  c.set(7, 13, 'O');
 
   return {
     code: 'P21',
     designNote:
-      "Mirrors sink in unfrozen water, and L1 melts any unshielded ice! Push Mirror m1's fireproof rear into L1 to shield the moat, freeze ~ to push Mirror m2 across onto O1, then pull m1 out to power S1 and thread m to O2!",
+      "The only water crossing at (11,11) lies directly under Laser L1 (which instantly melts unshielded ice)! Push Mirror m1's fireproof rear into (8,11) to block L1, freeze (11,11) and push m2 across to O1, then return West and push m1 out of the ray onto O2!",
     room: {
       id: 'p21',
       name: 'P21 Prism Backhand',
       width: LAB_BIG_W,
       height: LAB_BIG_H,
       kit: ['ice'],
-      entry: [8, 12],
+      entry: [7, 12],
       condition: 'buttons-and-sensors',
       rows: c.rows(),
       props: [
-        { id: 'm1', kind: 'mirror', x: 9, y: 12, facing: 'NE' },
-        { id: 'm2', kind: 'mirror', x: 10, y: 12, facing: 'NE' },
+        { id: 'm1', kind: 'mirror', x: 8, y: 12, facing: 'NE' },
+        { id: 'm2', kind: 'mirror', x: 10, y: 11, facing: 'NE' },
       ],
-      lasers: [{ id: 'L1', x: 7, y: 11, dir: 'E', level: 0 }],
+      lasers: [{ id: 'L1', x: 6, y: 11, dir: 'E', level: 0 }],
       sensors: [{ id: 'S1', x: 14, y: 11, level: 0 }],
     },
   };

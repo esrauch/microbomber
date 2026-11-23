@@ -204,6 +204,21 @@ export function runAblationAudit(
     }
   }
 
+  for (const cr of room.creatures ?? []) {
+    const cid = cr.id ?? `${cr.kind}@${cr.x},${cr.y}`;
+    const withoutCreature: LabRoomSpec = {
+      ...room,
+      creatures: (room.creatures ?? []).filter((x) => x !== cr),
+    };
+    const sameWorks = replayWitness(withoutCreature, baseSolve.flatActions);
+    if (sameWorks) {
+      const sub = solveLabRoom(withoutCreature, ablationBudget);
+      if (sub.solved && sub.steps.length >= baseSolve.steps.length) {
+        inactiveMechanisms.push(`creature:${cid}`);
+      }
+    }
+  }
+
   return {
     unusedKitBombs,
     requiredProps,

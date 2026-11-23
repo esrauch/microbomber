@@ -97,6 +97,7 @@ export type LabTile =
   | '='
   | 'g'
   | 'm'
+  | 't'
   | '|'
   | '^'
   | '!'
@@ -244,7 +245,7 @@ export interface SluiceSpec {
   drainsVeilsWhenLow?: boolean;
 }
 
-export type CreatureKind = 'beetle' | 'mimic' | 'tortoise' | 'otter';
+export type CreatureKind = 'beetle' | 'mimic' | 'tortoise' | 'otter' | 'cart';
 
 export interface CreatureSpec {
   id?: string;
