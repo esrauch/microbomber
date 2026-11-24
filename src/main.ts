@@ -480,19 +480,23 @@ stageEl.append(fade);
 // =========================================================================
 const joystick = mountJoystick(controlsEl);
 
+const centerCluster = document.createElement('div');
+Object.assign(centerCluster.style, {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  alignSelf: 'flex-end',
+  gap: '5px',
+  paddingBottom: '2px',
+});
+
 const rightCluster = document.createElement('div');
 Object.assign(rightCluster.style, {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-end',
-  gap: '6px',
-});
-
-const topRow = document.createElement('div');
-Object.assign(topRow.style, {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
+  justifyContent: 'center',
 });
 
 const satchelPips = document.createElement('div');
@@ -501,6 +505,7 @@ Object.assign(satchelPips.style, {
   lineHeight: '1',
   color: '#f8d858',
   letterSpacing: '2px',
+  textAlign: 'center',
 });
 
 const swapBtn = document.createElement('button');
@@ -538,7 +543,7 @@ Object.assign(startBtn.style, {
   cursor: 'pointer',
   touchAction: 'none',
 });
-topRow.append(satchelPips, swapBtn, startBtn);
+centerCluster.append(satchelPips, swapBtn, startBtn);
 
 const BOMB_META: Record<BombKind, { sprite: ObjSpriteName; pal?: ObjPaletteId; label: string }> = {
   bomb: { sprite: 'BOMB_1', pal: 'powder', label: 'Bomb' },
@@ -665,8 +670,8 @@ const placeBtnIcon = placeHandles.icon;
 const placeBtnLabel = placeHandles.label;
 actionRow.append(rollBtn, placeBtn);
 
-rightCluster.append(topRow, actionRow);
-controlsEl.append(rightCluster);
+rightCluster.append(actionRow);
+controlsEl.append(centerCluster, rightCluster);
 
 // =========================================================================
 // Pause subscreen (START): GBC-framed Satchel Subscreen
