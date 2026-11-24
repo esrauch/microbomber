@@ -1050,7 +1050,13 @@ function syncHud(force = false): void {
           ? 'Mouse House'
           : 'Cinderholm';
   const obj = room?.objective ? ` · ${room.objective}` : '';
-  roomMetaRow.textContent = `${zonePrefix}: ${room?.name ?? ''}${obj}`;
+  const objHintSpan = document.createElement('span');
+  objHintSpan.textContent = obj;
+  objHintSpan.style.display = 'none';
+  roomMetaRow.replaceChildren(
+    document.createTextNode(`${zonePrefix}: ${room?.name ?? ''}`),
+    objHintSpan,
+  );
 
   // Auto-drawn minimap (`GAME.md` §5)
   minimapEl.replaceChildren();
@@ -1169,6 +1175,7 @@ function syncHud(force = false): void {
           : '#98b098';
     const line1 = document.createElement('div');
     line1.textContent = `▸ ${room?.objective ?? 'Explore Cinderholm Isle'}`;
+    line1.style.display = 'none';
     const line2 = document.createElement('div');
     line2.style.color =
       state.zone === 'ice-cave' || state.zone === 'dungeon-999'
@@ -1177,6 +1184,7 @@ function syncHud(force = false): void {
           ? '#a88c6c'
           : '#789078';
     line2.style.marginTop = '2px';
+    line2.style.display = 'none';
     line2.textContent =
       state.unlockedBombs.length === 0
         ? '[B] ROLL · WALK NEAR GRANDMA TO TALK'
