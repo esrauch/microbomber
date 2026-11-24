@@ -47,7 +47,42 @@ describe('Dungeon 999: the trial rooms', () => {
       expect([pad.targetX, pad.targetY]).toEqual(DUNGEON_999_ENTRIES.get(`${room.rx},${room.ry}`));
       expect(tileAt(world, s, 'dungeon-999', 0, 0, pad.x, pad.y)).toBe('>');
     }
-    expect(lobby.portals!.some((p) => p.targetZone === 'basement')).toBe(true);
+    expect(
+      lobby.portals!.some(
+        (p) => p.targetZone === 'overworld' && p.targetRx === 2 && p.targetRy === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it('is sealed in the top-left overworld area (overworld:2,0) until the Ice Cave boss is beaten, then opens to enter and exit cleanly', () => {
+    const s = newState(world, 'overworld', 2, 0, 11, 8.5);
+    s.unlockedBombs = ['bomb', 'fire'];
+    s.equipped = 'fire';
+    // Before beating the Ice Cave boss, the north shutter at (10..11, 6..7) stays closed
+    expect(s.roomSolved).toBe(false);
+    expect(tileAt(world, s, 'overworld', 2, 0, 10, 6)).toBe('S');
+    stepTicks(world, s, 60, { dx: 0, dy: -1 });
+    expect(s.zone).toBe('overworld');
+    expect(s.y).toBeGreaterThan(7);
+
+    // Once the Ice Cave boss room ('ice-cave:0,0') is solved, the shutter opens
+    s.solvedRooms.add('ice-cave:0,0');
+    tick(world, s, { dx: 0, dy: 0 });
+    expect(s.roomSolved).toBe(true);
+    expect(tileAt(world, s, 'overworld', 2, 0, 10, 6)).toBe('.');
+
+    // Walk north through the opened doorway onto the '>' stairs at (10..11, 4..5)
+    stepTicks(world, s, 90, { dx: 0, dy: -1 });
+    expect([s.zone, s.rx, s.ry]).toEqual(['dungeon-999', 0, 0]);
+    expect(s.unlockedBombs).toEqual([...ALL_BOMBS]);
+
+    // Step onto the Lobby exit pad at (16, 20) to return to Tower Courtyard (overworld:2,0) with campaign kit restored
+    s.portalCooldown = 0;
+    standAt(s, 16, 20, 0, 1);
+    tick(world, s, { dx: 0, dy: 0 });
+    expect([s.zone, s.rx, s.ry]).toEqual(['overworld', 2, 0]);
+    expect(s.unlockedBombs).toEqual(['bomb', 'fire']);
+    expect(s.equipped).toBe('fire');
   });
 
   it('every trial hands over its own campaign-sized kit, and its pad leads back', () => {

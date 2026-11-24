@@ -155,6 +155,22 @@ function getFireTorchContacts(s: State, patch: object): Set<string> {
   return set;
 }
 
+const campaignKitsBefore999 = new WeakMap<
+  State,
+  { unlockedBombs: BombKind[]; equipped: BombKind | null; maxBombs: number; blastRadius: number }
+>();
+
+/** True once the Ice Cave boss (`ice-cave:0,0`) has been defeated or the Cinder Core reclaimed. */
+export function isIceBossBeaten(
+  s: Pick<State, 'solvedRooms'> & Partial<Pick<State, 'cores' | 'spireCinderSlotted'>>,
+): boolean {
+  return (
+    s.solvedRooms.has('ice-cave:0,0') ||
+    Boolean(s.cores?.includes('cinder')) ||
+    Boolean(s.spireCinderSlotted)
+  );
+}
+
 /** Downhill unit vector for `'n' | 's' | 'e' | 'w'` slope tiles, or `null` for non-slopes. */
 export function slopeVector(t: Tile): { dx: number; dy: number } | null {
   switch (t) {
@@ -313,7 +329,13 @@ export function tileAt(
   if ((t === '%' || t === 'W' || t === ';' || t === '!') && s.brokenTiles.has(ck)) return '.';
   if ((t === ',' || t === 'B' || t === 'W') && s.burnedTiles.has(ck)) return '.';
   if ((t === 'D' || t === 'K') && s.openedDoors.has(ck)) return '.';
-  if (t === 'S' && (s.roomSolved || s.solvedRooms.has(roomKey(zone, rx, ry)))) return '.';
+  if (t === 'S') {
+    const rk = roomKey(zone, rx, ry);
+    const solved = room?.spireSeal
+      ? s.solvedRooms.has(rk) || isIceBossBeaten(s) || s.roomSolved
+      : s.roomSolved || s.solvedRooms.has(rk);
+    if (solved) return '.';
+  }
   if (t === 'G' && s.gatesOpen) return '.';
   // Retractable spikes are plain spikes until the room's switches sink them
   if (t === 'X') return s.gatesOpen ? '.' : '!';
@@ -530,6 +552,14 @@ export function enterRoom(
     s.crystalColor = 'red';
   }
   if (zone === 'dungeon-999') {
+    if (prevZone !== 'dungeon-999') {
+      campaignKitsBefore999.set(s, {
+        unlockedBombs: [...s.unlockedBombs],
+        equipped: s.equipped,
+        maxBombs: s.maxBombs,
+        blastRadius: s.blastRadius,
+      });
+    }
     // A puzzle room hands over its own campaign-sized kit; the Lobby hands over everything
     const kit = world.rooms.get(roomKey(zone, rx, ry))?.kit;
     s.unlockedBombs = kit ? [...kit.bombs] : [...ALL_BOMBS];
@@ -538,6 +568,18 @@ export function enterRoom(
     }
     s.maxBombs = kit ? (kit.maxBombs ?? 2) : 4;
     s.blastRadius = kit ? (kit.blastRadius ?? 1) : 2;
+  } else if (prevZone === 'dungeon-999') {
+    const savedKit = campaignKitsBefore999.get(s);
+    if (savedKit) {
+      s.unlockedBombs = [...savedKit.unlockedBombs];
+      s.equipped =
+        savedKit.equipped && s.unlockedBombs.includes(savedKit.equipped)
+          ? savedKit.equipped
+          : (s.unlockedBombs[0] ?? null);
+      s.maxBombs = savedKit.maxBombs;
+      s.blastRadius = savedKit.blastRadius;
+      campaignKitsBefore999.delete(s);
+    }
   }
   s.zone = zone;
   s.rx = rx;
@@ -572,8 +614,13 @@ export function enterRoom(
   const rk = roomKey(zone, rx, ry);
   s.visitedRooms.add(rk);
   const room = world.rooms.get(rk);
+  if (room?.spireSeal && isIceBossBeaten(s)) {
+    s.solvedRooms.add(rk);
+  }
   const alreadySolved = s.solvedRooms.has(rk);
-  s.roomSolved = alreadySolved || !room?.condition || room.condition === 'none';
+  s.roomSolved = room?.spireSeal
+    ? alreadySolved || isIceBossBeaten(s)
+    : alreadySolved || !room?.condition || room.condition === 'none';
   settleAtDoorway(world, s);
   s.entryX = s.x;
   s.entryY = s.y;
@@ -669,24 +716,22 @@ export function enterRoom(
     s.pickups.push({ id: ps.id, kind: ps.kind, x: ps.x, y: ps.y });
   }
 
-  // Auto-slot Cinder Core when visiting Tower Courtyard with it
-  if (room.spireSeal && s.cores.includes('cinder') && !s.spireCinderSlotted) {
-    s.spireCinderSlotted = true;
+  // Auto-slot Cinder Core and unseal Dungeon 999 when visiting Tower Courtyard after the Ice Cave boss
+  if (room.spireSeal && isIceBossBeaten(s)) {
     for (const t of s.torches) t.lit = true;
-    showBanner(
-      s,
-      'The Cinder Core blazes on the Tower Seal! (1 of 4 Elemental Cores restored — Vertical Slice Complete!)',
-      6,
-    );
-    s.events.push('core-slotted');
+    if (s.cores.includes('cinder') && !s.spireCinderSlotted) {
+      s.spireCinderSlotted = true;
+      showBanner(
+        s,
+        'The Cinder Core blazes on the Tower Seal! (1 of 4 Elemental Cores restored — Vertical Slice Complete!)',
+        6,
+      );
+      s.events.push('core-slotted');
+    }
   }
 }
 
 export function enterDungeon999(world: World, s: State): void {
-  s.unlockedBombs = [...ALL_BOMBS];
-  s.equipped = s.equipped ?? 'bomb';
-  s.maxBombs = 4;
-  s.blastRadius = 2;
   enterRoom(world, s, 'dungeon-999', 0, 0, 10.5, 12.5);
 }
 
@@ -1579,6 +1624,14 @@ function updatePillars(world: World, s: State, dt: number): void {
 function checkSolveCondition(world: World, s: State): void {
   if (s.roomSolved) return;
   const room = currentRoom(world, s);
+  if (room?.spireSeal) {
+    if (isIceBossBeaten(s)) {
+      s.roomSolved = true;
+      s.solvedRooms.add(roomKey(s.zone, s.rx, s.ry));
+      for (const t of s.torches) t.lit = true;
+    }
+    return;
+  }
   if (!room?.condition || room.condition === 'none') {
     s.roomSolved = true;
     return;

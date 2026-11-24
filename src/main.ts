@@ -1369,7 +1369,7 @@ const frame = (now: number): void => {
     if (accumulator >= FIXED_DT) {
       accumulator = 0;
     }
-    if (moved && fromZone === 'dungeon-999' && state.zone !== 'dungeon-999') {
+    if (moved && fromZone === 'dungeon-999' && state.zone !== 'dungeon-999' && campaignStash) {
       state = leaveDungeon999();
       campaignStash = null;
     }
