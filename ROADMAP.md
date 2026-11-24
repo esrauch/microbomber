@@ -26,6 +26,138 @@ every tick.
 
 ---
 
+## Phase 7.5: Puzzle Lab — from pocket puzzles to whole-screen machines
+
+The lab (`tools/puzzle-lab`, `puzzle-lab.html`) is how rooms for Phases 8–10 get
+designed and proved. Its job is to deliver what
+[`PUZZLE_MECHANICS.md`](PUZZLE_MECHANICS.md) sets out: whole-screen
+`3`–`5`-stage machines (Principle 4), "aha" solves, kit restrictions, and
+`A → A' → A''` triads (Principle 5). Every state should be visible (Principle 6),
+every room resettable (Principle 7), and every primitive testable in Dungeon 999.
+
+**Where it stands (audit of `P01–P50`, 2026-11-23).** All `50` rooms solve,
+replay, and pass the critic. They still fall short of the doc:
+
+- **They are pockets, not screens.** The interior is `14 × 18` (`252` cells).
+  The rooms use `9`–`62` of those cells, and their mechanisms fit in boxes from
+  `4 × 5` to `10 × 9`, walled into the middle of the screen. Each is an
+  `11 × 13`-era puzzle. `P42` *Grand Clockwork Synthesis* is a `6 × 4` pocket.
+- **They are short.** The solved routes run `1`–`9` macro steps. The solver
+  stops at depth `10` and `4000` states, so a real whole-screen machine can't be
+  certified. The suite has been sized to the solver, not to the design.
+- **The critic counts features, not insight.** The creativity score gives points
+  for things that happen (a prop with two jobs, Self-Cryo, a stolen flame). So a
+  `3`-step room can rate "masterpiece." Several things go unchecked:
+  - that the obvious idea fails;
+  - that the solver's solution is the designed one and not a shortcut past a
+    stage;
+  - that each triad's Act II and Act III defeat the previous act's solve.
+
+  Dungeon 999 already tests "the tempting wrong one"; the lab doesn't.
+- **None of it is in the game.** The lab is a separate model, with one tick
+  standing for `0.5 s`. Most of its primitives don't exist in
+  `src/game/world.ts`: lasers, mirrors, fans, turntables, sluices, rafts,
+  springs, grates, veils, crates and carts. Its timings drift from the game's: a
+  lab Bomb fuse is `4` ticks (`≈ 2 s`), the game's is `3 s`. No lab room can be
+  played.
+- **Rooms aren't placed.** The `P` codes don't map to the `R1–R6` / `T01–T30`
+  catalogue (`DUNGEONS.md`) or to the bomb unlock order. So nothing says which
+  bombs a room may assume, or which primitive it teaches before it twists it.
+- **Two principles go unchecked:** that every state is visible (Principle 6),
+  and that Pip can always walk out to reset a room he has spoiled (Principle 7).
+
+Design comes first. The lab's model is the spec: rooms are designed and proved
+there in full, and only then are the mechanics they need built in the game.
+Nothing is built in `world.ts` that a certified room doesn't use.
+
+### Part 1: Design the rooms in the lab
+
+- [ ] **L1. Timings in seconds.**
+  - [ ] Fix one seconds-per-tick for the lab. Where the game already has a
+        mechanic, take its timing from `world.ts` (`BOMB_FUSES`, `SPEED`,
+        whirlwind, freeze, daze, fire per tile, `CURRENT_SPEED`), with a test
+        that fails when they drift apart. Where it doesn't, the lab's timing in
+        seconds becomes the spec the game must meet later.
+  - [ ] The critic reports each solve's tightest timing window in seconds. Rooms
+        must leave thinking-pace slack: the puzzle is the plan, not the
+        execution.
+- [ ] **L2. A solver that scales to a whole screen.**
+  - [ ] Search **stages**: split the room into regions joined by gates (fences,
+        barriers, `G` gates, ledges, water). Solve each region with macro moves,
+        and search across regions on their abstract state (what's open, what's
+        where). Add canonical state keys and dominance pruning.
+  - [ ] Target: certify a `15`–`25`-macro-step, `4`-stage room in under `5 s`
+        in tests.
+  - [ ] Keep today's exhaustive search for pocket rooms, and cross-check both
+        solvers on them.
+- [ ] **L3. A critic that measures the intent.**
+  - [ ] Every entry carries its **intended solution** as named stages, plus
+        **`1`–`3` tempting wrong plans** (what a player tries first). The
+        intended plan must replay, and every tempting plan must fail. The
+        solver's shortest solve must pass through every intended stage, so no
+        unintended shortcut skips one.
+  - [ ] **Triad check:** Act II must reject Act I's solution, and Act III must
+        reject both. This is Principle 5's escalation, tested.
+  - [ ] Count **stages** (sub-goals reached by separate causal chains) rather
+        than macro steps. Require `3`–`5` stages for a full room.
+  - [ ] **Walk-out check:** from every state the solver reaches, Pip can still
+        get back to the entrance and reset the room (Principle 7).
+  - [ ] **Legibility check:** every signal source and its sink are adjacent, in
+        line of sight, or joined by a declared rune trace. No hidden state
+        (Principle 6).
+  - [ ] Re-base the creativity score on these checks. Stop scoring a feature
+        just for appearing.
+- [ ] **L4. Whole-screen rooms.**
+  - [ ] Keep `P01–P50` as a **stage library**, each tagged with its inputs and
+        outputs (a lowered barrier, a crate on a plate, a lit brazier, Pip on
+        level `1`).
+  - [ ] The composer chains `3`–`5` library stages across the full interior,
+        with each stage's output gating the next region. Rooms must span at
+        least `12 × 14` of the interior.
+  - [ ] First targets:
+    - a whole-screen Act III for each of the four triads;
+    - a real `P42` Grand Synthesis;
+    - one whole-screen room per primitive family in `PUZZLE_MECHANICS.md`.
+  - [ ] Then the full set: every Relic Shrine (`R1–R6`), every Trial Shrine
+        (`T01–T30`), and the puzzle rooms of each Major Dungeon.
+  - [ ] The viewer shows each room's stages, the intended plan, and the tempting
+        plans failing, and lets you play the room by hand.
+- [ ] **L5. Place rooms in the campaign.**
+  - [ ] Assign each whole-screen room to an `R` / `T` slot or a dungeon room
+        (`DUNGEONS.md`). Its kit must only use bombs unlocked by that slot, and a
+        triad's three acts go in consecutive slots.
+  - [ ] Coverage report: every primitive is taught plainly (an Act I room)
+        before any room twists it.
+  - [ ] Backport list: for each primitive, how many placed rooms need it and
+        the earliest slot that does. This orders Part 2.
+
+**Design done when** the first-target rooms pass the L3 critic in the lab, all
+four triads at full size and the real `P42` among them, and are placed in L5.
+The full set can keep growing in the lab while Part 2 runs.
+
+### Part 2: Backport the mechanics to the game
+
+- [ ] **L6. Build what the rooms need, in the order they need it.**
+  - [ ] Write each primitive's lab rules down as its spec in
+        `PUZZLE_MECHANICS.md` (what moves it, what it blocks, its timing in
+        seconds).
+  - [ ] Implement primitives in `world.ts` in the backport list's order:
+        earliest slot first, then most rooms. This takes over the mover items
+        in Phase 9.
+  - [ ] For each primitive, a **parity test**: the same scenario in the lab and
+        in the game must end the same way.
+- [ ] **L7. Rooms into Dungeon 999, then the campaign.**
+  - [ ] A lab → `RoomSpec` exporter. Every exported room joins a Dungeon 999
+        lab wing with a rig test, like the 999 trials: it replays the intended
+        plan at `60 Hz`, shows the tempting plans failing, and checks that no
+        walking or single-bomb solve exists.
+  - [ ] Once a room holds at `60 Hz`, it moves to its campaign slot (Phase 10).
+
+**Done when** the first-target rooms are playable in Dungeon 999, with every
+intended plan and tempting plan holding at `60 Hz`.
+
+---
+
 ## Phase 8: Puzzle-First Pivot — Zero Hearts, Clockwork Creatures & Scrolling Shrines
 
 Align the core simulation, HUD, and existing vertical slice (`Grandma's Basement`,

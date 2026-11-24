@@ -341,19 +341,24 @@ multi-room architectural patterns that make a dungeon read as one machine:
     *BotW* `sheh-rata-shrine.wiki`, *ALttP* Swamp Palace): flooding floats
     wooden crates and rafts up one level while lifting buoyant weights *off*
     submerged plates; draining turns deep water into walkable shallow fords
-  - **Height-layered lasers, fans & elevation (`0 / 1 / 2`)** (*TotK*
+  - **Height-layered lasers, fans & multi-pillar elevation (`0 / 1 / 2`)** (*TotK*
     `sahirow-shrine.wiki`, *Oracles* cliffs & raisable pillars): beams and gusts
-    travel at their own tier, passing over sunken blocks until water or a pillar
-    lifts an obstacle into the stream
-  - **Richer melting, freezing & cryo-stasis** (*Minish Cap* Temple of Droplets,
-    *Seasons* Sword & Shield): freezing deep water into bridges, shallow water
-    into slick curling frost, and encasing creatures—or ticking bombs!—in sliding
-    ice cubes until Fire or a Thermal Laser thaws them
-  - **Asymmetric Pip-only vs. Bomb-only gates** (*Minish Cap* `deepwood-shrine.wiki`
-    mouseholes & waterfall douse curtains vs. slotted bomb grates & low fences):
-    splitting Pip's route from the bomb's route so the two reunite at the target
-  - **`90°` turntables & propelling rafts** (*Ages* Moonlit Grotto, *BotW* Vah
-    Naboris & Korok rafts): rotating curved chutes, fans, mirrors, or a pinned
+    travel at their own tier, passing over sunken blocks until water or an
+    independently triggered floor pillar (`red` / `blue` / `switches`) lifts a
+    crate or `90°` Mirror periscope into the stream
+  - **Richer melting, freezing & Self-Cryo (`Ice-Pip`)** (*Minish Cap* Temple of
+    Droplets, *Seasons* Sword & Shield): freezing deep water into bridges,
+    shallow water into slick curling frost (skimming across slotted `'g'`
+    grates), frost-coating wooden crates with `1`-hit thermal armor, and encasing
+    creatures—or Pip himself (`Self-Cryo`)!—in sliding ice cubes (live items
+    never freeze) until Fire or a Unified Laser thaws them
+  - **Asymmetric Pip-only vs. Item/Cart-only gates** (*Minish Cap*
+    `deepwood-shrine.wiki` mouseholes & waterfall douse curtains vs. slotted
+    grates, low fences & `'t'` mine-cart rails): splitting Pip's route from the
+    item's or mine cart's route so the two reunite at the target
+  - **`90°` turntables, mine-cart roundhouses & propelling rafts** (*Ages*
+    Moonlit Grotto, *Seasons* Unicorn's Cave, *BotW* Vah Naboris & Korok rafts):
+    rotating curved chutes, cart tracks, fans, mirrors, or a pinned
     crate-and-Pip pair to unlock impossible angles
 - **Reward lateral player creativity, block only trivial cheese.** Like *BotW*'s
   "Halt the Tilt" and Sheh Rata's remote-bomb solve, rooms should reject 0- or
